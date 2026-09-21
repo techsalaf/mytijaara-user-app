@@ -12,6 +12,7 @@ import 'package:sixam_mart/features/location/controllers/location_controller.dar
 import 'package:sixam_mart/features/location/domain/services/location_service_interface.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/common/models/module_model.dart';
+import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/features/location/domain/models/zone_data_model.dart';
 import 'package:sixam_mart/features/location/domain/models/zone_response_model.dart';
 import 'package:sixam_mart/features/auth/domain/models/store_body_model.dart';
@@ -54,6 +55,17 @@ class StoreRegistrationController extends GetxController implements GetxService 
 
   int? _selectedModuleIndex = -1;
   int? get selectedModuleIndex => _selectedModuleIndex;
+
+  /// The currently selected module, or null when nothing is selected yet.
+  ModuleModel? get selectedModule {
+    final int index = _selectedModuleIndex ?? -1;
+    if (index < 0 || _moduleList == null || index >= _moduleList!.length) return null;
+    return _moduleList![index];
+  }
+
+  /// Service modules book a service rather than deliver an order, so screens
+  /// swap delivery-oriented wording (e.g. estimated delivery time) accordingly.
+  bool get isServiceModuleSelected => selectedModule?.moduleType == AppConstants.service;
 
   bool _showPassView = false;
   bool get showPassView => _showPassView;

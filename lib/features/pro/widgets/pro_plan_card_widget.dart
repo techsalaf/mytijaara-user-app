@@ -1,3 +1,4 @@
+import 'package:sixam_mart/common/controllers/theme_controller.dart';
 import 'package:sixam_mart/features/pro/domain/models/pro_plan_model.dart';
 import 'package:sixam_mart/features/pro/widgets/pro_benefit_items.dart';
 import 'package:sixam_mart/util/dimensions.dart';
@@ -18,17 +19,17 @@ class ProPlanCardWidget extends StatelessWidget {
       children: [
         
         Container(
-          decoration: const BoxDecoration(
-            color: Color(0xffDFDFFF),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(Dimensions.radiusLarge)),
+          decoration: BoxDecoration(
+            color: Get.find<ThemeController>().darkTheme ?  Colors.deepPurple.withValues(alpha: .2) : const Color(0xffDFDFFF),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(Dimensions.radiusLarge)),
           ),
           child: Column(
             children: [
               Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: Colors.white.withAlpha(100),
-                  borderRadius: BorderRadius.vertical(bottom: Radius.circular( Dimensions.radiusExtraLarge), top: Radius.circular(Dimensions.radiusLarge)),
+                  color: Get.find<ThemeController>().darkTheme ? Colors.deepPurpleAccent.withValues(alpha: .2) : Colors.white.withAlpha(100),
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular( Dimensions.radiusExtraLarge), top: Radius.circular(Dimensions.radiusLarge)),
                 ),
                 child: Column(
                   children: [
@@ -89,9 +90,9 @@ class ProPlanCardWidget extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeDefault, color: Colors.black)),
+                Text(title, style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeDefault, color: Get.find<ThemeController>().darkTheme ? Colors.white : Colors.black)),
                 if (subtitle.isNotEmpty)
-                  Text(subtitle, style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Colors.black)),
+                  Text(subtitle, style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Get.find<ThemeController>().darkTheme ? Colors.white60 : Colors.black)),
               ],
             ),
           ),

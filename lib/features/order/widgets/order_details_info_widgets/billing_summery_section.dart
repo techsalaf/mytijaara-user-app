@@ -8,6 +8,7 @@ import 'package:sixam_mart/features/order/model/billing_value.dart';
 import 'package:sixam_mart/features/order/widgets/collapsible_header.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
+import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/styles.dart';
 
@@ -29,7 +30,8 @@ class _BillingSummarySectionState extends State<BillingSummarySection> {
     final order = widget.order;
     final billing = widget.billing;
     final addOnEnabled = Get.find<SplashController>().getModuleConfig(order.moduleType).addOn ?? false;
-    final additionalChargeName = Get.find<SplashController>().configModel?.additionalChargeName ?? '';
+    final isRentalOrParcel = billing.parcel || order.moduleType == AppConstants.taxi;
+    final additionalChargeName = isRentalOrParcel ? 'service_charge'.tr : 'additional_charge'.tr;
     final hasAdditionalCharge = billing.additionalCharge > 0;
     final hasCouponDiscount = billing.couponDiscount > 0;
     final hasReferrerBonus = billing.referrerBonusAmount > 0;
@@ -107,7 +109,7 @@ class _BillingSummarySectionState extends State<BillingSummarySection> {
                 ),
               if (showDeliveryTypeCharge)
                 _BillingRow(
-                  label: '${order.deliveryType!.replaceAll('_', ' ').capitalize} ${'delivery'.tr}',
+                  label: '${order.deliveryType!.tr.replaceAll('_', ' ').capitalize} ${'delivery'.tr}',
                   value: '${billing.deliveryTypeCharge < 0 ? '(-)' : '(+)'} ${PriceConverter.convertPrice(billing.deliveryTypeCharge.abs())}',
                 ),
             ],

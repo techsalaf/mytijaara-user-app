@@ -6,7 +6,7 @@ import 'package:sixam_mart/common/widgets/custom_snackbar.dart';
 import 'package:sixam_mart/features/order/controllers/order_controller.dart';
 import 'package:sixam_mart/features/order/domain/models/monthly_order_model.dart';
 import 'package:sixam_mart/features/order/domain/models/order_model.dart';
-import 'package:sixam_mart/features/cart/screens/global_cart_screen.dart';
+import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 import 'package:sixam_mart/util/images.dart';
 
 /// Shared actions for monthly-order (My Items) menus across the list and detail screens.
@@ -31,19 +31,21 @@ class MonthlyOrderActions {
 
   static void addToCart(MonthlyOrder order) {
     final int? orderId = order.orderId;
-    final int? moduleId = order.moduleId;
     if(orderId == null) {
       showCustomSnackBar('sorry_something_went_wrong'.tr);
       return;
     }
-    Get.find<OrderController>().reorder(OrderModel(id: orderId));
-
-    // Navigate to global cart screen with the correct module pre-selected
-    if(moduleId != null) {
-      Future.delayed(const Duration(milliseconds: 500), () {
-        Get.to(() => GlobalCartScreen(fromNav: false, initialModuleId: moduleId));
-      });
-    }
+    // reorder() already navigates to the global cart (with the correct module
+    // pre-selected) and refreshes the cart once the add succeeds — matching every
+    // other reorder call site. Navigating again here duplicated the cart screen
+    // and its getAllCarts() fetch, showing stacked loaders.
+    // store/moduleId must be passed through so reorder() can detect an existing
+    // cart for another store and show the reset-confirmation dialog instead of
+    // silently clearing it.
+    Get.find<OrderController>().reorder(OrderModel(
+      id: orderId, moduleId: order.moduleId, moduleType: order.moduleType,
+      store: order.store?.id != null ? Store(id: order.store!.id) : null,
+    ));
   }
 
   static void confirmRemove(MonthlyOrder order, {VoidCallback? onRemoved}) {

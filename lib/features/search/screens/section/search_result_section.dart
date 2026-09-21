@@ -6,14 +6,18 @@ import 'package:sixam_mart/common/models/module_model.dart';
 import 'package:sixam_mart/common/models/restaurant_offer_chip.dart';
 import 'package:sixam_mart/common/widgets/paginated_list_view.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
-import 'package:sixam_mart/features/redesign_feature/dashboard/widgets/common_widget/featured_store_card.dart';
-import 'package:sixam_mart/features/redesign_feature/dashboard/widgets/common_widget/food_item_card.dart';
+import 'package:sixam_mart/common/widgets/featured_store_card.dart';
+import 'package:sixam_mart/common/widgets/food_item_card.dart';
 import 'package:sixam_mart/features/search/domain/models/food_item.dart';
-import 'package:sixam_mart/features/redesign_feature/global_widgets/exclusive_deal_card.dart';
-import 'package:sixam_mart/features/redesign_feature/global_widgets/restaurant_item_card.dart';
-import 'package:sixam_mart/features/redesign_feature/global_widgets/restaurant_summary_row.dart';
+import 'package:sixam_mart/common/widgets/exclusive_deal_card.dart';
+import 'package:sixam_mart/common/widgets/restaurant_item_card.dart';
+import 'package:sixam_mart/common/widgets/restaurant_summary_row.dart';
 import 'package:sixam_mart/features/search/controllers/search_controller.dart'
     as search;
+import 'package:sixam_mart/features/service_module/service_home/controllers/service_controller.dart';
+import 'package:sixam_mart/features/service_module/service_home/domain/models/service_model.dart';
+import 'package:sixam_mart/features/service_module/common/widgets/service_item_card.dart';
+import 'package:sixam_mart/features/service_module/service_home/widgets/service_search_card.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
@@ -106,14 +110,29 @@ class SearchResultSectionState extends State<SearchResultSection> {
   Widget build(BuildContext context) {
     return GetBuilder<search.SearchController>(
       builder: (sc) {
+        final bool isServiceModule = sc.isServiceModule;
+        final List<Service> services = sc.searchServiceList ?? [];
         final List<Item> items = sc.searchItemList ?? [];
-        final int itemCount = sc.searchItemTotalSize ?? items.length;
+        final int itemCount = isServiceModule
+            ? (sc.searchServiceTotalSize ?? services.length)
+            : (sc.searchItemTotalSize ?? items.length);
         final int storeCount = sc.searchStoreList?.length ?? 0;
         final int count = _filter == _SearchFilter.items
             ? itemCount
             : _filter == _SearchFilter.stores
             ? storeCount
             : itemCount + storeCount;
+
+        // The count total isn't known until the tab's underlying list(s) resolve;
+        // until then show a shimmer instead of a misleading "0". The All tab needs
+        // both lists before its combined total is meaningful.
+        final bool itemsLoaded = isServiceModule ? sc.searchServiceList != null : sc.searchItemList != null;
+        final bool storesLoaded = sc.searchStoreList != null;
+        final bool countLoading = _filter == _SearchFilter.items
+            ? !itemsLoaded
+            : _filter == _SearchFilter.stores
+            ? !storesLoaded
+            : (!itemsLoaded || !storesLoaded);
 
         // A new filter (filterVersion change) clears both lists — re-arm the
         // lazy-load guards so the current tab re-fetches with the new filter.
@@ -147,13 +166,14 @@ class SearchResultSectionState extends State<SearchResultSection> {
               selected: _filter,
               onSelected: _selectFilter,
               searchText: widget.searchText,
+              isLoading: countLoading,
             ),
             Divider(
               height: 1,
               thickness: 1,
               color: Theme.of(context).disabledColor.withValues(alpha: 0.15),
             ),
-            Expanded(child: _buildBody(context, sc, items)),
+            Expanded(child: _buildBody(context, sc, items, services, isServiceModule)),
           ],
         );
       },
@@ -164,9 +184,45 @@ class SearchResultSectionState extends State<SearchResultSection> {
     BuildContext context,
     search.SearchController sc,
     List<Item> items,
+    List<Service> services,
+    bool isServiceModule,
   ) {
     // ── Items tab ────────────────────────────────────────────────────────────
     if (_filter == _SearchFilter.items) {
+      // Service module renders service cards from the parallel service list.
+      if (isServiceModule) {
+        if (sc.searchServiceList == null) return const _SearchResultShimmer();
+        if (services.isEmpty) return const _NoResultView();
+        return SingleChildScrollView(
+          controller: _scrollController,
+          child: PaginatedListView(
+            scrollController: _scrollController,
+            totalSize: sc.searchServiceTotalSize,
+            offset: sc.searchServiceOffset,
+            onPaginate: (int? offset) async => await sc.paginateSearchServices(widget.searchText),
+            itemView: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: Dimensions.paddingSizeDefault),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Dimensions.paddingSizeDefault,
+                  ),
+                  child: Text(
+                    'all_service_result'.tr,
+                    style: robotoBold.copyWith(
+                      fontSize: Dimensions.fontSizeExtraLarge,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: Dimensions.paddingSizeDefault),
+                _ServicesSection(services: services),
+                const SizedBox(height: Dimensions.paddingSizeDefault),
+              ],
+            ),
+          ),
+        );
+      }
       if (sc.searchItemList == null) return const _SearchResultShimmer();
       if (items.isEmpty) return const _NoResultView();
       return SingleChildScrollView(
@@ -203,7 +259,7 @@ class SearchResultSectionState extends State<SearchResultSection> {
     // ── Stores tab ───────────────────────────────────────────────────────────
     if (_filter == _SearchFilter.stores) {
       if (sc.searchStoreList == null) return const _SearchResultShimmer();
-      if (sc.searchStoreList!.isEmpty) return const _NoResultView();
+      if (sc.searchStoreList!.isEmpty) return const _NoResultView(kind: _EmptyKind.store);
       final bool showRestaurant = Get.find<SplashController>()
           .configModel!
           .moduleConfig!
@@ -226,7 +282,9 @@ class SearchResultSectionState extends State<SearchResultSection> {
                   horizontal: Dimensions.paddingSizeDefault,
                 ),
                 child: Text(
-                  showRestaurant
+                  isServiceModule
+                      ? 'all_provider_result'.tr
+                      : showRestaurant
                       ? 'all_restaurant_result'.tr
                       : 'all_store_result'.tr,
                   style: robotoBold.copyWith(
@@ -263,20 +321,17 @@ class SearchResultSectionState extends State<SearchResultSection> {
 
     // ── All tab ──────────────────────────────────────────────────────────────
     final List<Store> exclusiveDeals = sc.exclusiveDealsStores ?? <Store>[];
+    // In the service module the "items" half of the All tab is the service list.
+    final bool itemsLoaded = isServiceModule ? sc.searchServiceList != null : sc.searchItemList != null;
+    final bool hasItemResults = isServiceModule ? services.isNotEmpty : items.isNotEmpty;
+    final bool storesLoaded = sc.searchStoreList != null;
     // Both result lists still loading — e.g. right after a filter apply, which
     // clears both — show the shimmer even when cached exclusive deals are present
     // (otherwise the stale deals carousel would hide the loading state). Partial
-    // states (one list already resolved) keep the original progressive render.
-    if (sc.searchItemList == null && sc.searchStoreList == null) {
+    // states (one list already resolved) keep the original progressive render;
+    // once each list resolves its own section renders an empty state if needed.
+    if (!itemsLoaded && !storesLoaded) {
       return const _SearchResultShimmer();
-    }
-    final bool hasResults = items.isNotEmpty ||
-        (sc.searchStoreList != null && sc.searchStoreList!.isNotEmpty);
-    if (!hasResults && exclusiveDeals.isEmpty) {
-      // One list still loading → shimmer; both resolved empty → no result.
-      return (sc.searchItemList == null || sc.searchStoreList == null)
-          ? const _SearchResultShimmer()
-          : const _NoResultView();
     }
     final bool showRestaurant = Get.find<SplashController>().configModel!.moduleConfig!.module!.showRestaurantText!;
 
@@ -290,61 +345,83 @@ class SearchResultSectionState extends State<SearchResultSection> {
         offset: sc.searchStoreOffset,
         onPaginate: (int? offset) async {
           await sc.paginateSearchStores(widget.searchText);
-          await sc.paginateSearchItems(widget.searchText);
+          if (isServiceModule) {
+            await sc.paginateSearchServices(widget.searchText);
+          } else {
+            await sc.paginateSearchItems(widget.searchText);
+          }
         },
         itemView: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (items.isNotEmpty) ...[
+            if (itemsLoaded) ...[
               const SizedBox(height: Dimensions.paddingSizeDefault),
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: Dimensions.paddingSizeDefault,
                 ),
                 child: Text(
-                  showRestaurant ? 'foods'.tr : 'items'.tr,
+                  isServiceModule ? 'services'.tr : showRestaurant ? 'foods'.tr : 'items'.tr,
                   style: robotoBold.copyWith(
                     fontSize: Dimensions.fontSizeExtraLarge,
                   ),
                 ),
               ),
               const SizedBox(height: Dimensions.paddingSizeDefault),
-              SizedBox(
-                height: _foodCardRowHeight(context),
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  primary: false,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: Dimensions.paddingSizeDefault,
+              if (hasItemResults)
+                SizedBox(
+                  height: _foodCardRowHeight(context),
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    primary: false,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: Dimensions.paddingSizeDefault,
+                    ),
+                    itemCount: isServiceModule ? services.length : items.length,
+                    separatorBuilder: (_, _) =>
+                        Gaps.horizontalGapOf(Dimensions.paddingSizeSmall),
+                    itemBuilder: (BuildContext context, int index) {
+                      if (isServiceModule) {
+                        final Service service = services[index];
+                        return ServiceItemCard(
+                          service: service,
+                          width: _kFoodCardWidth,
+                          onTap: () => Get.toNamed(RouteHelper.getServiceDetailsRoute(
+                            id: service.id ?? 0, slug: service.slug ?? '',
+                          )),
+                          onFavourite: () => Get.find<ServiceController>().toggleFavourite(service),
+                        );
+                      }
+                      return FoodItemCard(data: items[index], width: _kFoodCardWidth, index: index);
+                    },
                   ),
-                  itemCount: items.length,
-                  separatorBuilder: (_, _) =>
-                      Gaps.horizontalGapOf(Dimensions.paddingSizeSmall),
-                  itemBuilder: (BuildContext context, int index) =>
-                      FoodItemCard(data: items[index], width: _kFoodCardWidth, index: index),
-                ),
-              ),
+                )
+              else
+                const _NoResultView(kind: _EmptyKind.items),
             ],
 
             if (exclusiveDeals.isNotEmpty) _ExclusiveDealsSection(stores: exclusiveDeals),
 
-            if (sc.searchStoreList != null && sc.searchStoreList!.isNotEmpty) ...[
+            if (storesLoaded) ...[
               Gaps.verticalGapOf(exclusiveDeals.isNotEmpty ? Dimensions.paddingSizeDefault : Dimensions.paddingSizeExtraSmall),
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: Dimensions.paddingSizeDefault,
                 ),
                 child: Text(
-                  showRestaurant ? 'restaurants'.tr : 'stores'.tr,
+                  isServiceModule ? 'providers'.tr : showRestaurant ? 'restaurants'.tr : 'stores'.tr,
                   style: robotoBold.copyWith(
                     fontSize: Dimensions.fontSizeExtraLarge,
                   ),
                 ),
               ),
               Gaps.verticalGapOf(Dimensions.paddingSizeLarge),
-              ..._storeGroupWidgets(sc.searchStoreList!),
+              if (sc.searchStoreList!.isNotEmpty)
+                ..._storeGroupWidgets(sc.searchStoreList!)
+              else
+                const _NoResultView(kind: _EmptyKind.store),
             ],
-            const SizedBox(height: Dimensions.paddingSizeDefault),
+            const SizedBox(height: Dimensions.paddingSizeExtraSmall),
           ],
         ),
       ),
@@ -358,12 +435,15 @@ class SearchResultSectionState extends State<SearchResultSection> {
     final bool needItems = _filter == _SearchFilter.items || _filter == _SearchFilter.all;
     final bool needStores = _filter == _SearchFilter.stores || _filter == _SearchFilter.all;
     final String searchText = widget.searchText;
+    final bool isServiceModule = sc.isServiceModule;
+    final bool itemsLoaded = isServiceModule ? sc.searchServiceList != null : sc.searchItemList != null;
 
-    if (needItems && sc.searchItemList == null && _requestedItemSearchText != searchText) {
+    if (needItems && !itemsLoaded && _requestedItemSearchText != searchText) {
       _requestedItemSearchText = searchText;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || widget.searchText != searchText) return;
-        if (Get.find<search.SearchController>().searchItemList != null) return;
+        final search.SearchController controller = Get.find<search.SearchController>();
+        if (isServiceModule ? controller.searchServiceList != null : controller.searchItemList != null) return;
         _fetchItemResults(searchText);
       });
     }
@@ -483,11 +563,10 @@ class _ResultFilterBar extends StatelessWidget {
   final _SearchFilter selected;
   final ValueChanged<_SearchFilter> onSelected;
   final String searchText;
+  final bool isLoading;
 
   const _ResultFilterBar({
-    required this.count,
-    required this.selected,
-    required this.onSelected, required this.searchText,
+    required this.count, required this.selected, required this.onSelected, required this.searchText, required this.isLoading,
   });
 
   @override
@@ -497,10 +576,11 @@ class _ResultFilterBar extends StatelessWidget {
         .moduleConfig!
         .module!
         .showRestaurantText!;
+    final bool isServiceModule = Get.find<SplashController>().module?.moduleType == AppConstants.service;
     final List<(_SearchFilter, String)> filters = [
       (_SearchFilter.all, 'all'.tr),
-      (_SearchFilter.items, showRestaurant ? 'food'.tr : 'item'.tr),
-      (_SearchFilter.stores, showRestaurant ? 'restaurants'.tr : 'stores'.tr),
+      (_SearchFilter.items, isServiceModule ? 'services'.tr : showRestaurant ? 'food'.tr : 'item'.tr),
+      (_SearchFilter.stores, isServiceModule ? 'providers'.tr : showRestaurant ? 'restaurants'.tr : 'stores'.tr),
     ];
 
     return Padding(
@@ -510,13 +590,24 @@ class _ResultFilterBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(
-            count.toString(),
-            style: robotoBold.copyWith(
-              color: Theme.of(context).primaryColor,
-              fontSize: Dimensions.fontSizeSmall,
-            ),
-          ),
+          isLoading
+              ? Shimmer(
+                  duration: const Duration(seconds: 2),
+                  child: Container(
+                    width: 22, height: 12,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).disabledColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+                    ),
+                  ),
+                )
+              : Text(
+                  count.toString(),
+                  style: robotoBold.copyWith(
+                    color: Theme.of(context).primaryColor,
+                    fontSize: Dimensions.fontSizeSmall,
+                  ),
+                ),
           const SizedBox(width: Dimensions.paddingSizeExtraSmall),
           Expanded(
             child: Text(
@@ -632,19 +723,73 @@ class _ItemsSection extends StatelessWidget {
   }
 }
 
+// ── Services section (service module item tab) ────────────────────────────────
+
+class _ServicesSection extends StatelessWidget {
+  final List<Service> services;
+  const _ServicesSection({required this.services});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Dimensions.paddingSizeDefault,
+      ),
+      child: Column(
+        children: List.generate(services.length, (index) {
+          final bool isLast = index == services.length - 1;
+          final Service service = services[index];
+          return Container(
+            margin: EdgeInsets.only(
+              bottom: isLast ? 0 : Dimensions.paddingSizeDefault,
+            ),
+            padding: const EdgeInsets.only(
+              bottom: Dimensions.paddingSizeDefault,
+            ),
+            decoration: BoxDecoration(
+              border: isLast
+                  ? null
+                  : Border(
+                      bottom: BorderSide(
+                        color: Theme.of(
+                          context,
+                        ).disabledColor.withValues(alpha: 0.18),
+                      ),
+                    ),
+            ),
+            child: ServiceSearchCard(
+              service: service,
+              width: double.infinity,
+              onFavourite: () => Get.find<ServiceController>().toggleFavourite(service),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
 // Opens a search-result store: results can span modules, so point the active
 // module at the store's module (header) before navigating so its details resolve.
+// In the service module the "store" is a provider, so route to provider details.
 void _openSearchStore(Store store) {
   final List<ModuleModel>? modules = Get.find<SplashController>().moduleList;
+  ModuleModel? storeModule;
   if (modules != null && store.moduleId != null) {
     for (final ModuleModel module in modules) {
       if (module.id == store.moduleId) {
+        storeModule = module;
         if (Get.find<SplashController>().module?.id != module.id) {
           Get.find<SplashController>().setModule(module, notify: false);
         }
         break;
       }
     }
+  }
+  final bool isServiceModule = (storeModule?.moduleType ?? Get.find<SplashController>().module?.moduleType) == AppConstants.service;
+  if (isServiceModule) {
+    Get.toNamed(RouteHelper.getProviderDetailsRoute(store.id ?? 0, slug: store.slug));
+    return;
   }
   Get.toNamed(RouteHelper.getStoreRoute(id: store.id, page: 'store_new', slug: store.slug ?? ''));
 }
@@ -701,8 +846,14 @@ class _ExclusiveDealsSection extends StatelessWidget {
 
 // ── No result ─────────────────────────────────────────────────────────────────
 
+// Which empty state to render: the Items/Services tab, the Stores tab (module-
+// aware wording), or the All tab (generic — the mixed result set has no single
+// entity name, so it stays "no result found").
+enum _EmptyKind { items, store, all }
+
 class _NoResultView extends StatelessWidget {
-  const _NoResultView();
+  final _EmptyKind kind;
+  const _NoResultView({this.kind = _EmptyKind.items});
 
   @override
   Widget build(BuildContext context) {
@@ -710,11 +861,27 @@ class _NoResultView extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(Dimensions.paddingSizeLarge),
         child: Text(
-          'no_item_available'.tr,
+          _message(),
           style: robotoMedium.copyWith(color: Theme.of(context).disabledColor),
         ),
       ),
     );
+  }
+
+  String _message() {
+    switch (kind) {
+      case _EmptyKind.items:
+        return 'no_item_available'.tr;
+      case _EmptyKind.all:
+        return 'no_result_found'.tr;
+      case _EmptyKind.store:
+        // Follows the same terminology as the rest of the search UI: provider
+        // (service module), restaurant (food / showRestaurantText), or store.
+        final bool isServiceModule = Get.find<SplashController>().module?.moduleType == AppConstants.service;
+        if (isServiceModule) return 'no_provider_available'.tr;
+        final bool showRestaurant = Get.find<SplashController>().configModel!.moduleConfig!.module!.showRestaurantText!;
+        return showRestaurant ? 'no_restaurant_available'.tr : 'no_store_available'.tr;
+    }
   }
 }
 
@@ -779,6 +946,7 @@ class _SearchStoreGroup extends StatelessWidget {
       if ((store.discount?.discount ?? 0) > 0)
         RestaurantOfferChipData(
           label: '-${store.discount!.discount!.toStringAsFixed(0)}%',
+          labelDirection: TextDirection.ltr,
         ),
       if (store.freeDelivery == true)
         RestaurantOfferChipData(
@@ -823,13 +991,9 @@ class _SearchStoreGroup extends StatelessWidget {
     );
   }
 
-  void _openStore() => Get.toNamed(
-    RouteHelper.getStoreRoute(
-      id: store.id,
-      page: 'store_new',
-      slug: store.slug ?? '',
-    ),
-  );
+  // In the service module the "store" is a provider, so this routes to provider
+  // details; otherwise it opens the store page. _openSearchStore handles both.
+  void _openStore() => _openSearchStore(store);
 
   @override
   Widget build(BuildContext context) {
@@ -838,7 +1002,7 @@ class _SearchStoreGroup extends StatelessWidget {
     final int count = showViewAll ? _maxInlineItems + 1 : total;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: Dimensions.paddingSizeLarge),
+      padding: EdgeInsets.only(bottom: showBottomDivider ? Dimensions.paddingSizeLarge : 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[

@@ -103,6 +103,11 @@ class CheckoutController extends GetxController implements GetxService {
   bool _isPartialPay = false;
   bool get isPartialPay => _isPartialPay;
 
+  // True once wallet is applied as a partial payment but the remainder method
+  // (cash_after_service / digital_payment) hasn't been chosen yet — index 1 is
+  // wallet's own slot, reused during partial pay to mean "pending remainder choice".
+  bool get hasIncompletePartialSelection => isPartialPay && _paymentMethodIndex == 1;
+
   double _tips = 0.0;
   double get tips => _tips;
 
@@ -268,6 +273,27 @@ class CheckoutController extends GetxController implements GetxService {
       return -deliveryOption.reduceCharge!;
     }
     return 0;
+  }
+
+  /// Saver delivery fee adjustment as actually applied to the bill, clamped so a
+  /// slightly-delay reduction can never drop the delivery fee below the saver
+  /// minimum delivery charge. Without this a reduce charge larger than the fee
+  /// would drive the delivery portion (and the order total) negative; capping it
+  /// keeps the net delivery charge at the configured minimum (0 when no minimum).
+  double getEffectiveSaverDeliveryAdjustment({required double deliveryCharge, DeliveryOptions? deliveryOption}) {
+    final double adjustment = getSaverDeliveryChargeAdjustment(deliveryOption: deliveryOption ?? selectedSaverDeliveryOption);
+    // Only reductions can overshoot; cap them when the fee is a valid positive
+    // amount (skip -1 "calculating"/0 "free" states).
+    if(adjustment < 0 && deliveryCharge > 0) {
+      // The customer must still pay at least the minimum delivery charge, so the
+      // reduction can only bring the fee down to that minimum — not to zero.
+      final double minimumDeliveryCharge = _saverModule?.pivot?.minimumDeliveryCharge ?? 0;
+      final double maxReduction = (deliveryCharge - minimumDeliveryCharge).clamp(0, deliveryCharge).toDouble();
+      if(adjustment < -maxReduction) {
+        return -maxReduction;
+      }
+    }
+    return adjustment;
   }
 
   void setSaverDeliveryType(String type) {

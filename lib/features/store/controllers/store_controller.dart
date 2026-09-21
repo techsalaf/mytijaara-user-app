@@ -7,7 +7,7 @@ import 'package:sixam_mart/features/category/controllers/category_controller.dar
 import 'package:sixam_mart/features/language/controllers/language_controller.dart';
 import 'package:sixam_mart/features/location/controllers/location_controller.dart';
 import 'package:sixam_mart/features/store/domain/models/cart_suggested_item_model.dart';
-import 'package:sixam_mart/features/store/domain/models/store_category_items_model.dart';
+import 'package:sixam_mart/features/store/domain/models/store_category_item_model.dart';
 import 'package:sixam_mart/features/category/domain/models/category_model.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 import 'package:sixam_mart/features/store/domain/models/recommended_product_model.dart';
@@ -45,6 +45,9 @@ class StoreController extends GetxController implements GetxService {
 
   List<Store>? _featuredStoreList;
   List<Store>? get featuredStoreList => _featuredStoreList;
+
+  List<Store>? _verifiedStoreList;
+  List<Store>? get verifiedStoreList => _verifiedStoreList;
 
   List<Store>? _visitAgainStoreList;
   List<Store>? get visitAgainStoreList => _visitAgainStoreList;
@@ -103,8 +106,8 @@ class StoreController extends GetxController implements GetxService {
   CartSuggestItemModel? _cartSuggestItemModel;
   CartSuggestItemModel? get cartSuggestItemModel => _cartSuggestItemModel;
 
-  StoreCategoryItemsModel? _storeCategoryItemsModel;
-  StoreCategoryItemsModel? get storeCategoryItemsModel => _storeCategoryItemsModel;
+  StoreCategoryItemModel? _storeCategoryItemsModel;
+  StoreCategoryItemModel? get storeCategoryItemsModel => _storeCategoryItemsModel;
 
   bool _isSearching = false;
   bool get isSearching => _isSearching;
@@ -250,6 +253,15 @@ class StoreController extends GetxController implements GetxService {
     if (notify) update();
     _storeCategoryItemsModel = await storeServiceInterface.getStoreCategoryItems(storeId);
     update();
+  }
+
+  /// Releases the large per-store item collections when the store detail screen
+  /// is torn down, so a big catalog (hundreds of items) isn't retained in the
+  /// singleton controller after leaving. Revisiting the store refetches them
+  /// from initState, so this is safe. No update() — the screen is disposing.
+  void clearStoreCategoryItems() {
+    _storeCategoryItemsModel = null;
+    _recommendedItemModel = null;
   }
 
   Future<void> getRestaurantRecommendedItemList(int? storeId, bool reload) async {
@@ -461,6 +473,18 @@ class StoreController extends GetxController implements GetxService {
     update();
   }
 
+  Future<void> getVerifiedStoreList({bool reload = false, bool notify = true, int limit = 10}) async {
+    if(reload) {
+      _verifiedStoreList = null;
+      if(notify) update();
+    }
+    final StoreModel? response = await storeServiceInterface.getVerifiedStores(offset: 1, limit: limit);
+    if(response != null) {
+      _verifiedStoreList = response.stores ?? [];
+    }
+    update();
+  }
+
   Future<void> getVisitAgainStoreList({bool fromModule = false, DataSourceEnum dataSource = DataSourceEnum.local, bool fromRecall = false}) async {
     if(fromModule && !fromRecall) {
       _visitAgainStoreList = null;
@@ -507,7 +531,7 @@ class StoreController extends GetxController implements GetxService {
     }
   }
 
-  Future<Store?> getStoreDetails(Store store, bool fromModule, {bool fromCart = false, String slug = ''}) async {
+  Future<Store?> getStoreDetails(Store store, bool fromModule, {bool fromCart = false, String slug = '', bool calculateDistance = true}) async {
     _categoryIndex = 0;
     if(store.name != null) {
       _store = store;
@@ -519,7 +543,7 @@ class StoreController extends GetxController implements GetxService {
       if (storeDetails != null) {
         _store = storeDetails;
         Get.find<CheckoutController>().initializeTimeSlot(_store!);
-        if(!fromCart && slug.isEmpty){
+        if(!fromCart && slug.isEmpty && calculateDistance){
           Get.find<CheckoutController>().getDistanceInKM(
             LatLng(
               double.parse(AddressHelper.getUserAddressFromSharedPref()?.latitude??'0'),

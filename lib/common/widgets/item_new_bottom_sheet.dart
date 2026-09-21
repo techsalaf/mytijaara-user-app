@@ -18,6 +18,7 @@ import 'package:sixam_mart/common/widgets/quantity_decrement_icon.dart';
 import 'package:sixam_mart/common/widgets/store_verified_avatar.dart';
 import 'package:sixam_mart/features/cart/controllers/cart_controller.dart';
 import 'package:sixam_mart/features/cart/domain/models/cart_model.dart';
+import 'package:sixam_mart/features/cart/screens/global_cart_screen.dart';
 import 'package:sixam_mart/features/checkout/domain/models/place_order_body_model.dart';
 import 'package:sixam_mart/features/checkout/screens/checkout_screen.dart';
 import 'package:sixam_mart/features/favourite/controllers/favourite_controller.dart';
@@ -337,12 +338,24 @@ class _ItemNewBottomSheetState extends State<ItemNewBottomSheet> {
     final double cartBarBaseHeight = hasUnmetRequired ? 72 : 100;
     final double bottomBarHeight = showPinnedCartBar ? cartBarBaseHeight + MediaQuery.of(context).padding.bottom : 0;
 
+    final bool isDesktop = ResponsiveHelper.isDesktop(context);
+
+    final double estimatedHeight = _estimateContentHeight(
+      context: context, item: item, expandedHeaderHeight: expandedHeaderHeight,
+      bottomBarHeight: bottomBarHeight, hasAddons: hasAddons,
+      hasFoodVariations: hasFoodVariations, hasChoiceOptions: hasChoiceOptions, isAvailable: isAvailable,
+    );
+    final double contentFraction = (estimatedHeight / screenHeight).clamp(0.45, 1.0).toDouble();
+    final double minFraction = (contentFraction * 0.8).clamp(0.35, contentFraction).toDouble();
+
+    final bool reserveStatusBar = !isDesktop && contentFraction >= 1.0;
+
     Widget sheetChild({ScrollController? scrollController}) {
       return ClipRRect(
-        borderRadius: ResponsiveHelper.isDesktop(context) ? const BorderRadius.all(Radius.circular(Dimensions.radiusDefault)) : const BorderRadius.vertical(top: Radius.circular(Dimensions.radiusExtraLarge)),
+        borderRadius: isDesktop ? const BorderRadius.all(Radius.circular(Dimensions.radiusDefault)) : const BorderRadius.vertical(top: Radius.circular(Dimensions.radiusExtraLarge)),
         child: Stack(children: [
           CustomScrollView(controller: scrollController, slivers: [
-            _buildCollapsingHeader(context, item, expandedHeaderHeight),
+            _buildCollapsingHeader(context, item, expandedHeaderHeight, isAvailable, reserveStatusBar),
 
             SliverToBoxAdapter(
               child: Container(
@@ -406,20 +419,12 @@ class _ItemNewBottomSheetState extends State<ItemNewBottomSheet> {
       );
     }
 
-    if (ResponsiveHelper.isDesktop(context)) {
+    if (isDesktop) {
       return ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxSheetHeight),
         child: sheetChild(),
       );
     }
-
-    final double estimatedHeight = _estimateContentHeight(
-      context: context, item: item, expandedHeaderHeight: expandedHeaderHeight,
-      bottomBarHeight: bottomBarHeight, hasAddons: hasAddons,
-      hasFoodVariations: hasFoodVariations, hasChoiceOptions: hasChoiceOptions, isAvailable: isAvailable,
-    );
-    final double contentFraction = (estimatedHeight / screenHeight).clamp(0.45, 1.0).toDouble();
-    final double minFraction = (contentFraction * 0.8).clamp(0.35, contentFraction).toDouble();
 
     return DraggableScrollableSheet(
       initialChildSize: contentFraction,
@@ -481,8 +486,8 @@ class _ItemNewBottomSheetState extends State<ItemNewBottomSheet> {
     return height;
   }
 
-  Widget _buildCollapsingHeader(BuildContext context, Item item, double expandedHeaderHeight) {
-    final double statusBarHeight = MediaQuery.of(context).viewPadding.top;
+  Widget _buildCollapsingHeader(BuildContext context, Item item, double expandedHeaderHeight, bool isAvailable, bool reserveStatusBar) {
+    final double statusBarHeight = reserveStatusBar ? MediaQuery.of(context).viewPadding.top : 0;
     const double statusBarGap = 16;
     final double toolbarHeight = 82 + statusBarHeight + statusBarGap;
     final double totalExpandedHeight = expandedHeaderHeight + statusBarHeight + statusBarGap;
@@ -561,6 +566,27 @@ class _ItemNewBottomSheetState extends State<ItemNewBottomSheet> {
                   ),
           ),
 
+          if(!isAvailable)
+            Positioned(
+            top: 0, left: 0, bottom: 0, right: 0,
+            child: Container(
+              alignment: Alignment.center,
+              decoration: BoxDecoration(borderRadius: const BorderRadius.vertical(top: Radius.circular(Dimensions.radiusExtraLarge)),
+              color: Colors.black.withValues(alpha: 0.6)),
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text('not_available_now'.tr, style: robotoMedium.copyWith(
+                  color: Theme.of(context).cardColor, fontSize: Dimensions.fontSizeLarge,
+                )),
+                const SizedBox(height: Dimensions.paddingSizeExtraSmall),
+                Text(
+                  '${'available_will_be'.tr} ${DateConverter.convertTimeToTime(item.availableTimeStarts!)} - ${DateConverter.convertTimeToTime(item.availableTimeEnds!)}',
+                  textAlign: TextAlign.center,
+                  style: robotoRegular.copyWith(color: Theme.of(context).cardColor),
+
+                ),
+              ]),
+            ),
+          ),
           if(hasMultipleMedia && selectedMediaIndex > 0) Positioned(
             left: Dimensions.paddingSizeSmall, top: 0, bottom: 0,
             child: Center(child: IgnorePointer(
@@ -865,6 +891,13 @@ class _ItemNewBottomSheetState extends State<ItemNewBottomSheet> {
       ),
       const SizedBox(height: Dimensions.paddingSizeExtraSmall),
 
+      if (item.brandName != null && item.brandName!.isNotEmpty) ...[
+        Text("${'brand'.tr}: ${item.brandName!}", maxLines: 1, overflow: TextOverflow.ellipsis,
+          style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeDefault, color: Theme.of(context).hintColor),
+        ),
+        const SizedBox(height: Dimensions.paddingSizeExtraSmall),
+      ],
+
       widget.isCampaign ? const SizedBox() : AvgReviewWidget(avgRating: item.avgRating ?? 0, ratingCount: item.ratingCount ?? 0),
 
       Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -884,12 +917,21 @@ class _ItemNewBottomSheetState extends State<ItemNewBottomSheet> {
       ]),
       const SizedBox(height: Dimensions.paddingSizeExtraSmall),
 
+      if (item.unitType != null && item.unitType!.isNotEmpty) ...[
+        Text("${'unit'.tr}: ${item.unitType!}", maxLines: 1, overflow: TextOverflow.ellipsis,
+          style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeDefault, color: Theme.of(context).hintColor),
+        ),
+        const SizedBox(height: Dimensions.paddingSizeExtraSmall),
+      ],
+      const SizedBox(height: Dimensions.paddingSizeExtraSmall),
+
       Wrap(spacing: Dimensions.paddingSizeSmall, runSpacing: Dimensions.paddingSizeSmall, children: [
         (initialDiscount ?? 0) > 0 ? _buildOfferBadge(
           context: context,
           label: _formatDiscountLabel(initialDiscount, discountType),
           backgroundColor: const Color(0xFFFF2424),
           textColor: Colors.white,
+          textDirection: TextDirection.ltr,
         ) : const SizedBox(),
 
         if (item.freeDelivery ?? false)
@@ -905,14 +947,14 @@ class _ItemNewBottomSheetState extends State<ItemNewBottomSheet> {
   }
 
   Widget _buildOfferBadge({required BuildContext context, required String label, required Color backgroundColor,
-    required Color textColor, IconData? icon}) {
+    required Color textColor, IconData? icon, TextDirection? textDirection}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeSmall, vertical: 2),
       decoration: BoxDecoration(color: backgroundColor, borderRadius: BorderRadius.circular(30)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         icon != null ? Icon(icon, size: 16, color: textColor) : const SizedBox(),
         SizedBox(width: icon != null ? Dimensions.paddingSizeExtraSmall : 0),
-        Text(label, style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeSmall, color: textColor)),
+        Text(label, textDirection: textDirection, style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeSmall, color: textColor)),
       ]),
     );
   }
@@ -1281,13 +1323,16 @@ class _ItemNewBottomSheetState extends State<ItemNewBottomSheet> {
             : await Get.find<CartController>().addToCartOnline(onlineCart, storeId: item.storeId);
 
         if(success) {
-          // Close the sheet FIRST, then show the snackbar. If the snackbar is shown
-          // before Get.back(), the pop dismisses the open snackbar instead of the
-          // sheet route — so the sheet stays open and the message never appears.
-          // Popping first targets the sheet; the snackbar then shows over the screen
-          // behind it (and only once, guarded by _closeSheet).
           _closeSheet();
-          showCustomSnackBar(isUpdate ? 'item_updated_in_cart'.tr : 'item_added_to_cart'.tr, getXSnackBar: true, isError: false);
+          showCustomSnackBar(
+            isUpdate ? 'item_updated_in_cart'.tr : 'item_added_to_cart'.tr,
+            getXSnackBar: true, isError: false,
+            actionLabel: 'view_cart'.tr,
+            // Pre-select the added item's module tab — the dashboard's selected
+            // module index can still point at the previous module (e.g. after
+            // switching modules on the offer page).
+            onAction: () => Get.to(() => GlobalCartScreen(fromNav: false, initialModuleId: item.moduleId)),
+          );
         }
       }
     }
@@ -1815,8 +1860,12 @@ class _HeaderVideoPlayer extends StatefulWidget {
 class _HeaderVideoPlayerState extends State<_HeaderVideoPlayer> {
   // Active header-video instances, so the carousel/fullscreen can pause/resume them.
   static final Set<_HeaderVideoPlayerState> _instances = <_HeaderVideoPlayerState>{};
-  static void pauseAll() { for (final s in _instances.toList()) s._pause(); }
-  static void resumeAll() { for (final s in _instances.toList()) s._resume(); }
+  static void pauseAll() { for (final s in _instances.toList()) {
+    s._pause();
+  } }
+  static void resumeAll() { for (final s in _instances.toList()) {
+    s._resume();
+  } }
 
   VideoPlayerController? _fileController;
   YoutubePlayerController? _ytController;

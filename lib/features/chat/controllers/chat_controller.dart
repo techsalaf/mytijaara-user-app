@@ -55,7 +55,10 @@ class ChatController extends GetxController implements GetxService {
   
   ConversationsModel? _searchConversationModel;
   ConversationsModel? get searchConversationModel => _searchConversationModel;
-  
+
+  ConversationsModel? _adminConversationModel;
+  ConversationsModel? get adminConversationModel => _adminConversationModel;
+
   bool _hasAdmin = true;
   bool get hasAdmin => _hasAdmin;
   
@@ -113,6 +116,29 @@ class ChatController extends GetxController implements GetxService {
         }
       }
     }
+    update();
+  }
+
+  Future<void> getAdminConversation() async {
+    ConversationsModel? conversationModel = await chatServiceInterface.getConversationList(1, UserType.admin.name);
+
+    if(conversationModel != null && conversationModel.conversations != null && conversationModel.conversations!.isNotEmpty) {
+      Conversation adminConversation = conversationModel.conversations!.first!;
+      if(adminConversation.receiverType == UserType.admin.name && adminConversation.receiver == null) {
+        adminConversation.receiver = User(
+          id: 0, fName: Get.find<SplashController>().configModel!.businessName, lName: '',
+          phone: Get.find<SplashController>().configModel!.phone, email: Get.find<SplashController>().configModel!.email,
+          imageFullUrl: Get.find<SplashController>().configModel!.logoFullUrl,
+        );
+      }else if(adminConversation.senderType == UserType.admin.name && adminConversation.sender == null) {
+        adminConversation.sender = User(
+          id: 0, fName: Get.find<SplashController>().configModel!.businessName, lName: '',
+          phone: Get.find<SplashController>().configModel!.phone, email: Get.find<SplashController>().configModel!.email,
+          imageFullUrl: Get.find<SplashController>().configModel!.logoFullUrl,
+        );
+      }
+    }
+    _adminConversationModel = conversationModel;
     update();
   }
 

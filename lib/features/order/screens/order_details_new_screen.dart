@@ -70,6 +70,8 @@ class OrderDetailsNewScreenState extends State<OrderDetailsNewScreen> {
   bool _mapLoading = true;
 
   void _loadData(BuildContext context, bool reload) async {
+    Get.find<OrderController>().setActiveTrackOrder(widget.orderId.toString());
+    Get.find<OrderController>().clearRoutePolyline();
     Get.find<OrderController>().getPaymentFailedDetails(widget.orderId.toString());
     await Get.find<OrderController>().trackOrder(widget.orderId.toString(), reload ? null : widget.orderModel, false, contactNumber: widget.contactNumber).then((value) {
       if (widget.fromOfflinePayment) {
@@ -83,6 +85,10 @@ class OrderDetailsNewScreenState extends State<OrderDetailsNewScreen> {
   void _startApiCall() {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 10), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
       await Get.find<OrderController>().timerTrackOrder(widget.orderId.toString(), contactNumber: widget.contactNumber);
     });
   }
@@ -168,6 +174,14 @@ class OrderDetailsNewScreenState extends State<OrderDetailsNewScreen> {
           icon: dmIcon,
           infoWindow: InfoWindow(title: 'delivery_man'.tr),
         ));
+
+        // Draw the road route between the delivery man and the user's delivery address.
+        if (order.deliveryAddress?.latitude != null && order.deliveryAddress?.longitude != null) {
+          Get.find<OrderController>().getDirectionPolyline(
+            origin: LatLng(double.parse(dmLat), double.parse(dmLng)),
+            destination: LatLng(double.parse(order.deliveryAddress!.latitude!), double.parse(order.deliveryAddress!.longitude!)),
+          );
+        }
       }
 
       if (_mapController != null
@@ -206,6 +220,10 @@ class OrderDetailsNewScreenState extends State<OrderDetailsNewScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    final orderController = Get.find<OrderController>();
+    if (orderController.activeTrackOrderId == widget.orderId.toString()) {
+      orderController.setActiveTrackOrder(null);
+    }
     _mapController?.dispose();
     super.dispose();
   }
@@ -305,6 +323,13 @@ class OrderDetailsNewScreenState extends State<OrderDetailsNewScreen> {
                           zoom: 15,
                         ),
                         markers: _markers,
+                        polylines: orderController.routePolyline.length > 1 ? {
+                          Polyline(
+                            polylineId: const PolylineId('order_route'),
+                            points: orderController.routePolyline,
+                            width: 2,
+                          ),
+                        } : <Polyline>{},
                         zoomControlsEnabled: false,
                         onMapCreated: (controller) {
                           _mapController = controller;

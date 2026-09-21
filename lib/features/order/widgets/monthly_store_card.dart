@@ -1,4 +1,6 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:get/get.dart';
 import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/features/order/domain/models/monthly_order_model.dart';
@@ -8,6 +10,24 @@ import 'package:sixam_mart/features/order/widgets/monthly_order_menu_button.dart
 import 'package:sixam_mart/features/order/widgets/monthly_order_actions.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/styles.dart';
+
+// Mirrors the delete-action-pane styling used for order/trip/ride cards in
+// my_order_screen.dart, kept local since that helper is file-private there.
+ActionPane _deleteActionPane(BuildContext context, VoidCallback onDelete) {
+  return ActionPane(
+    motion: const ScrollMotion(),
+    extentRatio: 0.2,
+    children: [
+      SlidableAction(
+        onPressed: (_) => onDelete(),
+        backgroundColor: Theme.of(context).colorScheme.error.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.zero,
+        foregroundColor: Theme.of(context).colorScheme.error,
+        icon: CupertinoIcons.delete,
+      ),
+    ],
+  );
+}
 
 class MonthlyStoreCard extends StatelessWidget {
   final MonthlyOrder order;
@@ -32,44 +52,48 @@ class MonthlyStoreCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List<MonthlyOrderItemPreview> items = order.itemsPreview;
-    return GestureDetector(
-      onTap: _openDetail,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
-          border: Border.all(color: Theme.of(context).disabledColor.withAlpha(50)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _StoreHeader(order: order, onMenuSelected: _onMenuSelected),
+    return Slidable(
+      key: ValueKey<int?>(order.id),
+      endActionPane: _deleteActionPane(context, () => MonthlyOrderActions.confirmRemove(order)),
+      child: GestureDetector(
+        onTap: _openDetail,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+            border: Border.all(color: Theme.of(context).disabledColor.withAlpha(50)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _StoreHeader(order: order, onMenuSelected: _onMenuSelected),
 
-            Padding(
-              padding: const EdgeInsets.fromLTRB(Dimensions.paddingSizeSmall, 0, Dimensions.paddingSizeSmall, Dimensions.paddingSizeSmall),
-              child: items.isEmpty
-                  ? SizedBox(
-                      height: _stripHeight,
-                      child: Center(child: Text(
-                        'no_items_found'.tr,
-                        style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).disabledColor),
-                      )),
-                    )
-                  : SizedBox(
-                      height: _stripHeight,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        physics: const BouncingScrollPhysics(),
-                        itemCount: items.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: Dimensions.paddingSizeSmall),
-                        itemBuilder: (context, index) => SizedBox(
-                          width: _tileWidth,
-                          child: MonthlyItemTile(item: items[index]),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(Dimensions.paddingSizeSmall, 0, Dimensions.paddingSizeSmall, Dimensions.paddingSizeSmall),
+                child: items.isEmpty
+                    ? SizedBox(
+                        height: _stripHeight,
+                        child: Center(child: Text(
+                          'no_items_found'.tr,
+                          style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).disabledColor),
+                        )),
+                      )
+                    : SizedBox(
+                        height: _stripHeight,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: items.length,
+                          separatorBuilder: (_, _) => const SizedBox(width: Dimensions.paddingSizeSmall),
+                          itemBuilder: (context, index) => SizedBox(
+                            width: _tileWidth,
+                            child: MonthlyItemTile(item: items[index]),
+                          ),
                         ),
                       ),
-                    ),
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );

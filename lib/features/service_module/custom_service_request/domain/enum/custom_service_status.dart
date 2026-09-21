@@ -1,1 +1,1 @@
-enum CustomServiceStatus {noBids, interested, accepted}
+enum CustomServiceStatus {noBids, interested, accepted, expired}

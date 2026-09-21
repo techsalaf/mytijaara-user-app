@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sixam_mart/common/widgets/custom_app_bar.dart';
@@ -6,19 +7,19 @@ import 'package:sixam_mart/features/order/controllers/order_controller.dart';
 import 'package:sixam_mart/features/order/domain/models/monthly_order_model.dart';
 import 'package:sixam_mart/features/order/widgets/monthly_store_card.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
+import 'package:sixam_mart/helper/module_helper.dart';
 import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/styles.dart';
 
 class _ModuleTab {
-  final String labelKey;
   final String moduleType;
-  const _ModuleTab({required this.labelKey, required this.moduleType});
+  const _ModuleTab({required this.moduleType});
 }
 
 const List<_ModuleTab> _moduleTabs = <_ModuleTab>[
-  _ModuleTab(labelKey: 'grocery', moduleType: AppConstants.grocery),
-  _ModuleTab(labelKey: 'pharmacy', moduleType: AppConstants.pharmacy),
+  _ModuleTab(moduleType: AppConstants.grocery),
+  _ModuleTab(moduleType: AppConstants.pharmacy),
 ];
 
 class MyItemsScreen extends StatefulWidget {
@@ -114,6 +115,11 @@ class _ModuleTabBar extends StatelessWidget {
         separatorBuilder: (_, _) => const SizedBox(width: Dimensions.paddingSizeSmall),
         itemBuilder: (context, index) {
           final bool isSelected = index == selectedIndex;
+          if(kDebugMode) {
+            final List<dynamic>? modules = Get.find<SplashController>().moduleList;
+            final module = ModuleHelper.getModuleByType(_moduleTabs[index].moduleType);
+            print('====> MyItemsScreen tab: moduleType=${_moduleTabs[index].moduleType} | splashController.moduleList=${modules == null ? 'NULL' : '${modules.length} modules'} | matchedModule.id=${module?.id} moduleName=${module?.moduleName} | resolvedLabel=${ModuleHelper.moduleDisplayName(_moduleTabs[index].moduleType)}');
+          }
           return InkWell(
             onTap: () => onSelected(index),
             borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
@@ -126,7 +132,7 @@ class _ModuleTabBar extends StatelessWidget {
                 border: Border.all(color: isSelected ? Theme.of(context).primaryColor : Theme.of(context).disabledColor.withAlpha(80)),
               ),
               child: Text(
-                _moduleTabs[index].labelKey.tr,
+                ModuleHelper.moduleDisplayName(_moduleTabs[index].moduleType),
                 style: robotoMedium.copyWith(
                   fontSize: Dimensions.fontSizeSmall,
                   color: isSelected ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color,

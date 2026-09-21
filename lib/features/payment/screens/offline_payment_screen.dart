@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sixam_mart/common/widgets/menu_drawer.dart';
 import 'package:sixam_mart/features/parcel/controllers/parcel_controller.dart';
+import 'package:sixam_mart/features/service_module/service_checkout/controllers/service_checkout_controller.dart';
 import 'package:sixam_mart/features/payment/controllers/payment_controller.dart';
 import 'package:sixam_mart/features/payment/domain/models/offline_method_model.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
@@ -27,9 +28,22 @@ class OfflinePaymentScreen extends StatefulWidget {
   final bool forParcel;
   final String orderId;
   final String? contactNumber;
+  // Service-module booking mode: when true the collected method_id + customer
+  // inputs are submitted through [onServiceOfflineSubmit] (the unified
+  // service `booking/payment` endpoint) instead of the order offline endpoint,
+  // and success lands on the service booking-success screen.
+  final bool isServiceBooking;
+  final Future<bool> Function(String methodId, Map<String, dynamic> inputs, String customerNote)? onServiceOfflineSubmit;
+  // Paying an ALREADY-PLACED booking (from booking details) rather than settling a
+  // fresh placement: on success this screen just pops and hands back to the caller
+  // instead of navigating to the booking-success screen (and skips the loyalty
+  // save, which already happened when the booking was placed).
+  final VoidCallback? onServiceOfflineSuccess;
 
   const OfflinePaymentScreen({super.key, required this.zoneId, required this.total, required this.maxCodOrderAmount,
-    required this.fromCart, required this.isCashOnDeliveryActive, required this.forParcel, required this.orderId, this.contactNumber});
+    required this.fromCart, required this.isCashOnDeliveryActive, required this.forParcel, required this.orderId, this.contactNumber,
+    this.isServiceBooking = false, this.onServiceOfflineSubmit, this.onServiceOfflineSuccess,
+  });
 
   @override
   State<OfflinePaymentScreen> createState() => _OfflinePaymentScreenState();
@@ -295,6 +309,26 @@ class _OfflinePaymentScreenState extends State<OfflinePaymentScreen> {
 
           if(complete) {
             String methodId = paymentController.offlineMethodList![paymentController.selectedOfflineBankIndex].id.toString();
+
+            // Service booking: submit through the unified booking/payment endpoint.
+            if(widget.isServiceBooking && widget.onServiceOfflineSubmit != null) {
+              Map<String, dynamic> inputs = {};
+              for(int i=0; i<methodInformation.length; i++){
+                inputs[methodInformation[i].customerInput!] = paymentController.informationControllerList[i].text;
+              }
+              bool success = await widget.onServiceOfflineSubmit!(methodId, inputs, _customerNoteController.text);
+              paymentController.changeLoadingStatus(false);
+              if(success){
+                if(widget.onServiceOfflineSuccess != null) {
+                  Get.back();
+                  widget.onServiceOfflineSuccess!();
+                } else {
+                  Get.find<ServiceCheckoutController>().saveLoyaltyEarningPoint(widget.total);
+                  Get.offAllNamed(RouteHelper.getServiceBookingSuccessRoute(widget.orderId, createAccount: Get.find<ServiceCheckoutController>().isCreateAccount));
+                }
+              }
+              return;
+            }
 
             Map<String, String> data = {
               "_method": "put",

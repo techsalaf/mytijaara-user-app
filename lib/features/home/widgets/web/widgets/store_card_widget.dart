@@ -29,6 +29,7 @@ class StoreCardWidget extends StatelessWidget {
     double? discount = store!.discount != null ? store!.discount!.discount : 0;
     String? discountType = store!.discount != null ? store!.discount!.discountType : 'percent';
     bool isAvailable = store!.open == 1 && store!.active!;
+    bool hasFreeDelivery = store!.freeDelivery ?? false;
     return OnHover(
       isItem: true,
       child: TextHover(
@@ -73,9 +74,7 @@ class StoreCardWidget extends StatelessWidget {
                           height: 120, width: double.infinity, fit: BoxFit.cover,
                         ),
                       ),
-                      DiscountTag(
-                        discount: discount, discountType: discountType,
-                      ),
+                      DiscountTag(discount: discount, discountType: discountType),
                       isAvailable ? const SizedBox() : NotAvailableWidget(isStore: true, store: store, fontSize: Dimensions.fontSizeExtraSmall, isAllSideRound: false),
 
                       AddFavouriteView(
@@ -143,7 +142,7 @@ class StoreCardWidget extends StatelessWidget {
                           const SizedBox(height: Dimensions.paddingSizeExtraSmall),
 
                           Row(children: [
-                            store!.freeDelivery! ? Row(children: [
+                            hasFreeDelivery ? Row(children: [
                               Image.asset(Images.deliveryIcon, height: 15, width: 15, color: Theme.of(context).textTheme.bodyLarge!.color),
                               const SizedBox(width: Dimensions.paddingSizeExtraSmall),
 
@@ -152,7 +151,7 @@ class StoreCardWidget extends StatelessWidget {
                                 style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).disabledColor),
                               ),
                             ]) : const SizedBox(),
-                            SizedBox(width: store!.freeDelivery! ? Dimensions.paddingSizeSmall : 0),
+                            SizedBox(width: hasFreeDelivery ? Dimensions.paddingSizeSmall : 0),
 
                             Row(children: [
                               Icon(Icons.timer, size: 15, color: Theme.of(context).textTheme.bodyLarge!.color),

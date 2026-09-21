@@ -5,6 +5,7 @@ import 'package:sixam_mart/api/local_client.dart';
 import 'package:sixam_mart/common/enums/data_source_enum.dart';
 import 'package:sixam_mart/features/category/domain/models/category_model.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
+import 'package:sixam_mart/features/service_module/service_home/domain/models/service_category_model.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 import 'package:sixam_mart/features/language/controllers/language_controller.dart';
@@ -105,6 +106,17 @@ class CategoryRepository implements CategoryRepositoryInterface {
   Future<bool> saveUserInterests(List<int?> interests) async {
     Response response = await apiClient.postData(AppConstants.interestUri, {"interest": interests});
     return (response.statusCode == 200);
+  }
+
+  @override
+  Future<List<ServiceCategoryModel>?> getCategoriesWithChildes() async {
+    final Response response = await apiClient.getData(AppConstants.serviceCategoriesUri, moduleScoped: true);
+    if (response.statusCode == 200) {
+      return (response.body as List)
+          .map((e) => ServiceCategoryModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    return null;
   }
 
   @override

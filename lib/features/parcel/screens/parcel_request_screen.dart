@@ -799,6 +799,7 @@ class _SheetContent extends StatelessWidget {
               color: parcelController.distance == -1 ? Colors.red : Theme.of(context).textTheme.bodyMedium?.color,
             ),
           ),
+          tooltipMessage: (checkoutController.extraCharge ?? 0) > 0 ? '${"Vehicle Charge".tr} ${PriceConverter.convertPrice(checkoutController.extraCharge)}' : null,
         ),
         if (isPro && proBenefit?.type == ProBenefitType.deliveryFee && proDeliveryDiscount > 0)
           _BillingRow(

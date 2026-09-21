@@ -381,7 +381,7 @@ class _PaymentMethodBottomSheetState extends State<PaymentMethodBottomSheet> {
     }
     bool isWalletSelected = checkoutController.paymentMethodIndex == 1 || checkoutController.isPartialPay;
 
-    return Get.find<SplashController>().configModel!.customerWalletStatus == 1
+    return AuthHelper.isLoggedIn() && Get.find<SplashController>().configModel!.customerWalletStatus == 1
         && Get.find<ProfileController>().userInfoModel != null && (checkoutController.distance != -1)
         && Get.find<ProfileController>().userInfoModel!.walletBalance! > 0 && (notHideWallet || checkoutController.isPartialPay) ? Column(children: [
       Container(

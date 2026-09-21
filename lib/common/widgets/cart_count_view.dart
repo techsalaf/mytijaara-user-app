@@ -16,7 +16,8 @@ class CartCountView extends StatefulWidget {
   final Item item;
   final Widget? child;
   final int? index;
-  const CartCountView({super.key, required this.item, this.child, this.index = -1});
+  final VoidCallback? onBeforeAdd;
+  const CartCountView({super.key, required this.item, this.child, this.index = -1, this.onBeforeAdd});
 
   @override
   State<CartCountView> createState() => _CartCountViewState();
@@ -112,6 +113,7 @@ class _CartCountViewState extends State<CartCountView> {
           Get.find<LocationController>().navigateToLocationScreen('home', canRoute: true);
           return;
         }
+        widget.onBeforeAdd?.call();
         _keepExpanded();
         setState(() => _isAdding = true);
         await Get.find<ItemController>().itemDirectlyAddToCart(widget.item, context);
@@ -139,7 +141,7 @@ class _CartCountViewState extends State<CartCountView> {
     final bool loading = cartController.isLoading && cartController.directAddCartItemIndex == widget.index;
     return InkWell(
       borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
-      onTap: cartController.isLoading ? null : _keepExpanded,
+      onTap: _keepExpanded,
       child: Container(
         height: _controlHeight,
         alignment: Alignment.center,
@@ -168,11 +170,11 @@ class _CartCountViewState extends State<CartCountView> {
       ),
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         InkWell(
-          onTap: cartController.isLoading ? null : () {
+          onTap: () {
             if (cartController.cartList[cartIndex].quantity! > 1) {
               _keepExpanded();
               cartController.setDirectlyAddToCartIndex(widget.index);
-              cartController.setQuantity(false, cartIndex, cartController.cartList[cartIndex].stock, cartController.cartList[cartIndex].item!.quantityLimit);
+              cartController.changeQuantity(false, cartIndex, cartController.cartList[cartIndex].stock, cartController.cartList[cartIndex].item!.quantityLimit);
             }else {
               // Last one removed → returns to the "+" button; no need to stay expanded.
               _collapseTimer?.cancel();
@@ -193,10 +195,10 @@ class _CartCountViewState extends State<CartCountView> {
         ),
 
         InkWell(
-          onTap: cartController.isLoading ? null : () {
+          onTap: () {
             _keepExpanded();
             cartController.setDirectlyAddToCartIndex(widget.index);
-            cartController.setQuantity(true, cartIndex, cartController.cartList[cartIndex].stock, cartController.cartList[cartIndex].quantityLimit);
+            cartController.changeQuantity(true, cartIndex, cartController.cartList[cartIndex].stock, cartController.cartList[cartIndex].quantityLimit);
           },
           child: const Padding(
             padding: EdgeInsets.all(Dimensions.paddingSizeExtraSmall),

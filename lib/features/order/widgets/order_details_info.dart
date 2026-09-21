@@ -50,6 +50,14 @@ class _OrderDetailsInfoState extends State<_OrderDetailsInfo> {
 
         OrderItemStatusSection(order: widget.order, total: widget.total),
 
+        widget.order.orderStatus != 'canceled' && Get.find<SplashController>().configModel!.orderDeliveryVerification! ? Divider(height: Dimensions.paddingSizeLarge, color: Theme.of(context).disabledColor.withValues(alpha: 0.5)) : const SizedBox(),
+        widget.order.orderStatus != 'canceled' && Get.find<SplashController>().configModel!.orderDeliveryVerification! ? Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Text('delivery_verification_code'.tr, style: robotoBold.copyWith(fontSize: Dimensions.fontSizeLarge)),
+
+          Text(widget.order.otp ?? '', style: robotoBold.copyWith(fontSize: Dimensions.fontSizeLarge)),
+        ]) : const SizedBox(),
+        widget.order.orderStatus != 'canceled' && Get.find<SplashController>().configModel!.orderDeliveryVerification! ? Divider(height: Dimensions.paddingSizeLarge, color: Theme.of(context).disabledColor.withValues(alpha: 0.5)) : const SizedBox(),
+
         GestureDetector(
           onTap: () => setState(() => _isExpanded = !_isExpanded),
           child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [

@@ -5,7 +5,7 @@ import 'package:sixam_mart/common/widgets/custom_snackbar.dart';
 import 'package:sixam_mart/common/widgets/item_new_bottom_sheet.dart';
 import 'package:sixam_mart/features/cart/controllers/cart_controller.dart';
 import 'package:sixam_mart/features/cart/screens/global_cart_screen.dart';
-import 'package:sixam_mart/features/redesign_feature/dashboard/widgets/common_widget/item_details_new_screen.dart';
+import 'package:sixam_mart/features/item/screens/item_details_new_screen.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/cart/domain/models/cart_model.dart';
 import 'package:sixam_mart/features/checkout/domain/models/place_order_body_model.dart';
@@ -1194,7 +1194,9 @@ class ItemController extends GetxController implements GetxService {
           'item_added_to_cart'.tr,
           isError: false,
           actionLabel: 'view_cart'.tr,
-          onAction: ()=> Get.to(() => const GlobalCartScreen(fromNav: false))
+          // Pre-select the added item's module tab so the cart doesn't open on a
+          // stale module (e.g. after switching modules on the offer page).
+          onAction: ()=> Get.to(() => GlobalCartScreen(fromNav: false, initialModuleId: _item?.moduleId))
           // onAction: () => Get.toNamed(RouteHelper.getCartRoute(storeId: storeId), arguments: CartScreen(fromNav: false, storeId: storeId)),
         );
       }

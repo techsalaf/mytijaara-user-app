@@ -1,5 +1,10 @@
 import 'package:sixam_mart/features/service_module/service_home/domain/models/service_model.dart';
 
+/// Service Module — "Quick & Emergency Experts" envelope
+/// `{ total_size, limit, offset, providers[] }` returned by
+/// `/api/v1/service/quick-emergency-experts`. Each provider carries a small
+/// `services[]` preview list (capped by the request's `preview_count`), reused
+/// from the shared [Service] model since the keys are identical.
 class ServiceExpertsModel {
   final int? totalSize;
   final int? limit;
@@ -18,11 +23,16 @@ class ServiceExpertsModel {
   );
 
   Map<String, dynamic> toJson() => {
-    'total_size': totalSize, 'limit': limit, 'offset': offset,
+    'total_size': totalSize,
+    'limit': limit,
+    'offset': offset,
     'providers': providers?.map((e) => e.toJson()).toList(),
   };
 }
 
+/// A provider in the Quick & Emergency Experts section, with its preview
+/// services bundled in. `deliveryTime` is the human-readable text the API
+/// supplies (e.g. "20-60 min") and is rendered as-is.
 class ServiceExpertProvider {
   final int? id;
   final String? name;
@@ -62,10 +72,18 @@ class ServiceExpertProvider {
   );
 
   Map<String, dynamic> toJson() => {
-    'id': id, 'name': name, 'slug': slug, 'logo_full_url': logoFullUrl,
-    'cover_photo_full_url': coverPhotoFullUrl, 'address': address, 'rating': rating,
-    'delivery_time': deliveryTime, 'min_delivery_time': minDeliveryTime,
-    'max_delivery_time': maxDeliveryTime, 'distance_km': distanceKm, 'open': open,
+    'id': id,
+    'name': name,
+    'slug': slug,
+    'logo_full_url': logoFullUrl,
+    'cover_photo_full_url': coverPhotoFullUrl,
+    'address': address,
+    'rating': rating,
+    'delivery_time': deliveryTime,
+    'min_delivery_time': minDeliveryTime,
+    'max_delivery_time': maxDeliveryTime,
+    'distance_km': distanceKm,
+    'open': open,
     'services': services?.map((e) => e.toJson()).toList(),
   };
 }

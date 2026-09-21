@@ -10,6 +10,9 @@ import 'package:sixam_mart/features/chat/enums/user_type_enum.dart';
 import 'package:sixam_mart/features/notification/controllers/notification_controller.dart';
 import 'package:sixam_mart/features/notification/domain/models/notification_body_model.dart';
 import 'package:sixam_mart/features/order/controllers/order_controller.dart';
+import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
+import 'package:sixam_mart/features/service_module/booking_details/controllers/booking_controller.dart';
+import 'package:sixam_mart/features/service_module/custom_service_request/controllers/custom_service_request_controller.dart';
 import 'package:sixam_mart/features/rental_module/rental_order/controllers/taxi_order_controller.dart';
 import 'package:sixam_mart/features/rental_module/rental_order/screens/taxi_order_details_screen.dart';
 import 'package:sixam_mart/features/ride_share_module/common/controllers/map_controller.dart';
@@ -69,6 +72,14 @@ class NotificationHelper {
             NotificationType.loyalty_point: () => Get.toNamed(RouteHelper.getLoyaltyRoute(fromNotification: true)),
             NotificationType.general: () => Get.toNamed(RouteHelper.getNotificationRoute(fromNotification: true)),
             NotificationType.trip: () => Get.to(()=> TaxiOrderDetailsScreen(tripId: int.parse(payload.orderId.toString()))),
+            NotificationType.booking_status: () => Get.toNamed(RouteHelper.getBookingDetailsRoute(payload.orderId, fromNotification: true)),
+            NotificationType.booking_reschedule: () => Get.toNamed(RouteHelper.getBookingDetailsRoute(payload.orderId, fromNotification: true)),
+            NotificationType.booking_location: () => Get.toNamed(RouteHelper.getBookingDetailsRoute(payload.orderId, fromNotification: true)),
+            NotificationType.booking_edit: () => Get.toNamed(RouteHelper.getBookingDetailsRoute(payload.orderId, fromNotification: true)),
+            NotificationType.serviceman_assigned: () => Get.toNamed(RouteHelper.getBookingDetailsRoute(payload.orderId, fromNotification: true)),
+            NotificationType.custom_service_bid: () => customServiceBidRouteCheck(payload.orderId, payload.moduleId),
+            NotificationType.custom_service_request_posted: () => customServiceBidRouteCheck(payload.orderId, payload.moduleId),
+            NotificationType.custom_service_bid_withdrawn: () => customServiceBidRouteCheck(payload.orderId, payload.moduleId),
           };
 
           notificationActions[payload.notificationType]?.call();
@@ -244,6 +255,21 @@ class NotificationHelper {
             Get.find<OrderController>().getOrders(OrderListType.running, 1);
             Get.find<OrderController>().getOrders(OrderListType.previous, 1);
           }
+          if(message.data['type'] == 'cashback' || message.data['type'] == 'add_fund' || message.data['type'] == 'loyalty_point') {
+            Get.find<ProfileController>().getUserInfo();
+          }
+          if(message.data['order_type'] == 'service_booking' && message.data['order_id'] != '' && message.data['order_id'] != null
+              && (Get.currentRoute.startsWith(RouteHelper.bookingDetails) || Get.currentRoute.startsWith(RouteHelper.subBookingDetails))) {
+            Get.find<BookingController>().refreshBookingDetail(int.parse(message.data['order_id']), notify: false);
+          }
+          // A provider bid on a custom service request. Only refresh when the open details page is
+          // that same request — the route carries the id as a query param, so compare it too.
+          if(message.data['type'] == 'custom_service_bid' && message.data['order_id'] != '' && message.data['order_id'] != null
+              && Get.currentRoute.startsWith(RouteHelper.customServiceDetails)
+              && Get.parameters['id'] == '${message.data['order_id']}'
+              && Get.isRegistered<CustomServiceRequestController>()) {
+            Get.find<CustomServiceRequestController>().refreshDetail(int.parse(message.data['order_id']));
+          }
 
           Get.find<NotificationController>().getNotificationList(true);
           if(message.data['type'] == 'trip_status' && message.data['order_id'] != '' && message.data['order_id'] != null) {
@@ -309,6 +335,17 @@ class NotificationHelper {
             NotificationType.loyalty_point: () => Get.toNamed(RouteHelper.getLoyaltyRoute(fromNotification: true)),
             NotificationType.general: () => Get.toNamed(RouteHelper.getNotificationRoute(fromNotification: true)),
             NotificationType.trip: () => Get.to(()=> TaxiOrderDetailsScreen(tripId: int.parse(message.data['order_id']))),
+            NotificationType.booking_status: () => Get.toNamed(RouteHelper.getBookingDetailsRoute(int.tryParse('${message.data['order_id']}'), fromNotification: true)),
+            NotificationType.booking_reschedule: () => Get.toNamed(RouteHelper.getBookingDetailsRoute(int.tryParse('${message.data['order_id']}'), fromNotification: true)),
+            NotificationType.booking_location: () => Get.toNamed(RouteHelper.getBookingDetailsRoute(int.tryParse('${message.data['order_id']}'), fromNotification: true)),
+            NotificationType.booking_edit: () => Get.toNamed(RouteHelper.getBookingDetailsRoute(int.tryParse('${message.data['order_id']}'), fromNotification: true)),
+            NotificationType.serviceman_assigned: () => Get.toNamed(RouteHelper.getBookingDetailsRoute(int.tryParse('${message.data['order_id']}'), fromNotification: true)),
+            NotificationType.custom_service_bid: () => customServiceBidRouteCheck(
+                int.tryParse('${message.data['order_id']}'), int.tryParse('${message.data['module_id']}')),
+            NotificationType.custom_service_request_posted: () => customServiceBidRouteCheck(
+                int.tryParse('${message.data['order_id']}'), int.tryParse('${message.data['module_id']}')),
+            NotificationType.custom_service_bid_withdrawn: () => customServiceBidRouteCheck(
+                int.tryParse('${message.data['order_id']}'), int.tryParse('${message.data['module_id']}')),
           };
 
           notificationActions[notificationBody.notificationType]?.call();
@@ -423,6 +460,22 @@ class NotificationHelper {
         return _handleOrderNotification(data);
       case 'trip_status':
         return _handleTripNotification(data);
+      case 'booking_status':
+        return _handleBookingNotification(data);
+      case 'booking_reschedule':
+        return _handleBookingRescheduleNotification(data);
+      case 'booking_location':
+        return _handleBookingLocationNotification(data);
+      case 'booking_edit':
+        return _handleBookingEditNotification(data);
+      case 'serviceman_assigned':
+        return _handleServicemanAssignedNotification(data);
+      case 'custom_service_bid':
+        return _handleCustomServiceBidNotification(data);
+      case 'custom_service_request_posted':
+        return _handleCustomServiceRequestPostedNotification(data);
+      case 'custom_service_bid_withdrawn':
+        return _handleCustomServiceBidWithdrawnNotification(data);
       case 'message':
         return _handleMessageNotification(data);
       case 'ride_request':
@@ -448,6 +501,84 @@ class NotificationHelper {
     );
   }
 
+  /// Service Module (addon — removable). Customer booking-status push: booking id arrives in `order_id`.
+  static NotificationBodyModel _handleBookingNotification(Map<String, dynamic> data) {
+    return NotificationBodyModel(
+      orderId: int.tryParse('${data['order_id']}') ?? 0,
+      notificationType: NotificationType.booking_status,
+      type: data['type'],
+    );
+  }
+
+  /// Service Module (addon — removable). Customer booking-reschedule push: booking id arrives in `order_id`.
+  static NotificationBodyModel _handleBookingRescheduleNotification(Map<String, dynamic> data) {
+    return NotificationBodyModel(
+      orderId: int.tryParse('${data['order_id']}') ?? 0,
+      notificationType: NotificationType.booking_reschedule,
+      type: data['type'],
+    );
+  }
+
+  /// Service Module (addon — removable). Customer booking-location push: booking id arrives in `order_id`.
+  static NotificationBodyModel _handleBookingLocationNotification(Map<String, dynamic> data) {
+    return NotificationBodyModel(
+      orderId: int.tryParse('${data['order_id']}') ?? 0,
+      notificationType: NotificationType.booking_location,
+      type: data['type'],
+    );
+  }
+
+  /// Service Module (addon — removable). Customer booking-edit push: booking id arrives in `order_id`.
+  static NotificationBodyModel _handleBookingEditNotification(Map<String, dynamic> data) {
+    return NotificationBodyModel(
+      orderId: int.tryParse('${data['order_id']}') ?? 0,
+      notificationType: NotificationType.booking_edit,
+      type: data['type'],
+    );
+  }
+
+  /// Service Module (addon — removable). Serviceman-assigned push: booking id arrives in `order_id`.
+  static NotificationBodyModel _handleServicemanAssignedNotification(Map<String, dynamic> data) {
+    return NotificationBodyModel(
+      orderId: int.tryParse('${data['order_id']}') ?? 0,
+      notificationType: NotificationType.serviceman_assigned,
+      type: data['type'],
+    );
+  }
+
+  /// Service Module (addon — removable). Provider-bid push: the custom service request id
+  /// arrives in `order_id`, and `module_id` tells us which module to select before routing.
+  static NotificationBodyModel _handleCustomServiceBidNotification(Map<String, dynamic> data) {
+    return NotificationBodyModel(
+      orderId: int.tryParse('${data['order_id']}') ?? 0,
+      moduleId: int.tryParse('${data['module_id']}'),
+      notificationType: NotificationType.custom_service_bid,
+      type: data['type'],
+    );
+  }
+
+  /// Service Module (addon — removable). Customer's own custom service request confirmation push:
+  /// the request id arrives in `order_id`, and `module_id` tells us which module to select before routing.
+  static NotificationBodyModel _handleCustomServiceRequestPostedNotification(Map<String, dynamic> data) {
+    return NotificationBodyModel(
+      orderId: int.tryParse('${data['order_id']}') ?? 0,
+      moduleId: int.tryParse('${data['module_id']}'),
+      notificationType: NotificationType.custom_service_request_posted,
+      type: data['type'],
+    );
+  }
+
+  /// Service Module (addon — removable). Provider withdrew their bid push: the custom service
+  /// request id arrives in `order_id`, and `module_id` tells us which module to select before routing.
+  static NotificationBodyModel _handleCustomServiceBidWithdrawnNotification(Map<String, dynamic> data) {
+    return NotificationBodyModel(
+      orderId: int.tryParse('${data['order_id']}') ?? 0,
+      moduleId: int.tryParse('${data['module_id']}'),
+      notificationType: NotificationType.custom_service_bid_withdrawn,
+      type: data['type'],
+    );
+  }
+
   static NotificationBodyModel _handleTripNotification(Map<String, dynamic> data) {
     final orderId = data['order_id'];
     return NotificationBodyModel(
@@ -467,6 +598,28 @@ class NotificationHelper {
       restaurantId: senderType == 'vendor1' ? 0 : null,
       conversationId: int.parse(conversationId.toString()),
     );
+  }
+
+  /// Service Module (addon — removable). Selects the module the request belongs to before opening
+  /// its details, so the page renders under the right module config/theme. An unknown or missing
+  /// `module_id` still navigates — it just leaves the current module selected.
+  static Future<void> customServiceBidRouteCheck(int? requestId, int? moduleId) async {
+    if (requestId == null || requestId == 0) return;
+
+    final SplashController splashController = Get.find<SplashController>();
+    if (moduleId != null && splashController.module?.id != moduleId) {
+      if (splashController.moduleList == null) {
+        await splashController.getModules();
+      }
+      for (ModuleModel module in splashController.moduleList ?? []) {
+        if (module.id == moduleId) {
+          await splashController.setModule(module);
+          break;
+        }
+      }
+    }
+
+    Get.toNamed(RouteHelper.getCustomServiceDetailsRoute(requestId));
   }
 
   static Future<void> rideNotificationRouteCheck(Map<String,dynamic> data, {bool formSplash = false , String? userName}) async {

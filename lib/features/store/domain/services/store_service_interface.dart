@@ -1,6 +1,6 @@
 import 'package:sixam_mart/common/enums/data_source_enum.dart';
 import 'package:sixam_mart/features/store/domain/models/cart_suggested_item_model.dart';
-import 'package:sixam_mart/features/store/domain/models/store_category_items_model.dart';
+import 'package:sixam_mart/features/store/domain/models/store_category_item_model.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 import 'package:sixam_mart/common/models/module_model.dart';
 import 'package:sixam_mart/features/store/domain/models/recommended_product_model.dart';
@@ -24,7 +24,8 @@ abstract class StoreServiceInterface {
   Future<List<Store>?> getRecommendedStoreList({required DataSourceEnum source});
   Future<StoreModel?> getQuickDeliveryStores({int offset, int limit, int? moduleId, String name});
   Future<StoreModel?> getNearbyStores({int offset, int limit, int? moduleId, String name});
-  Future<StoreCategoryItemsModel?> getStoreCategoryItems(int storeId);
+  Future<StoreModel?> getVerifiedStores({int offset, int limit, String? type});
+  Future<StoreCategoryItemModel?> getStoreCategoryItems(int storeId);
   List<Modules> moduleList();
   String filterRestaurantLinkUrl(String slug, Store store);
 }

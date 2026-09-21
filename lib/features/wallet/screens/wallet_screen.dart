@@ -2,23 +2,23 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:just_the_tooltip/just_the_tooltip.dart';
-import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
-import 'package:sixam_mart/features/wallet/controllers/wallet_controller.dart';
-import 'package:sixam_mart/features/wallet/widgets/bonus_banner_widget.dart';
-import 'package:sixam_mart/features/wallet/widgets/fund_status_dialog_widget.dart';
-import 'package:sixam_mart/helper/auth_helper.dart';
-import 'package:sixam_mart/helper/responsive_helper.dart';
-import 'package:sixam_mart/helper/route_helper.dart';
-import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/common/widgets/custom_app_bar.dart';
 import 'package:sixam_mart/common/widgets/custom_dialog.dart';
 import 'package:sixam_mart/common/widgets/footer_view.dart';
 import 'package:sixam_mart/common/widgets/menu_drawer.dart';
 import 'package:sixam_mart/common/widgets/not_logged_in_screen.dart';
 import 'package:sixam_mart/common/widgets/web_page_title_widget.dart';
+import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
+import 'package:sixam_mart/features/wallet/controllers/wallet_controller.dart';
+import 'package:sixam_mart/features/wallet/widgets/bonus_banner_widget.dart';
+import 'package:sixam_mart/features/wallet/widgets/fund_status_dialog_widget.dart';
 import 'package:sixam_mart/features/wallet/widgets/wallet_card_widget.dart';
 import 'package:sixam_mart/features/wallet/widgets/wallet_history_widget.dart';
 import 'package:sixam_mart/features/wallet/widgets/web_bonus_banner_widget.dart';
+import 'package:sixam_mart/helper/auth_helper.dart';
+import 'package:sixam_mart/helper/responsive_helper.dart';
+import 'package:sixam_mart/helper/route_helper.dart';
+import 'package:sixam_mart/util/dimensions.dart';
 
 class WalletScreen extends StatefulWidget {
   final String? fundStatus;
@@ -61,6 +61,9 @@ class _WalletScreenState extends State<WalletScreen> {
 
       Get.find<WalletController>().getWalletBonusList(isUpdate: false);
 
+      if (kDebugMode) {
+        print('====> WalletScreen: requesting filter type = ${Get.find<WalletController>().type}');
+      }
       Get.find<WalletController>().getWalletTransactionList('1', false, Get.find<WalletController>().type);
 
       Get.find<WalletController>().setOffset(1);

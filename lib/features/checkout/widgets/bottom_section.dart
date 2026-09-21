@@ -130,6 +130,9 @@ class BottomSection extends StatelessWidget {
                   Row(
                     children: [
                       Text( 'total_amount'.tr, style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeLarge, color: Theme.of(context).primaryColor)),
+                      ((checkoutController.taxIncluded == 1) || ((checkoutController.orderTax ?? 0) > 0)) ? Text(' ${'vat_tax_inc'.tr}', style: robotoMedium.copyWith(
+                        fontSize: Dimensions.fontSizeExtraSmall
+                      )) : const SizedBox(),
                       storeId == null ? const SizedBox() : Text(
                         'Once_your_order_is_confirmed_you_will_receive'.tr,
                         style: robotoRegular.copyWith(
@@ -171,8 +174,12 @@ class BottomSection extends StatelessWidget {
     final saverDeliveryOption = checkoutController.selectedSaverDeliveryOption;
     final String? saverDeliveryType = saverDeliveryOption?.deliveryType;
     final bool showSaverDeliveryOption = !takeAway && checkoutController.orderType != 'dine_in'
+        && checkoutController.store?.selfDeliverySystem != 1
         && (saverDeliveryType == 'express' || saverDeliveryType == 'slightly_delay');
-    final double saverDeliveryAdjustment = checkoutController.getSaverDeliveryChargeAdjustment(deliveryOption: saverDeliveryOption).abs();
+    // Clamped against the delivery fee after the Pro delivery discount, so the shown
+    // reduction matches the amount actually applied to the total (a slightly-delay
+    // reduce charge is capped so the remaining fee never drops below the minimum).
+    final double saverDeliveryAdjustment = checkoutController.getEffectiveSaverDeliveryAdjustment(deliveryCharge: deliveryCharge - proDeliveryDiscount, deliveryOption: saverDeliveryOption).abs();
 
     return Column(children: [
 
@@ -309,7 +316,7 @@ class BottomSection extends StatelessWidget {
             showSaverDeliveryOption ? Column(children: [
               const SizedBox(height: Dimensions.paddingSizeSmall),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text('${saverDeliveryType!.replaceAll('_', ' ').capitalize} ${'delivery'.tr}', style: robotoRegular),
+                Text('${saverDeliveryType!.tr.replaceAll('_', ' ').capitalize} ${'delivery'.tr}', style: robotoRegular),
                 Text(
                   '${saverDeliveryType == 'express' ? '(+) ' : '(-) '}${PriceConverter.convertPrice(saverDeliveryAdjustment)}',
                   style: robotoRegular, textDirection: TextDirection.ltr,
@@ -320,7 +327,7 @@ class BottomSection extends StatelessWidget {
             SizedBox(height: Get.find<SplashController>().configModel!.additionalChargeStatus! && !(AuthHelper.isGuestLoggedIn() && checkoutController.guestAddress == null) ? Dimensions.paddingSizeSmall : 0),
 
             Get.find<SplashController>().configModel!.additionalChargeStatus! ? Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Expanded(child: Text(Get.find<SplashController>().configModel!.additionalChargeName!, style: robotoRegular, overflow: TextOverflow.ellipsis, maxLines: 1)),
+              Expanded(child: Text((module.isTaxi == true || module.isParcel == true) ? 'service_charge'.tr : 'additional_charge'.tr, style: robotoRegular, overflow: TextOverflow.ellipsis, maxLines: 1)),
               const SizedBox(width: Dimensions.paddingSizeSmall),
 
               Text(

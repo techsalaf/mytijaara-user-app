@@ -3,7 +3,7 @@ import 'package:get/get.dart';
 import 'package:sixam_mart/features/cart/controllers/cart_controller.dart';
 import 'package:sixam_mart/features/cart/domain/models/all_carts_model.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
-import 'package:sixam_mart/features/redesign_feature/global_widgets/exclusive_deal_card.dart';
+import 'package:sixam_mart/common/widgets/exclusive_deal_card.dart';
 import 'package:sixam_mart/features/store/controllers/store_controller.dart';
 import 'package:sixam_mart/features/store/widgets/bottom_add_to_cart_widget.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';

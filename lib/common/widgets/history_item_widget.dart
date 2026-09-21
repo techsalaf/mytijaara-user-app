@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sixam_mart/common/models/transaction_model.dart';
@@ -22,12 +23,12 @@ class HistoryItemWidget extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               fromWallet ? Row(children: [
             
-                data![index].transactionType == 'order_place' || data![index].transactionType == 'partial_payment' || data![index].transactionType == 'pro_subscription'
+                data![index].transactionType == 'order_place' || data![index].transactionType == 'partial_payment' || data![index].transactionType == 'service_booking' || data![index].transactionType == 'pro_subscription'
                     ? Image.asset(Images.walletDebitIcon, height: 15, width: 15)
                     : Image.asset(Images.walletCreditIcon, height: 15, width: 15),
                 const SizedBox(width: Dimensions.paddingSizeExtraSmall),
             
-                Text(data![index].transactionType == 'order_place' || data![index].transactionType == 'partial_payment' || data![index].transactionType == 'ride_booking' || data![index].transactionType == 'pro_subscription'
+                Text(data![index].transactionType == 'order_place' || data![index].transactionType == 'partial_payment' || data![index].transactionType == 'ride_booking' || data![index].transactionType == 'service_booking' || data![index].transactionType == 'pro_subscription'
                     ? '- ${PriceConverter.convertPrice(data![index].debit! + data![index].adminBonus!)}'
                     : '+ ${PriceConverter.convertPrice(data![index].credit! + data![index].adminBonus!)}',
                   style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeDefault), maxLines: 1, overflow: TextOverflow.ellipsis, textDirection: TextDirection.ltr,
@@ -53,6 +54,7 @@ class HistoryItemWidget extends StatelessWidget {
                     : data![index].transactionType == 'referrer' ? 'earned_by_referral'.tr
                     : data![index].transactionType == 'order_place' ? '${'order_place'.tr} # ${data![index].reference}'
                     : data![index].transactionType == 'ride_booking' ? 'ride_booking'.tr
+                    : data![index].transactionType == 'service_booking' ? 'service_booking'.tr
                     : data![index].transactionType!.tr,
                 style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeExtraSmall,color: Theme.of(context).hintColor),
                 maxLines: 2, overflow: TextOverflow.ellipsis,
@@ -70,8 +72,8 @@ class HistoryItemWidget extends StatelessWidget {
             const SizedBox(height: Dimensions.paddingSizeExtraSmall),
 
             Text(
-              fromWallet ? data![index].transactionType == 'order_place' || data![index].transactionType == 'partial_payment' || data![index].transactionType == 'pro_subscription' ? 'debit'.tr : 'credit'.tr : data![index].transactionType == 'point_to_wallet'  ? 'debit'.tr : 'credit'.tr,
-              style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: fromWallet ? data![index].transactionType == 'order_place' || data![index].transactionType == 'partial_payment' || data![index].transactionType == 'pro_subscription'
+              fromWallet ? data![index].transactionType == 'order_place' || data![index].transactionType == 'partial_payment' || data![index].transactionType == 'service_booking' || data![index].transactionType == 'pro_subscription' ? 'debit'.tr : 'credit'.tr : data![index].transactionType == 'point_to_wallet'  ? 'debit'.tr : 'credit'.tr,
+              style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: fromWallet ? data![index].transactionType == 'order_place' || data![index].transactionType == 'partial_payment' || data![index].transactionType == 'service_booking' || data![index].transactionType == 'pro_subscription'
                   ? Colors.red : Colors.green : data![index].transactionType == 'point_to_wallet' ? Colors.red : Colors.green),
               maxLines: 1, overflow: TextOverflow.ellipsis,
             ),

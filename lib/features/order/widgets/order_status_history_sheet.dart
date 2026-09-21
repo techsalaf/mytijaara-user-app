@@ -13,7 +13,6 @@ class OrderStatusHistorySheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final steps = _buildSteps(order);
-    final completedSteps = steps.where((s) => s.isCompleted).toList();
 
     return Container(
       decoration: BoxDecoration(
@@ -66,24 +65,27 @@ class OrderStatusHistorySheet extends StatelessWidget {
           ]),
           const SizedBox(height: Dimensions.paddingSizeLarge),
 
-          for (int i = 0; i < completedSteps.length; i++)
+          for (int i = 0; i < steps.length; i++)
             _StatusHistoryStep(
-              step: completedSteps[i],
+              step: steps[i],
               isFirst: i == 0,
-              isLast: i == completedSteps.length - 1,
+              isLast: i == steps.length - 1,
             ),
         ]),
       ),
     );
   }
 
+  static String? _resolveOwnTimestamp(String? specific, String matchStatus, OrderModel order) {
+    return specific ?? (order.orderStatus == matchStatus ? order.updatedAt : null);
+  }
+
   static List<_HistoryStep> _buildSteps(OrderModel order) {
-    // Top-to-bottom: future statuses first, completed statuses at the bottom.
-    return [
+    final conditionalSteps = [
       _HistoryStep(
         label: 'cancelled'.tr,
         description: 'order_cancelled'.tr,
-        timestamp: order.canceled,
+        timestamp: _resolveOwnTimestamp(order.canceled, 'canceled', order),
       ),
       _HistoryStep(
         label: 'refunded'.tr,
@@ -93,42 +95,45 @@ class OrderStatusHistorySheet extends StatelessWidget {
       _HistoryStep(
         label: 'refund_requested'.tr,
         description: 'refund_requested_description'.tr,
-        timestamp: order.refundRequested,
+        timestamp: _resolveOwnTimestamp(order.refundRequested, 'refund_requested', order),
       ),
       _HistoryStep(
         label: 'failed'.tr,
         description: 'payment_failed_description'.tr,
-        timestamp: order.failed ?? (order.orderStatus == 'failed' ? order.updatedAt : null),
+        timestamp: _resolveOwnTimestamp(order.failed, 'failed', order),
       ),
+    ].where((s) => s.isCompleted);
+
+    final happyPathSteps = [
       _HistoryStep(
         label: 'delivered'.tr,
         description: 'will_enjoy_your_food'.tr,
-        timestamp: order.delivered,
+        timestamp: _resolveOwnTimestamp(order.delivered, 'delivered', order),
       ),
       _HistoryStep(
-        label: 'picked_up'.tr,
+        label: 'out_for_delivery'.tr,
         description: 'after_handover'.tr,
-        timestamp: order.pickedUp,
+        timestamp: _resolveOwnTimestamp(order.pickedUp, 'picked_up', order),
       ),
       _HistoryStep(
         label: 'order_handover'.tr,
         description: 'after_preparation'.tr,
-        timestamp: order.handover,
+        timestamp: _resolveOwnTimestamp(order.handover, 'handover', order),
       ),
       _HistoryStep(
         label: 'preparing_item'.tr,
         description: 'your_item_are_preparing'.tr,
-        timestamp: order.processing,
-      ),
-      _HistoryStep(
-        label: 'order_accepted'.tr,
-        description: 'waiting_for_preparation'.tr,
-        timestamp: order.accepted,
+        timestamp: _resolveOwnTimestamp(order.processing, 'processing', order),
       ),
       _HistoryStep(
         label: 'order_confirmed'.tr,
         description: 'waiting_for_confirmation'.tr,
-        timestamp: order.confirmed,
+        timestamp: _resolveOwnTimestamp(order.confirmed, 'confirmed', order),
+      ),
+      _HistoryStep(
+        label: 'order_accepted'.tr,
+        description: 'waiting_for_preparation'.tr,
+        timestamp: _resolveOwnTimestamp(order.accepted, 'accepted', order),
       ),
       _HistoryStep(
         label: 'order_placed'.tr,
@@ -136,6 +141,17 @@ class OrderStatusHistorySheet extends StatelessWidget {
         timestamp: order.pending ?? order.createdAt,
       ),
     ];
+
+    String? lastKnownTimestamp;
+    for (final step in happyPathSteps) {
+      if (step.isCompleted) {
+        lastKnownTimestamp = step.resolvedTimestamp;
+      } else if (lastKnownTimestamp != null) {
+        step.resolvedTimestamp = lastKnownTimestamp;
+      }
+    }
+
+    return [...conditionalSteps, ...happyPathSteps];
   }
 }
 
@@ -143,14 +159,15 @@ class _HistoryStep {
   final String label;
   final String description;
   final String? timestamp;
+  String? resolvedTimestamp;
 
-  const _HistoryStep({
+  _HistoryStep({
     required this.label,
     required this.description,
     required this.timestamp,
-  });
+  }) : resolvedTimestamp = timestamp;
 
-  bool get isCompleted => timestamp != null && timestamp!.trim().isNotEmpty;
+  bool get isCompleted => resolvedTimestamp != null && resolvedTimestamp!.trim().isNotEmpty;
 }
 
 class _StatusHistoryStep extends StatelessWidget {
@@ -187,10 +204,12 @@ class _StatusHistoryStep extends StatelessWidget {
             _StepDot(completed: completed, primary: primary, disabled: disabled),
             if (!isLast)
               Expanded(
-                child: CustomPaint(
-                  painter: _DashedLinePainter(color: disabled.withValues(alpha: 0.6)),
-                  size: const Size(2, double.infinity),
-                ),
+                child: completed
+                    ? Container(width: 2, color: primary)
+                    : CustomPaint(
+                        painter: _DashedLinePainter(color: disabled.withValues(alpha: 0.6)),
+                        size: const Size(2, double.infinity),
+                      ),
               ),
           ]),
         ),
@@ -206,7 +225,7 @@ class _StatusHistoryStep extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                completed ? _formatTimestamp(step.timestamp!) : step.description,
+                completed ? _formatTimestamp(step.resolvedTimestamp!) : step.description,
                 style: robotoRegular.copyWith(
                   fontSize: Dimensions.fontSizeSmall,
                   color: disabled,

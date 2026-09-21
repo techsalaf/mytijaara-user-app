@@ -198,7 +198,7 @@ class ConversationShimmer extends StatelessWidget {
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: 3,
+      itemCount: 10,
       itemBuilder: (context, index) {
         return Container(
           margin: const EdgeInsets.only(bottom: Dimensions.paddingSizeSmall),

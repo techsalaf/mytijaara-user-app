@@ -1,4 +1,5 @@
 import 'package:sixam_mart/common/enums/data_source_enum.dart';
+import 'package:sixam_mart/features/service_module/service_home/domain/models/service_category_model.dart';
 import 'package:sixam_mart/interfaces/repository_interface.dart';
 
 abstract class CategoryRepositoryInterface implements RepositoryInterface {
@@ -7,4 +8,5 @@ abstract class CategoryRepositoryInterface implements RepositoryInterface {
     bool? allCategory, String? id, String? type, DataSourceEnum? source});
   Future<dynamic> getSearchData(String? query, String? categoryID, bool isStore, String type);
   Future<dynamic> saveUserInterests(List<int?> interests);
+  Future<List<ServiceCategoryModel>?> getCategoriesWithChildes();
 }

@@ -38,8 +38,9 @@ class _SuggestionsView extends StatelessWidget {
     if (!isGlobal || entry.kind == RecentSearchKind.keyword) return null;
     final String text;
     if (entry.kind == RecentSearchKind.store) {
+      final bool isService = entry.moduleType == AppConstants.service;
       final bool isFood = entry.moduleType == AppConstants.food;
-      text = '${'is_a'.tr} ${isFood ? 'restaurant'.tr : 'store'.tr}';
+      text = '${'is_a'.tr} ${isService ? 'provider'.tr : isFood ? 'restaurant'.tr : 'store'.tr}';
     } else {
       final String moduleName = entry.moduleName ?? _typeLabel(entry.moduleType);
       text = '${'is_a'.tr} $moduleName ${'item'.tr}';

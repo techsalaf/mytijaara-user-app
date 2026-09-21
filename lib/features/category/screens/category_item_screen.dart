@@ -7,8 +7,8 @@ import 'package:sixam_mart/common/widgets/footer_view.dart';
 import 'package:sixam_mart/common/widgets/menu_drawer.dart';
 import 'package:sixam_mart/features/category/controllers/category_controller.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
-import 'package:sixam_mart/features/redesign_feature/dashboard/widgets/common_widget/featured_store_card.dart';
-import 'package:sixam_mart/features/redesign_feature/global_widgets/exclusive_deal_card.dart';
+import 'package:sixam_mart/common/widgets/featured_store_card.dart';
+import 'package:sixam_mart/common/widgets/exclusive_deal_card.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
@@ -232,6 +232,9 @@ class CategoryItemScreenState extends State<CategoryItemScreen> {
       itemsLabel: _itemsLabel,
       storesLabel: _storesLabel,
       onSelected: _selectFilter,
+      // The active tab's list is still null on first load — show a shimmer for the
+      // count instead of a misleading "0".
+      isLoading: _selectedFilter == _CatFilter.items ? !itemsReady : !storesReady,
     );
 
     final Widget searchBar = _CategorySearchBar(
@@ -241,7 +244,12 @@ class CategoryItemScreenState extends State<CategoryItemScreen> {
       onClear: () => _toggleSearch(controller),
     );
 
-    final Widget subCategoryBar = (controller.subCategoryList != null && !controller.isSearching)
+    // Only show the sub-category strip when there is at least one sub-category
+    // to choose from — otherwise it would render an empty fixed-height band.
+    final bool showSubCategoryBar = !controller.isSearching
+        && controller.subCategoryList != null
+        && controller.subCategoryList!.isNotEmpty;
+    final Widget subCategoryBar = showSubCategoryBar
         ? _SubCategoryStrip(controller: controller, parentCategoryID: widget.categoryID)
         : const SizedBox.shrink();
 
@@ -256,7 +264,7 @@ class CategoryItemScreenState extends State<CategoryItemScreen> {
 
     if (!asSlivers) {
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-        if (controller.isSearching) searchBar else subCategoryBar,
+        if (controller.isSearching) searchBar else if (showSubCategoryBar) subCategoryBar,
         Container(color: tinted, height: 56, child: filterBar),
         body,
         paginationLoader,
@@ -269,7 +277,7 @@ class CategoryItemScreenState extends State<CategoryItemScreen> {
       slivers: <Widget>[
         if (controller.isSearching)
           SliverToBoxAdapter(child: searchBar)
-        else if (controller.subCategoryList != null)
+        else if (showSubCategoryBar)
           SliverToBoxAdapter(child: subCategoryBar),
         SliverPersistentHeader(
           pinned: true,
@@ -502,9 +510,11 @@ class _CatTypeFilterBar extends StatelessWidget {
   final String itemsLabel;
   final String storesLabel;
   final ValueChanged<_CatFilter> onSelected;
+  final bool isLoading;
 
-  const _CatTypeFilterBar({required this.selected,
-    required this.count, required this.itemsLabel, required this.storesLabel, required this.onSelected,
+  const _CatTypeFilterBar({
+    required this.selected, required this.count, required this.itemsLabel, required this.storesLabel, required this.onSelected,
+    required this.isLoading,
   });
 
   @override
@@ -528,13 +538,20 @@ class _CatTypeFilterBar extends StatelessWidget {
               horizontal: Dimensions.paddingSizeDefault,
               vertical: Dimensions.paddingSizeSmall,
             ),
-            child: Text(
-              '$count ${selected == _CatFilter.items ? itemsLabel : storesLabel}',
-              style: robotoBold.copyWith(
-                fontSize: Dimensions.fontSizeSmall,
-                color: Theme.of(context).disabledColor,
-              ),
-            ),
+            child: isLoading
+                ? Shimmer(
+                    duration: const Duration(seconds: 1),
+                    interval: const Duration(milliseconds: 500),
+                    color: Theme.of(context).cardColor,
+                    child: const _ShimmerBox(width: 70, height: 12),
+                  )
+                : Text(
+                    '$count ${selected == _CatFilter.items ? itemsLabel : storesLabel}',
+                    style: robotoBold.copyWith(
+                      fontSize: Dimensions.fontSizeSmall,
+                      color: Theme.of(context).disabledColor,
+                    ),
+                  ),
           ),
           const Spacer(),
           Padding(

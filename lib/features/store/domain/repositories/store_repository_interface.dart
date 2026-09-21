@@ -1,7 +1,7 @@
 import 'package:sixam_mart/common/enums/data_source_enum.dart';
 import 'package:sixam_mart/common/models/module_model.dart';
+import 'package:sixam_mart/features/store/domain/models/store_category_item_model.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
-import 'package:sixam_mart/features/store/domain/models/store_category_items_model.dart';
 import 'package:sixam_mart/interfaces/repository_interface.dart';
 
 abstract class StoreRepositoryInterface extends RepositoryInterface {
@@ -15,5 +15,6 @@ abstract class StoreRepositoryInterface extends RepositoryInterface {
   Future<dynamic> getCartStoreSuggestedItemList(int? storeId, String languageCode, ModuleModel? module, int? cacheModuleId, int? moduleId);
   Future<StoreModel?> getQuickDeliveryStores({int offset = 1, int limit = 10, int? moduleId, String name = ''});
   Future<StoreModel?> getNearbyStores({int offset = 1, int limit = 10, int? moduleId, String name = ''});
-  Future<StoreCategoryItemsModel?> getStoreCategoryItems(int storeId);
+  Future<StoreModel?> getVerifiedStores({int offset = 1, int limit = 10, String? type});
+  Future<StoreCategoryItemModel?> getStoreCategoryItems(int storeId);
 }

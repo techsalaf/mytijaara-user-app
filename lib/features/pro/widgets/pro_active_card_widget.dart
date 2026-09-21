@@ -1,3 +1,4 @@
+import 'package:sixam_mart/common/controllers/theme_controller.dart';
 import 'package:sixam_mart/features/pro/controllers/pro_controller.dart';
 import 'package:sixam_mart/features/pro/domain/models/pro_active_offer_model.dart';
 import 'package:sixam_mart/features/pro/widgets/pro_subscription_actions_widget.dart';
@@ -37,9 +38,11 @@ class ProActiveCardWidget extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(Dimensions.paddingSizeLarge),
               decoration: BoxDecoration(
-                color: const Color(0xFFE1D3FF),
+                color: Get.find<ThemeController>().darkTheme ?  Colors.deepPurpleAccent.withValues(alpha: .2) : const Color(0xFFE1D3FF),
                 borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
-                boxShadow: [BoxShadow(color: const Color(0xFFB794F6).withValues(alpha: 0.25), blurRadius: 16, offset: const Offset(0, 8))],
+                boxShadow: [BoxShadow(
+                    color: Get.find<ThemeController>().darkTheme ?  Colors.deepPurpleAccent.withValues(alpha: .2) : const Color(0xFFB794F6).withValues(alpha: 0.25),
+                    blurRadius: 16, offset: const Offset(0, 8))],
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
@@ -59,7 +62,7 @@ class ProActiveCardWidget extends StatelessWidget {
                 Row(children: [
                   Expanded(child: _buildStatCard(context, 'total_saved'.tr, PriceConverter.convertPrice(details?.totalSaved ?? 0))),
                   const SizedBox(width: Dimensions.paddingSizeDefault),
-                  Expanded(child: _buildStatCard(context, 'orders_placed'.tr, '${details?.totalOrders ?? 0}')),
+                  Expanded(child: _buildStatCard(context, ModuleHelper.isBookingModule() ? 'bookings_placed'.tr : 'orders_placed'.tr, '${details?.totalOrders ?? 0}')),
                 ]),
               ]),
             ),

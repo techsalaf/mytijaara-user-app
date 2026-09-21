@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 
 class ServiceDetailsScreen extends StatefulWidget {
   final int? serviceId;
-  final String? heroTag;
-  const ServiceDetailsScreen({super.key, this.serviceId, this.heroTag});
-
-  static Future<void> loadData() async {}
+  const ServiceDetailsScreen({super.key, required this.serviceId});
 
   @override
   State<ServiceDetailsScreen> createState() => _ServiceDetailsScreenState();
@@ -13,7 +10,5 @@ class ServiceDetailsScreen extends StatefulWidget {
 
 class _ServiceDetailsScreenState extends State<ServiceDetailsScreen> {
   @override
-  Widget build(BuildContext context) {
-    return const SizedBox();
-  }
+  Widget build(BuildContext context) => const SizedBox();
 }

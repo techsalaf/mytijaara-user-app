@@ -33,6 +33,7 @@ dependencies:
   flutter_inappwebview: ^6.1.5
   url_launcher: ^6.3.2
   http: ^1.6.0
+  open_filex: ^4.5.0
   web: ^1.1.1
   pointer_interceptor: ^0.10.1+2
   phone_numbers_parser: ^9.0.17

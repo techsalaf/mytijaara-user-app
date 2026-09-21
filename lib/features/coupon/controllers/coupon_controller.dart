@@ -36,8 +36,8 @@ class CouponController extends GetxController implements GetxService {
     }
   }
 
-  Future<void> getCouponList({int? customerId, int? storeId}) async {
-    List<CouponModel>? couponList = await couponServiceInterface.getCouponList(customerId: customerId, storeId: storeId);
+  Future<void> getCouponList({int? customerId, int? storeId, int? zoneId}) async {
+    List<CouponModel>? couponList = await couponServiceInterface.getCouponList(customerId: customerId, storeId: storeId, zoneId: zoneId);
     if (couponList != null) {
       _couponList = [];
       _couponList!.addAll(couponList);
@@ -91,7 +91,18 @@ class CouponController extends GetxController implements GetxService {
     }
   }
 
-  void _processCoupon(double order) {
+  /// Recomputes the applied coupon against a new order amount without re-hitting
+  /// the API — the CouponModel is already held. Silent on min-purchase failure:
+  /// the amount changed under the user rather than by their direct action, so a
+  /// snackbar would be noise. Used by the service checkout when the repeat
+  /// occurrence count changes the booking-wide order amount.
+  void recalculateDiscount(double order, {bool notify = true}) {
+    if (_coupon == null || _freeDelivery) return;
+    _processCoupon(order, showError: false);
+    if (notify) update();
+  }
+
+  void _processCoupon(double order, {bool showError = true}) {
     if (_coupon!.minPurchase != null && _coupon!.minPurchase! <= order) {
       if (_coupon!.discountType == 'percent') {
         if (_coupon!.maxDiscount != null && _coupon!.maxDiscount! > 0) {
@@ -104,9 +115,11 @@ class CouponController extends GetxController implements GetxService {
       }
     } else {
       _discount = 0.0;
-      showCustomSnackBar('${'the_minimum_item_purchase_amount_for_this_coupon_is'.tr} '
-          '${PriceConverter.convertPrice(_coupon!.minPurchase)} '
-          '${'but_you_have'.tr} ${PriceConverter.convertPrice(order)}');
+      if (showError) {
+        showCustomSnackBar('${'the_minimum_item_purchase_amount_for_this_coupon_is'.tr} '
+            '${PriceConverter.convertPrice(_coupon!.minPurchase)} '
+            '${'but_you_have'.tr} ${PriceConverter.convertPrice(order)}');
+      }
     }
   }
 

@@ -14,6 +14,7 @@
 *.ipr
 *.iws
 .idea/
+* sync-branch.sh
 
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
@@ -45,6 +46,7 @@ rental_module.zip
 .vscode
 git.sh
 sync-branch.sh
+ios/Runner.xcworkspace/xcshareddata/swiftpm/
 
 # Web related
 

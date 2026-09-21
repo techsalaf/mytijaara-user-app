@@ -134,7 +134,7 @@ class _ProSavingsView extends StatelessWidget {
   Widget build(BuildContext context) {
     final OrderModel? order = Get.find<OrderController>().trackModel;
     final double proSavings = (order?.proDiscount ?? 0) + (order?.deliveryFeeReductionAmount ?? 0);
-    final bool isProUser = Get.find<SplashController>().proStaus && Get.find<ProfileController>().proStatus;
+    final bool isProUser = Get.find<ProfileController>().proStatus;
 
     if (!success || !isProUser || proSavings <= 0) {
       return const SizedBox.shrink();

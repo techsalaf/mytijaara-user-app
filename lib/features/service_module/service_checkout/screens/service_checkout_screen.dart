@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
 
-class ServiceCheckoutScreen extends StatelessWidget {
-  const ServiceCheckoutScreen({super.key});
+class ServiceCheckoutScreen extends StatefulWidget {
+  final int providerId;
+  const ServiceCheckoutScreen({super.key, required this.providerId});
+
   @override
-  Widget build(BuildContext context) => const SizedBox();
+  State<ServiceCheckoutScreen> createState() => _ServiceCheckoutScreenState();
+}
+
+class _ServiceCheckoutScreenState extends State<ServiceCheckoutScreen> {
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox();
+  }
 }

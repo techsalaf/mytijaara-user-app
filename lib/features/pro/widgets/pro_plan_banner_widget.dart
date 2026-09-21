@@ -4,6 +4,7 @@ import 'package:sixam_mart/features/pro/controllers/pro_controller.dart';
 import 'package:sixam_mart/features/pro/domain/models/pro_active_offer_model.dart';
 import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
+import 'package:sixam_mart/helper/module_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/images.dart';
 import 'package:sixam_mart/util/styles.dart';
@@ -48,9 +49,10 @@ class ProPlanBannerWidget extends StatelessWidget {
             Expanded(
               child: RichText(
                 text: TextSpan(
+                  // Service books rather than orders, so its copy reads "booking".
                   text: hasProPlan
-                      ? '${'order_now_to_enjoy_exclusive_offer_with_your'.tr} '
-                      : '${'enjoy_extra_savings_on_every_order_with_a'.tr} ',
+                      ? '${(ModuleHelper.isBookingModule() ? 'book_now_to_enjoy_exclusive_offer_with_your' : 'order_now_to_enjoy_exclusive_offer_with_your').tr} '
+                      : '${(ModuleHelper.isBookingModule() ? 'enjoy_extra_savings_on_every_booking_with_a' : 'enjoy_extra_savings_on_every_order_with_a').tr} ',
                   style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeDefault, color: Colors.white),
                   children: [
                     TextSpan(
@@ -73,7 +75,7 @@ class ProPlanBannerWidget extends StatelessWidget {
                 onTap: onSubscribe,
                 borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Text('explore'.tr, style: robotoBold.copyWith(fontSize: Dimensions.fontSizeDefault, color: Colors.white)),
+                  Text('subscribe'.tr, style: robotoBold.copyWith(fontSize: Dimensions.fontSizeDefault, color: Colors.white)),
                   const Icon(Icons.chevron_right, color: Colors.white, size: 20),
                 ]),
               ),

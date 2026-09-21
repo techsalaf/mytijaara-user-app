@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 import 'package:sixam_mart/common/enums/data_source_enum.dart';
 import 'package:sixam_mart/features/category/domain/models/category_model.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
+import 'package:sixam_mart/features/service_module/service_home/domain/models/service_category_model.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 import 'package:sixam_mart/features/category/domain/reposotories/category_repository_interface.dart';
 import 'package:sixam_mart/features/category/domain/services/category_service_interface.dart';
@@ -39,5 +40,9 @@ class CategoryService implements CategoryServiceInterface {
   Future<bool> saveUserInterests(List<int?> interests) async {
     return await categoryRepositoryInterface.saveUserInterests(interests);
   }
+
+  @override
+  Future<List<ServiceCategoryModel>?> getCategoriesWithChildes() =>
+      categoryRepositoryInterface.getCategoriesWithChildes();
 
 }

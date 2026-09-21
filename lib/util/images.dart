@@ -383,10 +383,15 @@ class Images {
   static const String couponRedIcon = 'assets/image/couponicon.png';
   static const String serviceEditIcon = 'assets/image/service/edit_icon.svg';
   static const String serviceCreatedIcon = 'assets/image/service/service_created.svg';
-  static const String notFoundIcon = 'assets/image/service/not_found_icon.svg';
+  static const String providerImage = 'assets/image/service/provider_image.svg';
   static const String createServiceRequestIcon = 'assets/image/service/create_service_request_icon.svg';
   static const String deleteServiceIcon = 'assets/image/service/delete_service_icon.svg';
   static const String eyeIcon = 'assets/image/service/eye_icon.svg';
   static const String circularCrossIcon = 'assets/image/service/circular_cross_icon.svg';
   static const String rebookingIcon = 'assets/image/service/re_booking_icon.svg';
+  static const String couponProBadge = 'assets/image/service/coupon_pro_badge.svg';
+  static const String couponPercentageBadge = 'assets/image/service/coupon_percentage_badge.svg';
+  static const String dropdownIcon = 'assets/image/service/drop_down_icon.svg';
+  static const String nearByIcon = 'assets/image/service/near_by_icon.png';
+
 }

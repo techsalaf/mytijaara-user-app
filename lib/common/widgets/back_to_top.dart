@@ -7,15 +7,18 @@ import 'package:sixam_mart/util/styles.dart';
 class BackToTopButton extends StatelessWidget {
   final bool visible;
   final VoidCallback onTap;
+  final double top;
 
-  const BackToTopButton({super.key, required this.visible, required this.onTap});
+  static const double _tapInset = Dimensions.paddingSizeExtraSmall;
+
+  const BackToTopButton({super.key, required this.visible, required this.onTap, this.top = 155});
 
   @override
   Widget build(BuildContext context) {
     return Positioned(
       left: 0,
       right: 0,
-      top: 150,
+      top: top - _tapInset,
       child: IgnorePointer(
         ignoring: !visible,
         child: AnimatedSlide(
@@ -28,11 +31,13 @@ class BackToTopButton extends StatelessWidget {
             child: Center(
               child: Material(
                 color: Colors.transparent,
-                child: CustomInkWell(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                  child: CustomInkWell(
                   radius: 99,
                   onTap: onTap,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeLarge, vertical: Dimensions.paddingSizeSmall),
+                    padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault, vertical: Dimensions.paddingSizeExtraSmall),
                     child: Container(
                       padding: const EdgeInsets.fromLTRB(10, 5, 5, 5),
                       decoration: BoxDecoration(
@@ -43,10 +48,10 @@ class BackToTopButton extends StatelessWidget {
                       ),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
                         Text('back_to_top'.tr,
-                          style: robotoBold.copyWith(color: Theme.of(context).cardColor, fontSize: Dimensions.fontSizeDefault),
+                          style: robotoBold.copyWith(color: Theme.of(context).cardColor, fontSize: Dimensions.fontSizeSmall),
                         ),
                         const SizedBox(width: Dimensions.paddingSizeExtraSmall),
-                        Icon(Icons.arrow_upward_outlined, size: 18, color: Theme.of(context).cardColor),
+                        Icon(Icons.arrow_upward_outlined, size: 16, color: Theme.of(context).cardColor),
                       ]),
                     ),
                   ),
@@ -56,6 +61,7 @@ class BackToTopButton extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
 }

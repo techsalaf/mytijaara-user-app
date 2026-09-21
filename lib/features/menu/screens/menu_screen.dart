@@ -18,6 +18,7 @@ import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/helper/date_converter.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
+import 'package:sixam_mart/helper/module_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/images.dart';
@@ -189,6 +190,10 @@ class _MenuScreenState extends State<MenuScreen> {
                   child: Column(children: [
                     PortionWidget(icon: Images.profileIcon, title: 'edit_profile'.tr, route: RouteHelper.getUpdateProfileRoute()),
                     PortionWidget(icon: Images.addressIcon, title: 'my_address'.tr, route: RouteHelper.getAddressRoute()),
+                    if(AuthHelper.isLoggedIn() && ModuleHelper.isActiveServiceModule() && (Get.find<SplashController>().configModel?.serviceModule?.biddingSystem ?? false))
+                      PortionWidget(icon: Images.servicePostCustomizedIcon, title: 'custom_service'.tr, route: RouteHelper.getCustomServiceRequestRoute()),
+                    if(AuthHelper.isLoggedIn() && ModuleHelper.isActiveServiceModule())
+                      PortionWidget(icon: Images.serviceQuickEmergencyIcon, title: 'requested_service'.tr, route: RouteHelper.getRequestedServiceRoute()),
                     Get.find<SplashController>().proStaus ? PortionWidget(icon: Images.proPlanCrown, title: 'my_subscription'.tr, route: RouteHelper.getSubscriptionPlanRoute()) : const SizedBox(),
                     // PortionWidget(icon: Images.languageIcon, title: 'language'.tr, hideDivider: true, onTap: ()=> _manageLanguageFunctionality(), route: ''),
                     PortionWidget(icon: Images.settings, title: 'settings'.tr, hideDivider: true, route: RouteHelper.getSettingScreen()),

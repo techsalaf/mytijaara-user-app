@@ -168,6 +168,11 @@ class AuthController extends GetxController implements GetxService {
     await authServiceInterface.updateToken();
   }
 
+  Future<void> loginWithToken(String token) async {
+    await authServiceInterface.loginWithToken(token);
+    update();
+  }
+
   bool isLoggedIn() {
     return authServiceInterface.isLoggedIn();
   }

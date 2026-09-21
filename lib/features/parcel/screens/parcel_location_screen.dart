@@ -968,10 +968,8 @@ class _DeliveryTipsCard extends StatelessWidget {
                     final bool isCustomChip = raw == 'custom';
                     return TipsWidget(
                       title: raw == '0'
-                          ? 'not_now'.tr
-                          : isCustomChip
-                              ? raw.tr.toCapitalized()
-                              : '\$$raw',
+                          ? 'not_now'.tr : isCustomChip
+                           ? raw.tr.toCapitalized() : PriceConverter.convertPrice(double.parse(raw), forDM: true),
                       isSelected: controller.selectedTips == index,
                       isSuggested: raw != '0' && !isCustomChip && raw == controller.mostDmTipAmount.toString(),
                       onTap: () {

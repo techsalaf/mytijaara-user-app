@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:sixam_mart/features/ai_chat_bot/domain/models/ai_chat_conversation_model.dart';
 import 'package:sixam_mart/features/ai_chat_bot/domain/models/ai_chat_message_model.dart';
 import 'package:sixam_mart/features/ai_chat_bot/domain/services/ai_chat_bot_service_interface.dart';
+import 'package:sixam_mart/features/cart/controllers/cart_controller.dart';
 
 class AiChatBotController extends GetxController implements GetxService {
   final AiChatBotServiceInterface aiChatBotServiceInterface;
@@ -117,6 +118,12 @@ class AiChatBotController extends GetxController implements GetxService {
           assistantMessage.createdAt ??= DateTime.now().toUtc().toIso8601String();
           _messageModel!.messages!.insert(0, assistantMessage);
           _messageModel!.totalSize = (_messageModel!.totalSize ?? 0) + 1;
+          // The bot mutates the cart server-side during this call — the app never
+          // otherwise calls CartController for it, so the header badge and cart
+          // screens would stay stale until some unrelated screen happened to refetch.
+          if (assistantMessage.metadata?.cartUpdated == true) {
+            Get.find<CartController>().getAllCarts();
+          }
         } catch (_) {}
       }
     } else {

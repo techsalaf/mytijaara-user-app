@@ -1,5 +1,5 @@
-import '../../../../../api/api_client.dart';
-import 'service_details_repository_interface.dart';
+import 'package:sixam_mart/api/api_client.dart';
+import 'package:sixam_mart/features/service_module/service_details/domain/repositories/service_details_repository_interface.dart';
 
 class ServiceDetailsRepository implements ServiceDetailsRepositoryInterface {
   final ApiClient apiClient;

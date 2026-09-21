@@ -17,7 +17,7 @@ class OrderItemStatusSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = _StatusBadgeColors.resolve(context, order.orderStatus);
+    final colors = StatusBadgeColors.resolve(context, order.orderStatus);
     final formatted = order.createdAt == null ? '' : DateFormat('d MMM, y h:mm a').format(DateTime.parse(order.createdAt!).toLocal());
     final type = (order.orderType == 'delivery' ? 'home_delivery'.tr : order.orderType!.tr);
     final payment = order.paymentMethod == 'cash_on_delivery' ? 'cash_on_delivery'.tr
@@ -81,24 +81,24 @@ class OrderItemStatusSection extends StatelessWidget {
   }
 }
 
-class _StatusBadgeColors {
+class StatusBadgeColors {
   final Color background;
   final Color text;
 
-  const _StatusBadgeColors(this.background, this.text);
+  const StatusBadgeColors(this.background, this.text);
 
-  static _StatusBadgeColors resolve(BuildContext context, String? status) {
+  static StatusBadgeColors resolve(BuildContext context, String? status) {
     if (status == 'refunded' || status == 'refund_requested' || status == 'refund_request_canceled') {
-      return const _StatusBadgeColors(Color(0x1AF44747), Color(0xFFF44747));
+      return const StatusBadgeColors(Color(0x1AF44747), Color(0xFFF44747));
     }
     final mappedKey = _mapStatusKey(status);
     final bg = buttonBackgroundColorMap[mappedKey];
     final fg = buttonTextColorMap[mappedKey];
     if (bg != null && fg != null) {
-      return _StatusBadgeColors(bg, fg);
+      return StatusBadgeColors(bg, fg);
     }
     final fallback = Theme.of(context).disabledColor;
-    return _StatusBadgeColors(fallback.withValues(alpha: 0.15), fallback);
+    return StatusBadgeColors(fallback.withValues(alpha: 0.15), fallback);
   }
 
   static String _mapStatusKey(String? status) {

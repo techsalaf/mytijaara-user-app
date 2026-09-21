@@ -94,6 +94,7 @@ class StoreCardWithDistance extends StatelessWidget {
                             child: Text(
                               discount > 0 ? '${(isRightSide || discountType == 'percent') ? '' : currencySymbol}$discount${discountType == 'percent' ? '%'
                                   : isRightSide ? currencySymbol : ''} ${'off'.tr}' : 'free_delivery'.tr,
+                              textDirection: discount > 0 ? TextDirection.ltr : null,
                               style: robotoMedium.copyWith(color: Theme.of(context).cardColor, fontSize: Dimensions.fontSizeSmall),
                               textAlign: TextAlign.center,
                             ),

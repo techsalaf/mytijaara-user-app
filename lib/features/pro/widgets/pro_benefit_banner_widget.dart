@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sixam_mart/features/pro/domain/models/pro_active_offer_model.dart';
+import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/helper/module_helper.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
+import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/images.dart';
 import 'package:sixam_mart/util/styles.dart';
@@ -85,6 +87,13 @@ class ProBenefitBannerWidget extends StatelessWidget {
       final bool meetsMinOrder = assumeMinOrderMet || benefit.minOrderStatus != true || subtotal >= (benefit.minOrderAmount ?? 0);
       if (!meetsMinOrder) {
         final double remaining = (benefit.minOrderAmount ?? 0) - subtotal;
+        if(Get.find<SplashController>().module?.moduleType == AppConstants.parcel){
+          // parce has fo full free and parcel can't change order amount without change location so for parcel should not show more to unlock.
+          return [
+            text('${'you_get'.tr} ${(benefit.chargeDiscountPercentage ?? 0).toStringAsFixed(0)}% ${'off_on_delivery_charge_as_a_pro_member'.tr}'),
+            ...minOrderSuffix(),
+          ];
+        }
         return [
           bold(PriceConverter.convertPrice(remaining)),
           text(' ${benefit.offerType == ProOfferType.fullFree ? 'more_to_unlock_free_delivery'.tr : 'more_to_unlock_delivery_discount'.tr}'),

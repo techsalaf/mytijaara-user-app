@@ -131,6 +131,8 @@ class ConfigModel {
   bool? proMemberStatus;
   bool? aiChatStatus;
   int? systemTaxIncludeStatus;
+  ServiceModuleConfig? serviceModule;
+  bool? verifiedStoreStatus;
 
   ConfigModel({
     this.businessName,
@@ -260,6 +262,8 @@ class ConfigModel {
     this.proMemberStatus,
     this.aiChatStatus,
     this.systemTaxIncludeStatus,
+    this.serviceModule,
+    this.verifiedStoreStatus,
   });
 
   ConfigModel.fromJson(Map<String, dynamic> json) {
@@ -427,6 +431,8 @@ class ConfigModel {
     proMemberStatus = TypeConverterHelper.getBool(json['pro_member_status']);
     aiChatStatus = TypeConverterHelper.getBool(json['ai_chat_status']);
     systemTaxIncludeStatus = json['system_tax_include_status'];
+    serviceModule = json['service_module'] != null ? ServiceModuleConfig.fromJson(json['service_module']) : null;
+    verifiedStoreStatus = TypeConverterHelper.getBool(json['verified_store_status']);
   }
 
   Map<String, dynamic> toJson() {
@@ -554,6 +560,50 @@ class ConfigModel {
     }
     data['pro_member_status'] = proMemberStatus;
     data['system_tax_include_status'] = systemTaxIncludeStatus;
+    if (serviceModule != null) {
+      data['service_module'] = serviceModule!.toJson();
+    }
+    data['verified_store_status'] = verifiedStoreStatus;
+    return data;
+  }
+}
+
+class ServiceModuleConfig {
+  bool? scheduleTimeRestrictionStatus;
+  int? scheduleTimeRestrictionValue;
+  String? scheduleTimeRestrictionUnit;
+  bool? biddingSystem;
+  int? postValidationDays;
+  bool? otpForCompleteService;
+  bool? rebookingOption;
+  bool? providerVerifiedBadge;
+
+  ServiceModuleConfig({
+    this.scheduleTimeRestrictionStatus, this.scheduleTimeRestrictionValue, this.scheduleTimeRestrictionUnit, this.biddingSystem, this.postValidationDays,
+    this.otpForCompleteService, this.rebookingOption, this.providerVerifiedBadge,
+  });
+
+  ServiceModuleConfig.fromJson(Map<String, dynamic> json) {
+    scheduleTimeRestrictionStatus = TypeConverterHelper.getBool(json['schedule_time_restriction_status']);
+    scheduleTimeRestrictionValue = int.tryParse('${json['schedule_time_restriction_value']}');
+    scheduleTimeRestrictionUnit = json['schedule_time_restriction_unit'];
+    biddingSystem = TypeConverterHelper.getBool(json['bidding_system']);
+    postValidationDays = int.tryParse('${json['post_validation_days']}');
+    otpForCompleteService = TypeConverterHelper.getBool(json['otp_for_complete_service']);
+    rebookingOption = TypeConverterHelper.getBool(json['rebooking_option']);
+    providerVerifiedBadge = TypeConverterHelper.getBool(json['provider_verified_badge']);
+  }
+
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data['schedule_time_restriction_status'] = scheduleTimeRestrictionStatus;
+    data['schedule_time_restriction_value'] = scheduleTimeRestrictionValue;
+    data['schedule_time_restriction_unit'] = scheduleTimeRestrictionUnit;
+    data['bidding_system'] = biddingSystem;
+    data['post_validation_days'] = postValidationDays;
+    data['otp_for_complete_service'] = otpForCompleteService;
+    data['rebooking_option'] = rebookingOption;
+    data['provider_verified_badge'] = providerVerifiedBadge;
     return data;
   }
 }
@@ -1119,7 +1169,7 @@ class ParcelReturnTimeFee {
   ParcelReturnTimeFee({this.status, this.parcelReturnTime, this.returnTimeType, this.returnFeeForDm});
 
   ParcelReturnTimeFee.fromJson(Map<String, dynamic> json) {
-    status = json['status'];
+    status = json['status']?.toString();
     parcelReturnTime = json['parcel_return_time'];
     returnTimeType = json['return_time_type'];
     returnFeeForDm = json['return_fee_for_dm'];

@@ -7,8 +7,8 @@ class CouponService implements CouponServiceInterface{
   CouponService({required this.couponRepositoryInterface});
 
   @override
-  Future<List<CouponModel>?> getCouponList({int? customerId, int? storeId}) async {
-    return await couponRepositoryInterface.getList(couponList: true, customerId: customerId, storeId: storeId);
+  Future<List<CouponModel>?> getCouponList({int? customerId, int? storeId, int? zoneId}) async {
+    return await couponRepositoryInterface.getList(couponList: true, customerId: customerId, storeId: storeId, zoneId: zoneId);
   }
 
   @override

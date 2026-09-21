@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 class PostCustomizedServiceWidget extends StatelessWidget {
-  const PostCustomizedServiceWidget({super.key});
+  final VoidCallback? onTap;
+  const PostCustomizedServiceWidget({super.key, this.onTap});
+
   @override
   Widget build(BuildContext context) => const SizedBox();
 }

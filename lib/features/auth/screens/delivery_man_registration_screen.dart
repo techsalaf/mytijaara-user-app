@@ -112,6 +112,9 @@ class _DeliveryManRegistrationScreenState extends State<DeliveryManRegistrationS
         endDrawer: const MenuDrawer(),endDrawerEnableOpenDragGesture: false,
         body: GetBuilder<DeliverymanRegistrationController>(builder: (deliverymanRegistrationController) {
 
+          var config = Get.find<SplashController>().configModel;
+          bool isDMReferralActive = config?.dmReferralData?.referalStatus ?? false;
+
           List<int> zoneIndexList = [];
           List<DropdownItem<int>> zoneList = [];
           List<DropdownItem<int>> vehicleList = [];
@@ -494,7 +497,7 @@ class _DeliveryManRegistrationScreenState extends State<DeliveryManRegistrationS
                             ),
                             const SizedBox(height: Dimensions.paddingSizeLarge),
 
-                            deliverymanRegistrationController.dmTypeIndex == 1 ? Padding(
+                            (isDMReferralActive && deliverymanRegistrationController.dmTypeIndex == 1) ? Padding(
                               padding: const EdgeInsets.only(bottom: Dimensions.paddingSizeExtraLarge),
                               child: CustomTextField(
                                 hintText: 'Ex: SPECIAL2025',

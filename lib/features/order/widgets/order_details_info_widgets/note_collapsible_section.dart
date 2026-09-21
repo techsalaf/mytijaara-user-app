@@ -141,14 +141,14 @@ class _BringChangeAmountPanel extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(Dimensions.paddingSizeSmall),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF7DB),
+        color: Colors.amber.shade100.withAlpha(60),
         borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
       ),
       child: RichText(
         text: TextSpan(children: [
-          TextSpan(text: 'please_bring'.tr, style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeDefault)),
-          TextSpan(text: ' ${PriceConverter.convertPrice(amount)}', style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeDefault)),
-          TextSpan(text: ' ${'in_change_when_making_the_delivery'.tr}', style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeDefault)),
+          TextSpan(text: 'please_bring'.tr, style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeDefault, color: Theme.of(context).textTheme.bodyLarge?.color)),
+          TextSpan(text: ' ${PriceConverter.convertPrice(amount)}', style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeDefault, color: Theme.of(context).textTheme.bodyLarge?.color)),
+          TextSpan(text: ' ${'in_change_when_making_the_delivery'.tr}', style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeDefault, color: Theme.of(context).textTheme.bodyLarge?.color)),
         ]),
       ),
     );

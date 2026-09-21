@@ -16,13 +16,13 @@ class FavouriteService implements FavouriteServiceInterface {
   }
 
   @override
-  Future<ResponseModel> addFavouriteList(int? id, bool isStore) async {
-    return await favouriteRepositoryInterface.add(null, isStore: isStore, id: id);
+  Future<ResponseModel> addFavouriteList(int? id, bool isStore, {bool isServiceModule = false}) async {
+    return await favouriteRepositoryInterface.add(null, isStore: isStore, id: id, isServiceModule: isServiceModule);
   }
 
   @override
-  Future<ResponseModel> removeFavouriteList(int? id, bool isStore) async {
-    return await favouriteRepositoryInterface.delete(id, isStore: isStore);
+  Future<ResponseModel> removeFavouriteList(int? id, bool isStore, {bool isServiceModule = false}) async {
+    return await favouriteRepositoryInterface.delete(id, isStore: isStore, isServiceModule: isServiceModule);
   }
 
   @override

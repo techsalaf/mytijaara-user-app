@@ -120,6 +120,8 @@ class Item {
   String? storeLogoFullUrl;
   bool? freeDelivery;
   String? offerLabel;
+  int? brandId;
+  String? brandName;
 
   Item({
     this.id,
@@ -179,6 +181,8 @@ class Item {
     this.storeLogoFullUrl,
     this.freeDelivery,
     this.offerLabel,
+    this.brandId,
+    this.brandName,
   });
 
   Item.fromJson(Map<String, dynamic> json) {
@@ -279,6 +283,8 @@ class Item {
     storeLogoFullUrl = json['store_logo_full_url'];
     freeDelivery = json['free_delivery'];
     offerLabel = json['offer_label'];
+    brandId = json['brand_id'];
+    brandName = json['brand_name'];
   }
 
   Map<String, dynamic> toJson() {
@@ -352,6 +358,8 @@ class Item {
     data['store_logo_full_url'] = storeLogoFullUrl;
     data['free_delivery'] = freeDelivery;
     data['offer_label'] = offerLabel;
+    data['brand_id'] = brandId;
+    data['brand_name'] = brandName;
     return data;
   }
 }

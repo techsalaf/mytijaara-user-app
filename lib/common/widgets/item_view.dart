@@ -1,15 +1,19 @@
-import 'package:sixam_mart/common/widgets/card_design/store_card_with_distance.dart';
-import 'package:sixam_mart/common/widgets/web_item_widget.dart';
-import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
-import 'package:sixam_mart/features/item/domain/models/item_model.dart';
-import 'package:sixam_mart/features/home/widgets/web/widgets/store_card_widget.dart';
-import 'package:sixam_mart/helper/responsive_helper.dart';
-import 'package:sixam_mart/util/dimensions.dart';
-import 'package:sixam_mart/common/widgets/no_data_screen.dart';
-import 'package:sixam_mart/common/widgets/item_shimmer.dart';
-import 'package:sixam_mart/common/widgets/item_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:sixam_mart/common/models/module_model.dart';
+import 'package:sixam_mart/common/widgets/card_design/store_card_with_distance.dart';
+import 'package:sixam_mart/common/widgets/featured_store_card.dart';
+import 'package:sixam_mart/common/widgets/item_shimmer.dart';
+import 'package:sixam_mart/common/widgets/item_widget.dart';
+import 'package:sixam_mart/common/widgets/no_data_screen.dart';
+import 'package:sixam_mart/common/widgets/web_item_widget.dart';
+import 'package:sixam_mart/features/home/widgets/web/widgets/store_card_widget.dart';
+import 'package:sixam_mart/features/item/domain/models/item_model.dart';
+import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
+import 'package:sixam_mart/features/store/screens/store_screen.dart';
+import 'package:sixam_mart/helper/responsive_helper.dart';
+import 'package:sixam_mart/helper/route_helper.dart';
+import 'package:sixam_mart/util/dimensions.dart';
 
 import '../../features/store/domain/models/store_model.dart';
 
@@ -25,10 +29,11 @@ class ItemsView extends StatefulWidget {
   final bool inStorePage;
   final bool isFeatured;
   final bool? isFoodOrGrocery;
+  final double? height;
   const ItemsView({super.key, required this.stores, required this.items, required this.isStore, this.isScrollable = false,
     this.shimmerLength = 20, this.padding = const EdgeInsets.all(Dimensions.paddingSizeDefault), this.noDataText,
     this.isCampaign = false, this.inStorePage = false, this.isFeatured = false,
-    this.isFoodOrGrocery = true});
+    this.isFoodOrGrocery = true, this.height});
 
   @override
   State<ItemsView> createState() => _ItemsViewState();
@@ -59,7 +64,7 @@ class _ItemsViewState extends State<ItemsView> {
           crossAxisSpacing: ResponsiveHelper.isDesktop(context) ? Dimensions.paddingSizeExtremeLarge : widget.stores != null ? Dimensions.paddingSizeLarge : Dimensions.paddingSizeLarge,
           mainAxisSpacing: ResponsiveHelper.isDesktop(context) ? Dimensions.paddingSizeExtremeLarge : widget.stores != null && widget.isStore ? Dimensions.paddingSizeLarge : Dimensions.paddingSizeSmall,
           mainAxisExtent: ResponsiveHelper.isDesktop(context) && widget.isStore ? 220
-          : ResponsiveHelper.isMobile(context) ? widget.stores != null && widget.isStore ? 200 : 122
+          : ResponsiveHelper.isMobile(context) ? widget.stores != null && widget.isStore ? 215 : 122
           : ResponsiveHelper.isDesktop(context) ? 220 : widget.isStore ? 200 : 122,
           crossAxisCount: ResponsiveHelper.isMobile(context) ? 1 : ResponsiveHelper.isDesktop(context) && widget.stores != null  ? 3 : ResponsiveHelper.isDesktop(context) ? 4 : 3,
         ),
@@ -68,7 +73,30 @@ class _ItemsViewState extends State<ItemsView> {
         itemCount: length,
         padding: widget.padding,
         itemBuilder: (context, index) {
-          return widget.stores != null && widget.isStore ?  widget.isFoodOrGrocery! && widget.isStore ? StoreCardWidget(store: widget.stores![index])
+          return widget.stores != null && widget.isStore ?  widget.isFoodOrGrocery! && widget.isStore 
+          ?  FeaturedStoreCard(
+              data: widget.stores![index]!,
+              width: double.infinity,
+              imageHeight: 130,
+              isQuick: false,
+              onTap: () {
+                final Store? tappedStore = widget.stores![index];
+                if(tappedStore != null) {
+                  if(Get.find<SplashController>().moduleList != null) {
+                    for(ModuleModel module in Get.find<SplashController>().moduleList!) {
+                      if(module.id == tappedStore.moduleId) {
+                        Get.find<SplashController>().setModule(module);
+                        break;
+                      }
+                    }
+                  }
+                  Get.toNamed(
+                    RouteHelper.getStoreRoute(id: tappedStore.id, page: 'item', slug: tappedStore.slug ?? ''),
+                    arguments: StoreScreen(store: tappedStore, fromModule: false),
+                  );
+                }
+              },
+            )
             : StoreCardWithDistance(store: widget.stores![index]!, fromAllStore: true)
             : !ResponsiveHelper.isDesktop(context) ? ItemWidget(
             isStore: widget.isStore, item: widget.isStore ? null : widget.items![index], isFeatured: widget.isFeatured,

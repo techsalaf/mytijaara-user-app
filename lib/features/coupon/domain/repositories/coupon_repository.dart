@@ -10,20 +10,21 @@ class CouponRepository implements CouponRepositoryInterface {
   CouponRepository({required this.apiClient});
 
   @override
-  Future getList({int? offset, bool couponList = false, bool taxiCouponList = false, int? customerId, int? storeId}) async {
+  Future getList({int? offset, bool couponList = false, bool taxiCouponList = false, int? customerId, int? storeId, int? zoneId}) async {
     if(couponList) {
-      return await _getCouponList(customerId: customerId, storeId: storeId);
+      return await _getCouponList(customerId: customerId, storeId: storeId, zoneId: zoneId);
     } else if(taxiCouponList) {
       return await _getTaxiCouponList();
     }
   }
 
-  Future<List<CouponModel>?> _getCouponList({int? customerId, int? storeId}) async {
+  Future<List<CouponModel>?> _getCouponList({int? customerId, int? storeId, int? zoneId}) async {
     List<CouponModel>? couponList;
-    // Send customer_id / store_id only when provided (checkout passes them).
+    // Send customer_id / store_id / zone_id only when provided (checkout passes them).
     final List<String> queryParams = [];
     if (customerId != null) queryParams.add('customer_id=$customerId');
     if (storeId != null) queryParams.add('store_id=$storeId');
+    if (zoneId != null) queryParams.add('zone_id=[$zoneId]');
     final String query = queryParams.isEmpty ? '' : '?${queryParams.join('&')}';
     Response response = await apiClient.getData('${AppConstants.couponUri}$query');
     if (response.statusCode == 200) {

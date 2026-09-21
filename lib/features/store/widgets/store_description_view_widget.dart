@@ -24,6 +24,7 @@ class StoreDescriptionViewWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     bool isAvailable = Get.find<StoreController>().isStoreOpenNow(store!.active!, store!.schedules);
     Color? textColor = ResponsiveHelper.isDesktop(context) ? Colors.white : null;
+    print("store address====> ${store!.address}");
 
     // Module? moduleData;
     // for(ZoneData zData in AddressHelper.getUserAddressFromSharedPref()!.zoneData!) {

@@ -8,6 +8,8 @@ import 'package:sixam_mart/features/banner/controllers/banner_controller.dart';
 import 'package:sixam_mart/features/cart/controllers/cart_controller.dart';
 import 'package:sixam_mart/features/cart/domain/models/all_carts_model.dart';
 import 'package:sixam_mart/features/cart/domain/models/cart_model.dart';
+import 'package:sixam_mart/features/service_module/service_cart/controllers/service_cart_controller.dart';
+import 'package:sixam_mart/features/service_module/service_cart/widgets/service_cart_tab_view.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 import 'package:sixam_mart/features/store/screens/store_screen.dart';
@@ -64,7 +66,10 @@ class _GlobalCartScreenState extends State<GlobalCartScreen> {
         matchIndex = visibleModules.indexWhere((ModuleModel m) => m.id == widget.initialModuleId);
       }
       if(matchIndex < 0) {
-        final ModuleModel? currentSplashModule = _moduleAtSplashIndex(splash, splash.selectedModuleIndex);
+        // On Home the dashboard index is 0 (no active module); fall back to the
+        // last-active (cache) module so the cart opens on the same module the badge
+        // reflects, instead of defaulting to the first module.
+        final ModuleModel? currentSplashModule = _moduleAtSplashIndex(splash, splash.selectedModuleIndex) ?? splash.module ?? splash.cacheModule;
         if(currentSplashModule != null && !_excludedModuleTypes.contains(currentSplashModule.moduleType)) {
           matchIndex = visibleModules.indexWhere((ModuleModel m) => m.id == currentSplashModule.id);
         }
@@ -77,11 +82,18 @@ class _GlobalCartScreenState extends State<GlobalCartScreen> {
     // differs from the active one (e.g. opened from Home, where the active module
     // is stale), point the header at it so its carts are fetched. setModule sets
     // the header + triggers getAllCarts, without touching the dashboard index.
+    final bool isServiceModule = initialModule?.moduleType == AppConstants.service;
     if(initialModule?.id != null && splash.module?.id != initialModule!.id) {
       Get.find<CartController>().setAllCartsLoading(notify: false);
       splash.setModule(initialModule, notify: false);
-    } else {
+    } else if(!isServiceModule) {
       Get.find<CartController>().getAllCarts(notify: false);
+    }
+
+    // The service module's carts come from its own controller (same core URLs,
+    // service-centric payload); the core getAllCarts above is item-cart only.
+    if(isServiceModule) {
+      Get.find<ServiceCartController>().getServiceCartGroups(notify: false);
     }
   }
 
@@ -122,6 +134,9 @@ class _GlobalCartScreenState extends State<GlobalCartScreen> {
       // index — so returning to the main screen keeps its own selection.
       splash.setModule(module, notify: false);
     }
+    if (module.moduleType == AppConstants.service) {
+      Get.find<ServiceCartController>().getServiceCartGroups();
+    }
   }
 
   ModuleModel? _selectedModule() {
@@ -153,7 +168,14 @@ class _GlobalCartScreenState extends State<GlobalCartScreen> {
           ),
 
           Expanded(
-            child: GetBuilder<CartController>(builder: (cartController) {
+            child: Builder(builder: (BuildContext context) {
+              // The service module's carts come from a different API + model
+              // (provider/service, not store/item), so render the addon's own
+              // provider-grouped view for that tab.
+              if(_selectedModule()?.moduleType == AppConstants.service) {
+                return const ServiceCartTabView();
+              }
+              return GetBuilder<CartController>(builder: (cartController) {
               if(cartController.isAllCartsLoading) {
                 return const Center(child: CircularProgressIndicator());
               }
@@ -186,6 +208,7 @@ class _GlobalCartScreenState extends State<GlobalCartScreen> {
                   },
                 ),
               );
+              });
             }),
           ),
         ]),

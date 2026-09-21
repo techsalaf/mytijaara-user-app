@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 
-class RequestedServiceScreen extends StatelessWidget {
+class RequestedServiceScreen extends StatefulWidget {
   const RequestedServiceScreen({super.key});
+
   @override
-  Widget build(BuildContext context) => const SizedBox();
+  State<RequestedServiceScreen> createState() => _RequestedServiceScreenState();
+}
+
+class _RequestedServiceScreenState extends State<RequestedServiceScreen> {
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox();
+  }
 }

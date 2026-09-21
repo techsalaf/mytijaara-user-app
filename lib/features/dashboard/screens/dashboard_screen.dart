@@ -21,17 +21,21 @@ import 'package:sixam_mart/features/flash_sale/controllers/flash_sale_controller
 import 'package:sixam_mart/features/home/controllers/home_controller.dart';
 import 'package:sixam_mart/features/home/widgets/cashback_dialog_widget.dart';
 import 'package:sixam_mart/features/home/widgets/cashback_logo_widget.dart';
+import 'package:sixam_mart/features/language/controllers/language_controller.dart';
 import 'package:sixam_mart/features/location/controllers/location_controller.dart';
 import 'package:sixam_mart/features/order/controllers/order_controller.dart';
 import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
-import 'package:sixam_mart/features/redesign_feature/dashboard/screens/main_screen.dart';
-import 'package:sixam_mart/features/redesign_feature/dashboard/widgets/home_status_bar_tint.dart';
-import 'package:sixam_mart/features/redesign_feature/dashboard/widgets/navbar_promo_banner.dart';
+import 'package:sixam_mart/features/dashboard/screens/main_screen.dart';
+import 'package:sixam_mart/features/dashboard/widgets/home_status_bar_tint.dart';
+import 'package:sixam_mart/features/dashboard/widgets/navbar_promo_banner.dart';
 import 'package:sixam_mart/features/offer/offer_screen.dart';
 import 'package:sixam_mart/features/order/screens/my_order_screen.dart';
 import 'package:sixam_mart/features/profile/screens/profile_screen.dart';
 import 'package:sixam_mart/features/ride_share_module/ride_home/screens/biding_list_screen.dart';
 import 'package:sixam_mart/features/ride_share_module/ride_order/controllers/ride_controller.dart';
+import 'package:sixam_mart/features/service_module/booking_details/controllers/booking_controller.dart';
+import 'package:sixam_mart/features/service_module/booking_details/widgets/service_running_booking_widget.dart';
+import 'package:sixam_mart/common/models/module_model.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/store/controllers/store_controller.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
@@ -57,6 +61,17 @@ class DashboardScreenState extends State<DashboardScreen> {
   PageController? _pageController;
   int _pageIndex = 0;
   late List<Widget> _screens;
+  // Snapshot of the global module taken when the Offers tab is entered. The offer
+  // screen switches the global module to preview another module's offer detail;
+  // this lets us restore the dashboard's own module when the tab is left, so home
+  // navigation uses the correct module id.
+  ModuleModel? _moduleBeforeOffers;
+  // Same idea for the My Orders tab: its module filter chips silently repoint
+  // SplashController.module (see MyOrderScreen._onModuleSelected) without touching
+  // the dashboard's selectedModuleIndex. Left unrestored, the two desync and a later
+  // tap on the already-"current" module short-circuits switchModule()'s cache
+  // clear/reload, leaving the new module screen showing the previous module's data.
+  ModuleModel? _moduleBeforeMyOrders;
   final GlobalKey<ScaffoldMessengerState> _scaffoldKey = GlobalKey();
   bool _canExit = GetPlatform.isWeb ? true : false;
 
@@ -155,7 +170,17 @@ class DashboardScreenState extends State<DashboardScreen> {
       }
     }
 
+    // Service module keeps its running bookings in a separate source (service/booking/last).
+    // Guarded like SplashController.setModule — not by _isLogin — because service bookings
+    // (and this endpoint) support guests, so a guest booking must refresh the sheet too.
+    if((AuthHelper.isLoggedIn() || AuthHelper.isGuestLoggedIn())
+        && Get.find<SplashController>().module?.moduleType == AppConstants.service) {
+      Get.find<BookingController>().getDashboardRunningBookings();
+    }
+
     _pageIndex = widget.pageIndex;
+    _moduleBeforeOffers = Get.find<SplashController>().module;
+    _moduleBeforeMyOrders = Get.find<SplashController>().module;
 
     _pageController = PageController(initialPage: widget.pageIndex);
 
@@ -177,6 +202,7 @@ class DashboardScreenState extends State<DashboardScreen> {
   @override
   void dispose() {
     _secondaryAnimation?.removeListener(_onCoverChanged);
+    _pageController?.dispose();
     HomeStatusBarTint.active.value = false;
     super.dispose();
   }
@@ -233,12 +259,16 @@ class DashboardScreenState extends State<DashboardScreen> {
         return PopScope(
           canPop: false,
           onPopInvokedWithResult: (didPop, result) async {
+            final bool hasModuleLanding = !ResponsiveHelper.isDesktop(context)
+                && splashController.module != null && splashController.configModel!.module == null
+                && splashController.moduleList != null && splashController.moduleList!.length != 1;
+
             if (_pageIndex != 0) {
               _setPage(0);
-            } else if (splashController.selectedModuleIndex != 0) {
+            } else if (splashController.selectedModuleIndex != 0 && hasModuleLanding) {
               splashController.selectHomeModule();
             } else {
-              if(!ResponsiveHelper.isDesktop(context) && Get.find<SplashController>().module != null && Get.find<SplashController>().configModel!.module == null && splashController.moduleList != null && splashController.moduleList!.length != 1) {
+              if(hasModuleLanding) {
                 splashController.removeModule();
                 Get.find<StoreController>().resetStoreData();
               }else {
@@ -268,6 +298,10 @@ class DashboardScreenState extends State<DashboardScreen> {
             builder: (orderController) {
               List<OrderData> runningOrder = orderController.ongoingOrderModel != null ? orderController.ongoingOrderModel!.data! : [];
 
+              // Also rebuild on BookingController updates so the ExpandableBottomSheet's
+              // own build() re-runs and re-measures when service running-bookings load
+              // (the package only recomputes its geometry during its own build).
+              return GetBuilder<BookingController>(builder: (bookingController) {
               return SafeArea(
                 top: false, bottom: GetPlatform.isAndroid,
                 child: Scaffold(
@@ -373,7 +407,11 @@ class DashboardScreenState extends State<DashboardScreen> {
                               const indicatorHeight = 4.0;
                               final itemWidth = constraints.maxWidth / 4;
                               final selectedSlot = _pageIndex >= 1 && _pageIndex <= 4 ? _pageIndex - 1 : -1;
-                              final indicatorLeft = selectedSlot == -1
+                              // In RTL (e.g. Arabic) the Row reverses visually, so slot 0 is on
+                              // the right. AnimatedPositioned.left doesn't flip with Directionality,
+                              // so we switch to right: in RTL to track the correct slot.
+                              final bool isLtr = Get.find<LocalizationController>().isLtr;
+                              final double indicatorOffset = selectedSlot == -1
                                   ? -indicatorWidth
                                   : (itemWidth * selectedSlot) + (itemWidth - indicatorWidth) / 2;
 
@@ -384,7 +422,8 @@ class DashboardScreenState extends State<DashboardScreen> {
                                     duration: const Duration(milliseconds: 280),
                                     curve: Curves.easeOutCubic,
                                     top: 0,
-                                    left: indicatorLeft,
+                                    left: isLtr ? indicatorOffset : null,
+                                    right: isLtr ? null : indicatorOffset,
                                     width: indicatorWidth,
                                     height: indicatorHeight,
                                     child: AnimatedOpacity(
@@ -469,6 +508,24 @@ class DashboardScreenState extends State<DashboardScreen> {
                     enableToggle: true,
 
                     expandableContent: (widget.fromSplash && Get.find<LocationController>().showLocationSuggestion && active && !ResponsiveHelper.isDesktop(context)) ?  const SizedBox()
+                    // Service module keeps its running bookings in a separate source
+                    // (service/booking/last) — swap in a service-specific sheet.
+                    : (splashController.module?.moduleType == AppConstants.service)
+                    ? ((ResponsiveHelper.isDesktop(context) || (bookingController.dashboardRunningBookings ?? []).isEmpty || !orderController.showBottomSheet) ? const SizedBox()
+                    : Dismissible(
+                      key: UniqueKey(),
+                      onDismissed: (direction) {
+                        if(orderController.showBottomSheet){
+                          orderController.showRunningOrders();
+                        }
+                      },
+                      child: ServiceRunningBookingWidget(bookings: bookingController.dashboardRunningBookings!, onTap: () {
+                        _setPage(2);
+                        if(orderController.showBottomSheet){
+                          orderController.showRunningOrders();
+                        }
+                      }),
+                    ))
                     : (ResponsiveHelper.isDesktop(context) || !_isLogin || orderController.ongoingOrderModel == null
                     || orderController.ongoingOrderModel!.data!.isEmpty || !orderController.showBottomSheet) ? const SizedBox()
                     : Dismissible(
@@ -488,6 +545,7 @@ class DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
               );
+              });
             }
           ),
         );
@@ -496,15 +554,40 @@ class DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _setPage(int pageIndex) {
+    final int previousIndex = _pageIndex;
+    if (pageIndex == offersPageIndex && previousIndex != offersPageIndex) {
+      _moduleBeforeOffers = Get.find<SplashController>().module;
+    }
+    if (pageIndex == myOrdersPageIndex && previousIndex != myOrdersPageIndex) {
+      _moduleBeforeMyOrders = Get.find<SplashController>().module;
+    }
     setState(() {
       _pageController!.jumpToPage(pageIndex);
       _pageIndex = pageIndex;
     });
+    // Leaving Offers: restore the remembered module so home navigation resolves
+    // under the dashboard's own module, not the last-previewed offer module.
+    if (previousIndex == offersPageIndex && pageIndex != offersPageIndex) {
+      final SplashController splash = Get.find<SplashController>();
+      if (splash.module?.id != _moduleBeforeOffers?.id) {
+        splash.setModule(_moduleBeforeOffers, notify: false);
+      }
+    }
+    // Leaving My Orders: restore the remembered module for the same reason.
+    if (previousIndex == myOrdersPageIndex && pageIndex != myOrdersPageIndex) {
+      final SplashController splash = Get.find<SplashController>();
+      if (splash.module?.id != _moduleBeforeMyOrders?.id) {
+        splash.setModule(_moduleBeforeMyOrders, notify: false);
+      }
+    }
     _updateHomeStatusBarTint();
   }
 
   /// Tab index of the [OfferScreen] within [_screens].
   static const int offersPageIndex = 1;
+
+  /// Tab index of the [MyOrderScreen] within [_screens].
+  static const int myOrdersPageIndex = 2;
 
   /// Public entry point so descendants (e.g. the home quick-filters) can switch
   /// the dashboard tab in place instead of pushing a new route over the navbar.
@@ -807,7 +890,7 @@ class _HomeFloatingActionButton extends StatelessWidget {
       // AI chat is only available for the shopping modules (food, grocery, shop,
       // pharmacy). Hidden on Home (no module), parcel, rental and rideshare.
       const Set<String> aiChatModules = {
-        AppConstants.food, AppConstants.grocery, AppConstants.ecommerce, AppConstants.pharmacy,
+        AppConstants.food, AppConstants.grocery, AppConstants.ecommerce, AppConstants.pharmacy, AppConstants.service,
       };
       // Gate on the selected dashboard tab, not the active module: navbar screens
       // (e.g. My Orders) call setModule() as a side effect, so `module` can be a real

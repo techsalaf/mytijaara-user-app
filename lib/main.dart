@@ -4,7 +4,7 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:sixam_mart/features/auth/controllers/auth_controller.dart';
 import 'package:sixam_mart/features/cart/controllers/cart_controller.dart';
-import 'package:sixam_mart/features/redesign_feature/dashboard/widgets/home_status_bar_tint.dart';
+import 'package:sixam_mart/features/dashboard/widgets/home_status_bar_tint.dart';
 import 'package:sixam_mart/features/pro/controllers/pro_controller.dart';
 import 'package:sixam_mart/features/language/controllers/language_controller.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
@@ -182,6 +182,9 @@ class _MyAppState extends State<MyApp> {
             initialRoute: _initialRoute,
             getPages: RouteHelper.routes,
             routingCallback: (routing) {
+              // Keep the home status-bar tint overlay in sync with modal state so it
+              // doesn't paint a bright strip above a bottom sheet's / dialog's scrim.
+              HomeStatusBarTint.modalOpen.value = routing != null && ((routing.isBottomSheet ?? false) || (routing.isDialog ?? false));
               if (routing == null || (routing.isBottomSheet ?? false) || (routing.isDialog ?? false)) return;
               if (Get.isRegistered<ProController>()) {
                 Get.find<ProController>().maybeShowRenewOnRoute(routing.current);

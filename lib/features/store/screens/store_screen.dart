@@ -3,29 +3,35 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:scroll_to_index/scroll_to_index.dart';
+import 'package:sliver_tools/sliver_tools.dart';
 import 'package:sixam_mart/common/widgets/avg_review_widget.dart';
 import 'package:sixam_mart/common/widgets/back_to_top.dart';
 import 'package:sixam_mart/common/widgets/cart_count_view.dart';
+import 'package:sixam_mart/common/widgets/closed_ribbon_badge.dart';
 import 'package:sixam_mart/common/widgets/custom_asset_image_widget.dart';
 import 'package:sixam_mart/common/widgets/custom_button.dart';
 import 'package:sixam_mart/common/widgets/custom_favourite_widget.dart';
 import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/common/widgets/custom_snackbar.dart';
+import 'package:sixam_mart/common/widgets/food_item_card.dart';
 import 'package:sixam_mart/common/widgets/footer_view.dart';
 import 'package:sixam_mart/common/widgets/menu_drawer.dart';
 import 'package:sixam_mart/common/widgets/not_available_widget.dart';
 import 'package:sixam_mart/common/widgets/paginated_list_view.dart';
+import 'package:sixam_mart/common/widgets/store_header_banner_widget.dart';
 import 'package:sixam_mart/common/widgets/web_item_view.dart';
 import 'package:sixam_mart/common/widgets/web_item_widget.dart';
 import 'package:sixam_mart/common/widgets/web_menu_bar.dart';
+import 'package:sixam_mart/features/address/domain/models/address_model.dart';
 import 'package:sixam_mart/features/cart/controllers/cart_controller.dart';
 import 'package:sixam_mart/features/cart/domain/models/all_carts_model.dart';
 import 'package:sixam_mart/features/cart/screens/cart_screen.dart';
 import 'package:sixam_mart/features/category/controllers/category_controller.dart';
-import 'package:sixam_mart/features/category/domain/models/category_model.dart';
 import 'package:sixam_mart/features/checkout/controllers/checkout_controller.dart';
 import 'package:sixam_mart/features/checkout/screens/checkout_screen.dart';
 import 'package:sixam_mart/features/coupon/domain/models/coupon_model.dart' hide Store;
+import 'package:sixam_mart/features/dashboard/widgets/last_orders_section_widget.dart';
 import 'package:sixam_mart/features/favourite/controllers/favourite_controller.dart';
 import 'package:sixam_mart/features/item/controllers/item_controller.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
@@ -35,11 +41,9 @@ import 'package:sixam_mart/features/pro/domain/models/pro_active_offer_model.dar
 import 'package:sixam_mart/features/pro/screens/subscription_plan_screen.dart';
 import 'package:sixam_mart/features/pro/widgets/pro_plan_banner_widget.dart';
 import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
-import 'package:sixam_mart/features/redesign_feature/dashboard/widgets/common_widget/food_item_card.dart';
-import 'package:sixam_mart/features/redesign_feature/dashboard/widgets/last_orders_section_widget.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/store/controllers/store_controller.dart';
-import 'package:sixam_mart/features/store/domain/models/store_category_items_model.dart';
+import 'package:sixam_mart/features/store/domain/models/store_category_item_model.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 import 'package:sixam_mart/features/store/widgets/bottom_add_to_cart_widget.dart';
 import 'package:sixam_mart/features/store/widgets/coupon_clipper.dart';
@@ -62,19 +66,45 @@ class StoreScreen extends StatefulWidget {
   final bool fromModule;
   final String slug;
   final bool fromGlobalCart;
-  const StoreScreen({super.key, required this.store, required this.fromModule, this.slug = '', this.fromGlobalCart = false});
+  final bool fromDeeplink;
+  const StoreScreen({super.key,
+    required this.store, required this.fromModule, this.slug = '', this.fromGlobalCart = false, this.fromDeeplink = false,
+  });
 
   @override
   State<StoreScreen> createState() => _StoreScreenState();
 }
 
 class _StoreScreenState extends State<StoreScreen> {
-  final ScrollController scrollController = ScrollController();
+  // AutoScrollController (extends ScrollController) so rows can be scroll-tagged
+  // and jumped to even when off-screen/unmounted. Every row carries a uniform
+  // flat index, and suggestedRowHeight lets scrollToIndex estimate a far target's
+  // offset in ~one jump instead of scanning through (and image-decoding) every
+  // card in between — which is what crashed on large catalogs. The boundary
+  // getter lands a jumped-to section just below the pinned SliverAppBar + tab bar.
+  late final AutoScrollController scrollController = AutoScrollController(
+    viewportBoundaryGetter: () => Rect.fromLTRB(0, _pinnedTopInset, 0, 0),
+    axis: Axis.vertical,
+    suggestedRowHeight: 150,
+  );
+  // Collapsed SliverAppBar (70) + status-bar inset + pinned category tab bar (40).
+  // Recomputed in build(); mirrors the ~180 threshold used by auto-detect.
+  double _pinnedTopInset = 0;
+  double _appBarBottom = 70;
+  final GlobalKey _categoryTabsKey = GlobalKey();
+  // Maps a tab index (0 = Most Popular, catIndex+1 = category) to the AutoScroll
+  // index of that section's row in the flat list. Rebuilt when the model changes.
+  final Map<int, int> _tabToRowIndex = {0: 0};
   final TextEditingController _searchController = TextEditingController();
   final Map<int, GlobalKey> categoryKeys = {};
-  final GlobalKey _mostPopularKey = GlobalKey();
   bool _showBackToTop = false;
   static const double _backToTopThreshold = 400;
+  static const double _backToTopGap = 12;
+  // Anchor lives in a ValueNotifier, not a setState field: it flips when the tab
+  // bar pins/unpins, which is a different scroll boundary than the pill's own
+  // visibility — routing it through setState would rebuild this whole screen
+  // there, and jitter around the boundary would repeat that rebuild.
+  final ValueNotifier<double?> _backToTopTop = ValueNotifier(null);
   bool _userClickedTab = false;
   int? _pendingTabIndex;
   bool _initialCategorySet = false;
@@ -82,23 +112,31 @@ class _StoreScreenState extends State<StoreScreen> {
   @override
   void initState() {
     super.initState();
-    initDataCall().then((_){
-      Future.delayed(const Duration(seconds: 1), () {
-        if(!mounted || !widget.fromGlobalCart) return;
-        final int? currentStoreId = widget.store?.id ?? Get.find<StoreController>().store?.id;
-        Get.toNamed(
-          RouteHelper.getCartRoute(),
-          arguments: CartScreen(fromNav: false, storeId: currentStoreId),
-        );
+    initDataCall();
+    if (widget.fromGlobalCart) {
+      // widget.store?.id is passed directly from GlobalCartScreen and is always
+      // non-null by the time we arrive here, so we don't need to wait for the
+      // getStoreDetails API call. Open the sheet on the first frame so it
+      // appears simultaneously with the store page transition.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _openCartBottomSheet(widget.store?.id);
       });
-    });
+    }
   }
 
   @override
   void dispose() {
     super.dispose();
-    scrollController.removeListener(() {}); 
+    scrollController.removeListener(() {});
     scrollController.dispose();
+    _backToTopTop.dispose();
+    // Free the large per-store item collections on the way out. Guard on the
+    // controller still pointing at this store so we don't wipe a different
+    // store's freshly-loaded data (e.g. store-from-store navigation).
+    final StoreController storeController = Get.find<StoreController>();
+    if (storeController.store?.id == widget.store?.id) {
+      storeController.clearStoreCategoryItems();
+    }
   }
 
   Future<void> initDataCall() async {
@@ -111,7 +149,9 @@ class _StoreScreenState extends State<StoreScreen> {
       Get.find<StoreController>().changeSearchStatus(isUpdate: false);
     }
     Get.find<StoreController>().hideAnimation();
-    await Get.find<StoreController>().getStoreDetails(Store(id: widget.store!.id), widget.fromModule, slug: '')
+    // Distance is not shown on the store screen; checkout recomputes it on entry
+    // (initCheckoutData → getStoreDetails), so skip the redundant distance-api call here.
+    await Get.find<StoreController>().getStoreDetails(Store(id: widget.store!.id), widget.fromModule, slug: '', calculateDistance: false)
         .then((value) {Get.find<StoreController>().showButtonAnimation();});
     // Load the Pro active offer for this store's module so the Pro discount card
     // can render in the offer scroller for Pro members (the store screen otherwise
@@ -131,7 +171,6 @@ class _StoreScreenState extends State<StoreScreen> {
       widget.store!.id ?? Get.find<StoreController>().store!.id,
       false,
     );
-    Get.find<StoreController>().getStoreItemList(widget.store!.id ?? Get.find<StoreController>().store!.id, 1, 'all', false);
     Get.find<StoreController>().getStoreCategoryItems(
       (widget.store!.id ?? Get.find<StoreController>().store!.id)!,
       notify: false,
@@ -148,53 +187,31 @@ class _StoreScreenState extends State<StoreScreen> {
 
       // Show/hide back to top button
       final bool showBackToTop = scrollController.position.pixels > _backToTopThreshold;
+      // The anchor only matters while the pill is on screen, so skip the
+      // measurement entirely for the whole scroll range where it's hidden.
+      if (showBackToTop) {
+        _backToTopTop.value = _resolveBackToTopTop();
+      }
       if (showBackToTop != _showBackToTop) {
         setState(() => _showBackToTop = showBackToTop);
       }
-
-      if (scrollController.position.userScrollDirection ==
-          ScrollDirection.reverse) {
-        if (Get.find<StoreController>().showFavButton) {
-          Get.find<StoreController>().changeFavVisibility();
-          Get.find<StoreController>().hideAnimation();
-        }
-      } else {
-        if (!Get.find<StoreController>().showFavButton) {
-          Get.find<StoreController>().changeFavVisibility();
-          Get.find<StoreController>().showButtonAnimation();
-        }
-      }
     });
-  }
-
-  void _scrollToContext(BuildContext ctx) {
-    final RenderObject? renderObject = ctx.findRenderObject();
-    if (renderObject == null) return;
-    final viewport = RenderAbstractViewport.of(renderObject);
-    final double targetOffset = viewport.getOffsetToReveal(renderObject, 0.0).offset;
-    scrollController.animateTo(
-      targetOffset.clamp(0.0, scrollController.position.maxScrollExtent),
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeOut,
-    );
   }
 
   void _handleTabTap(int index) {
     _userClickedTab = true;
     _pendingTabIndex = index;
-    if (index == 0) {
-      final ctx = _mostPopularKey.currentContext;
-      if (ctx != null) {
-        _scrollToContext(ctx);
-      } else {
-        scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-      }
-    } else {
-      final key = _getSectionKey(index - 1);
-      final ctx = key.currentContext;
-      if (ctx != null) _scrollToContext(ctx);
-    }
-    Future.delayed(const Duration(milliseconds: 400), () {
+    // Jump to the tapped section's flat row index. Every row is tagged with a
+    // uniform index, so scrollToIndex estimates the offset and lands in ~one
+    // jump even for a far, unmounted category — without scanning the list.
+    final int target = _tabToRowIndex[index] ?? 0;
+    scrollController.scrollToIndex(
+      target,
+      preferPosition: AutoScrollPosition.begin,
+      duration: const Duration(milliseconds: 400),
+    );
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
       Get.find<StoreController>().setCategoryScrollIndex(index);
       _userClickedTab = false;
     });
@@ -209,20 +226,35 @@ class _StoreScreenState extends State<StoreScreen> {
     final bool hasMostPopular = storeController.recommendedItemModel?.items?.isNotEmpty == true;
     const double threshold = 180.0;
 
-    // Auto-detect: scan from last section to first — the deepest section whose
-    // top is at/above the threshold is the one currently in view.
-    int autoIndex = hasMostPopular ? 0 : (cats.isNotEmpty ? 1 : 0);
-    for (int i = cats.length - 1; i >= 0; i--) {
+    // With the item list virtualized (lazy slivers), only categories near the
+    // viewport are mounted, so we can only read positions of realized headers.
+    // Collect (catIndex, top) for every currently-mounted category header.
+    final List<MapEntry<int, double>> realized = [];
+    for (int i = 0; i < cats.length; i++) {
       final key = categoryKeys[i];
       if (key?.currentContext != null) {
         final box = key!.currentContext!.findRenderObject() as RenderBox;
-        final top = box.localToGlobal(Offset.zero).dy;
-        if (top <= threshold) {
-          autoIndex = i + 1; // tab index: cats[i] → tab i+1
-          break;
-        }
+        realized.add(MapEntry(i, box.localToGlobal(Offset.zero).dy));
       }
     }
+
+    // No header mounted at all → we're scrolled deep inside one huge category
+    // whose header has left the cache extent. Retain the current index; it is
+    // already the correct category, so don't reset to Most Popular.
+    if (realized.isEmpty) return;
+
+    // Headers we've already scrolled past (top at/above the threshold): the
+    // deepest one is the active category (tab catIndex+1). Otherwise the topmost
+    // upcoming header is the category we're currently inside — its tab index
+    // equals that header's catIndex (0 → the Most Popular section above it).
+    final List<MapEntry<int, double>> passed = realized.where((e) => e.value <= threshold).toList();
+    int autoIndex = passed.isNotEmpty
+        ? passed.map((e) => e.key).reduce((a, b) => a > b ? a : b) + 1
+        : realized.map((e) => e.key).reduce((a, b) => a < b ? a : b);
+
+    // Tab 0 (Most Popular) only exists when there's a Most Popular section;
+    // otherwise tabs start at the first category (index 1).
+    if (!hasMostPopular && autoIndex < 1) autoIndex = 1;
 
     // If the user physically touches the scroll (any direction), release the
     // pending override so auto-detect takes over immediately.
@@ -249,6 +281,19 @@ class _StoreScreenState extends State<StoreScreen> {
     }
   }
 
+  double _resolveBackToTopTop() {
+    double anchorBottom = _appBarBottom;
+    final BuildContext? tabsContext = _categoryTabsKey.currentContext;
+    final RenderObject? renderObject = tabsContext?.findRenderObject();
+    if (renderObject is RenderBox && renderObject.attached && renderObject.hasSize) {
+      final double tabsTop = renderObject.localToGlobal(Offset.zero).dy;
+      if (tabsTop <= _appBarBottom + 1) {
+        anchorBottom = tabsTop + renderObject.size.height;
+      }
+    }
+    return anchorBottom + _backToTopGap;
+  }
+
   GlobalKey _getSectionKey(int index) {
     if (!categoryKeys.containsKey(index)) {
       categoryKeys[index] = GlobalKey();
@@ -256,13 +301,114 @@ class _StoreScreenState extends State<StoreScreen> {
     return categoryKeys[index]!;
   }
 
+  // Mobile items: a Most-Popular tag sliver + one flat SliverList.builder of
+  // interleaved header/item rows. The flat list virtualizes uniformly (only the
+  // viewport + cache extent is built), so a store with thousands of items — even
+  // all in one category — never eager-builds every card.
+  Widget _buildMobileItemsSliver(Store store, StoreController storeController) {
+    final StoreCategoryItemModel? model = storeController.storeCategoryItemsModel;
+    if (model == null) {
+      return const SliverToBoxAdapter(child: _StoreItemsLoadingList());
+    }
+
+    final List<StoreItemCategory> cats = model.categories ?? [];
+    final Map<String, List<StoreCardItem>> itemMap = model.categoryWiseItems ?? {};
+
+    // Build the flat rows and the tab→row-index map. AutoScroll indices:
+    // 0 = Most Popular sliver; each flat row at position p = index p + 1.
+    final List<_StoreRow> rows = [];
+    _tabToRowIndex..clear()..[0] = 0;
+    for (int ci = 0; ci < cats.length; ci++) {
+      final List<StoreCardItem> items = itemMap[cats[ci].id.toString()] ?? [];
+      if (items.isEmpty) continue;
+      _tabToRowIndex[ci + 1] = rows.length + 1; // header row's AutoScroll index
+      rows.add(_HeaderRow(catIndex: ci, name: cats[ci].name ?? ''));
+      for (int ii = 0; ii < items.length; ii++) {
+        rows.add(_ItemRow(item: items[ii], indexInCat: ii, isFirst: ii == 0));
+      }
+    }
+
+    final bool hasMostPopular = !storeController.isSearching &&
+        (storeController.recommendedItemModel?.items?.isNotEmpty ?? false);
+    if (rows.isEmpty && !hasMostPopular) {
+      return SliverFillRemaining(hasScrollBody: false,
+        child: Container(height: 300, alignment: Alignment.center, child: Text('no_item_available'.tr)),
+      );
+    }
+
+    return MultiSliver(children: [
+      // Tag index 0 = Most Popular (renders SizedBox.shrink when empty).
+      SliverToBoxAdapter(
+        child: AutoScrollTag(
+          key: const ValueKey('sec_0'),
+          controller: scrollController,
+          index: 0,
+          child: _MostPopularItemsSection(store: store, storeController: storeController),
+        ),
+      ),
+      SliverList.builder(
+        itemCount: rows.length,
+        itemBuilder: (context, i) => _buildStoreRow(context, rows[i], store, i + 1),
+      ),
+    ]);
+  }
+
+  // Every row is tagged with its uniform AutoScroll index so scrollToIndex can
+  // estimate a far target's offset and jump straight there. Category headers
+  // additionally carry a GlobalKey that feeds the scroll-position auto-highlight.
+  Widget _buildStoreRow(BuildContext context, _StoreRow row, Store store, int autoIndex) {
+    if (row is _HeaderRow) {
+      return AutoScrollTag(
+        key: ValueKey('row_$autoIndex'),
+        controller: scrollController,
+        index: autoIndex,
+        child: Container(
+          key: _getSectionKey(row.catIndex),
+          margin: const EdgeInsets.only(top: 4),
+          color: Theme.of(context).cardColor,
+          padding: const EdgeInsets.fromLTRB(Dimensions.paddingSizeDefault, 28, Dimensions.paddingSizeDefault, 6),
+          child: Text(row.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: robotoBold.copyWith(fontSize: Dimensions.fontSizeLarge),
+          ),
+        ),
+      );
+    }
+    final _ItemRow itemRow = row as _ItemRow;
+    return AutoScrollTag(
+      key: ValueKey('row_$autoIndex'),
+      controller: scrollController,
+      index: autoIndex,
+      child: Container(
+        color: Theme.of(context).cardColor,
+        child: Column(children: [
+          if (!itemRow.isFirst) Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault),
+            child: Divider(height: 1, color: Theme.of(context).dividerColor.withValues(alpha: 0.5)),
+          ),
+          _StoreCompactItemCard(data: itemRow.item, store: store, index: itemRow.indexInCat),
+        ]),
+      ),
+    );
+  }
+
   void _scrollToTop() {
     if (!scrollController.hasClients) return;
     scrollController.animateTo(0, duration: const Duration(milliseconds: 400), curve: Curves.easeOut);
   }
 
+  void _openCartBottomSheet(int? storeId) {
+    if (storeId == null || !mounted) return;
+    CartScreen.openAsBottomSheet(context, storeId: storeId);
+  }
+
   void _handleBack() {
-    if (Get.find<SplashController>().deeplinkRoute != null) {
+    // Only reset to Home when this screen instance was itself pushed via a
+    // deep link (no real back stack behind it). Checking the global
+    // SplashController.deeplinkRoute instead of this instance flag is what
+    // caused back to blow away the stack on ordinary in-app navigation (e.g.
+    // Search -> Store): app_links can redeliver a stale/unrelated URI mid-session,
+    // leaving that ambient flag non-null even though this screen was reached normally.
+    if (widget.fromDeeplink) {
       Get.find<SplashController>().setDeeplink(null);
       Get.offAllNamed(RouteHelper.getInitialRoute());
     } else {
@@ -281,7 +427,13 @@ class _StoreScreenState extends State<StoreScreen> {
   // so the content below keeps its exact position.
   Widget _buildStoreSliverHeader(BuildContext context, Store store, StoreController storeController) {
     final double topPadding = MediaQuery.of(context).padding.top;
-    const double maxH = 200;
+    final double screenWidth = MediaQuery.of(context).size.width;
+    // Visible header is a full-width 2:1 banner (height = width / 2). SliverAppBar
+    // adds the status-bar inset on top of expandedHeight, so subtract it here — the
+    // total (expandedHeight + status bar) then equals the 2:1 height exactly, with
+    // no extra strip above the banner.
+    final double bannerHeight = (screenWidth / 2).clamp(160.0, 320.0).toDouble();
+    final double maxH = bannerHeight - topPadding;
     final double minH = 70 + topPadding;
 
     return SliverAppBar(
@@ -312,15 +464,23 @@ class _StoreScreenState extends State<StoreScreen> {
             child: IgnorePointer(
               ignoring: t > 0.5,
               child: Stack(children: <Widget>[
-                Positioned.fill(child: CustomImage(fit: BoxFit.cover, image: store.coverPhotoFullUrl ?? '')),
+                // Show the store banners (auto-scrolling carousel) when available;
+                // otherwise fall back to the cover photo. Pass the flexibleSpace's
+                // actual height (constraints.maxHeight) — the carousel sizes and
+                // centers each item by this value, so anything smaller leaves a gap.
+                Positioned.fill(
+                  child: (storeController.storeBanners != null && storeController.storeBanners!.isNotEmpty)
+                      ? StoreHeaderBanner(banners: storeController.storeBanners!, height: constraints.maxHeight)
+                      : CustomImage(fit: BoxFit.cover, image: store.coverPhotoFullUrl ?? ''),
+                ),
 
-                Positioned(
-                  top: topPadding + 12, left: Dimensions.paddingSizeDefault,
+                PositionedDirectional(
+                  top: topPadding + 12, start: Dimensions.paddingSizeDefault,
                   child: _StoreCircleIconButton(icon: Icons.arrow_back, onTap: _handleBack),
                 ),
 
-                Positioned(
-                  top: topPadding + 12, right: Dimensions.paddingSizeDefault,
+                PositionedDirectional(
+                  top: topPadding + 12, end: Dimensions.paddingSizeDefault,
                   child: Row(mainAxisSize: MainAxisSize.min, children: <Widget>[
                     _StoreCircleIconButton(icon: CupertinoIcons.search, onTap: () => _openStoreSearch(store)),
                     const SizedBox(width: Dimensions.paddingSizeSmall),
@@ -383,10 +543,15 @@ class _StoreScreenState extends State<StoreScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Land a tab-jumped category header just below the pinned SliverAppBar (70)
+    // + status bar + pinned category tab bar (40). Read by scrollToIndex.
+    _appBarBottom = 70 + MediaQuery.of(context).padding.top;
+    _pinnedTopInset = _appBarBottom + 40;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
-        if (Get.find<SplashController>().deeplinkRoute != null) {
+        if (didPop) return;
+        if (widget.fromDeeplink) {
           Get.find<SplashController>().setDeeplink(null);
           Get.offAllNamed(RouteHelper.getInitialRoute());
         } else {
@@ -760,28 +925,24 @@ class _StoreScreenState extends State<StoreScreen> {
                       ResponsiveHelper.isDesktop(context) ? const SliverToBoxAdapter(child: SizedBox()) : (storeController.categoryList!.isNotEmpty)
                         ? SliverPersistentHeader(pinned: true,
                             delegate: SliverDelegate(height: 40,
-                              child: _StoreCategoryTabs(storeController: storeController, onTabTap: _handleTabTap),
+                              child: _StoreCategoryTabs(key: _categoryTabsKey, storeController: storeController, onTabTap: _handleTabTap),
                             ),
                           ) : const SliverToBoxAdapter(child: SizedBox()),
 
                       ResponsiveHelper.isDesktop(context) ? const SliverToBoxAdapter(child: SizedBox())
-                          : SliverToBoxAdapter(child: _MostPopularItemsSection(key: _mostPopularKey, store: store!, storeController: storeController)),
-
-                      ResponsiveHelper.isDesktop(context) ? const SliverToBoxAdapter(child: SizedBox())
-                        : SliverToBoxAdapter(
-                          child: _CategoryItemsSection(
-                            storeController: storeController,
-                            store: store!,
-                            sectionKeyBuilder: (int index) => _getSectionKey(index),
-                          ),
-                        ),
+                          : _buildMobileItemsSliver(store!, storeController),
                     ]) : const StoreScreenShimmerWidget();
               },
             );
           },
         ),
 
-          BackToTopButton(visible: _showBackToTop, onTap: _scrollToTop),
+          ValueListenableBuilder<double?>(
+            valueListenable: _backToTopTop,
+            builder: (context, top, _) => BackToTopButton(visible: _showBackToTop, onTap: _scrollToTop,
+              top: top ?? (_appBarBottom + _backToTopGap),
+            ),
+          ),
 
           // Sticky bottom cart widget
           Positioned(
@@ -882,7 +1043,7 @@ class _MobileStoreOverview extends StatelessWidget {
                 child: Stack(children: [
                   CustomImage(image: store.logoFullUrl ?? '', height: 44, width: 44, fit: BoxFit.cover),
                   Get.find<StoreController>().isStoreOpenNow(store.active!, store.schedules) ? const SizedBox()
-                    : const Positioned(left: 0, right: 0, bottom: 0, child: _ClosedStoreRibbon()),
+                    : const Positioned(left: 0, right: 0, bottom: 0, child: ClosedRibbonBadge()),
                 ]),
               ),
               const SizedBox(width: Dimensions.paddingSizeDefault),
@@ -892,9 +1053,21 @@ class _MobileStoreOverview extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: robotoBold.copyWith(fontSize: Dimensions.fontSizeExtraLarge),
                   ),
-                  Text(store.address ?? '', maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).textTheme.bodyLarge!.color!.withValues(alpha: 0.6)),
+                  InkWell(
+                    onTap: () => Get.toNamed(RouteHelper.getMapRoute(
+                      AddressModel(id: store.id, address: store.address, latitude: store.latitude,
+                        longitude: store.longitude, contactPersonNumber: '', contactPersonName: '', addressType: '',
+                      ), 'store', Get.find<SplashController>().getModuleConfig(Get.find<SplashController>().module!.moduleType!).newVariation!,
+                      storeName: store.name, slug: store.slug ?? store.name!,
+                    )),
+                    child: Row(children: [
+                      Icon(Icons.location_on_outlined, color: Theme.of(context).colorScheme.tertiary, size: 14),
+                      Text(store.address ?? '', maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).colorScheme.tertiary,
+                        decoration: TextDecoration.underline, decorationColor: Theme.of(context).colorScheme.tertiary),
+                      ),
+                    ]),
                   ),
                 ]),
               ),
@@ -905,7 +1078,7 @@ class _MobileStoreOverview extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault),
             child: _StoreStatsCard(store: store),
           ),
-          _StoreAnnouncementScroller(store: store) 
+          _StoreAnnouncementScroller(store: store),
         ]),
       ),
     );
@@ -994,7 +1167,7 @@ class _StoreAnnouncementScroller extends StatelessWidget {
 
       // Pro card first (when the user has Pro), then the regular offer cards.
       final List<Widget> cards = <Widget>[
-        if (proCard != null) proCard,
+        ?proCard,
         ...offers.map((_StoreOfferData offer) => _StoreOfferCard(data: offer)),
       ];
 
@@ -1098,7 +1271,7 @@ class _StoreAnnouncementScroller extends StatelessWidget {
     }
     if (store.announcementActive == true && (store.announcementMessage ?? '').isNotEmpty) {
       offers.add(
-        _StoreOfferData(title: 'Announcement', message: store.announcementMessage ?? '',
+        _StoreOfferData(title: 'announcement'.tr, message: store.announcementMessage ?? '',
           imageUrl: Images.announcement, color: const Color(0xFFF1FFF9)
         ),
       );
@@ -1412,7 +1585,7 @@ class _StoreCategoryTabs extends StatefulWidget {
   final StoreController storeController;
   final void Function(int index) onTabTap;
 
-  const _StoreCategoryTabs({required this.storeController, required this.onTabTap});
+  const _StoreCategoryTabs({super.key, required this.storeController, required this.onTabTap});
 
   @override
   State<_StoreCategoryTabs> createState() => _StoreCategoryTabsState();
@@ -1464,7 +1637,7 @@ class _StoreCategoryTabsState extends State<_StoreCategoryTabs> {
   Widget build(BuildContext context) {
     final StoreController storeController = widget.storeController;
     final bool hasMostPopular = storeController.recommendedItemModel?.items?.isNotEmpty == true;
-    final List<Category> cats = storeController.storeCategoryItemsModel?.categories ?? [];
+    final List<StoreItemCategory> cats = storeController.storeCategoryItemsModel?.categories ?? [];
     final int tabCount = hasMostPopular ? cats.length + 1 : cats.length;
     final int activeIndex = storeController.categoryScrollIndex;
 
@@ -1519,7 +1692,7 @@ class _MostPopularItemsSection extends StatelessWidget {
   final Store store;
   final StoreController storeController;
 
-  const _MostPopularItemsSection({super.key, required this.store, required this.storeController});
+  const _MostPopularItemsSection({required this.store, required this.storeController});
 
   @override
   Widget build(BuildContext context) {
@@ -1559,99 +1732,37 @@ class _MostPopularItemsSection extends StatelessWidget {
   }
 }
 
-class _CategoryItemsSection extends StatelessWidget {
-  final StoreController storeController;
-  final Store store;
-  final GlobalKey Function(int index)? sectionKeyBuilder;
-
-  const _CategoryItemsSection({required this.storeController, required this.store, this.sectionKeyBuilder});
-
-  @override
-  Widget build(BuildContext context) {
-    final StoreCategoryItemsModel? model = storeController.storeCategoryItemsModel;
-    if (model == null) return const _StoreItemsLoadingList();
-
-    final List<Category> cats = model.categories ?? [];
-    final Map<String, List<CategoryWiseItem>> itemMap = model.categoryWiseItems ?? {};
-
-    if (cats.isEmpty) {
-      return Container(height: 300, alignment: Alignment.center,
-        child: Text('no_item_available'.tr),
-      );
-    }
-
-    final List<Widget> sections = [];
-    for (int ci = 0; ci < cats.length; ci++) {
-      final Category cat = cats[ci];
-      final List<Item> items = (itemMap[cat.id.toString()] ?? []).map((e) => e.toItem()).toList();
-      if (items.isEmpty) continue;
-      sections.add(_StoreCategoryGroupSection(
-        group: CategoryProduct(CategoryModel(id: cat.id, name: cat.name), items),
-        store: store,
-        sectionKey: sectionKeyBuilder != null ? sectionKeyBuilder!(ci) : null,
-      ));
-    }
-
-    if (sections.isEmpty) {
-      return Container(height: 300, alignment: Alignment.center,
-        child: Text('no_item_available'.tr),
-      );
-    }
-
-    return Container(
-      color: Theme.of(context).colorScheme.surface,
-      child: Column(children: sections),
-    );
-  }
+// A row in the flat store item list: either a category header or a single item.
+sealed class _StoreRow {
+  const _StoreRow();
 }
 
-class _StoreCategoryGroupSection extends StatelessWidget {
-  final CategoryProduct group;
-  final Store store;
-  final GlobalKey? sectionKey;
+class _HeaderRow extends _StoreRow {
+  final int catIndex;
+  final String name;
+  const _HeaderRow({required this.catIndex, required this.name});
+}
 
-  const _StoreCategoryGroupSection({required this.group, required this.store, this.sectionKey});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      key: sectionKey,
-      margin: const EdgeInsets.only(top: 4),
-      color: Theme.of(context).cardColor,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(Dimensions.paddingSizeDefault, 28, Dimensions.paddingSizeDefault, 6),
-          child: Text(group.category.name ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: robotoBold.copyWith(fontSize: Dimensions.fontSizeLarge),
-          ),
-        ),
-        ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: group.products.length,
-          padding: EdgeInsets.zero,
-          separatorBuilder: (_, _) => Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault),
-            child: Divider(height: 1, color: Theme.of(context).dividerColor.withValues(alpha: 0.5)),
-          ),
-          itemBuilder: (context, index) {
-            return _StoreCompactItemCard(item: group.products[index], store: store, index: index);
-          },
-        ),
-      ]),
-    );
-  }
+class _ItemRow extends _StoreRow {
+  final StoreCardItem item;
+  final int indexInCat;
+  final bool isFirst;
+  const _ItemRow({required this.item, required this.indexInCat, required this.isFirst});
 }
 
 class _StoreCompactItemCard extends StatelessWidget {
-  final Item item;
+  final StoreCardItem data;
   final Store store;
   final int index;
 
-  const _StoreCompactItemCard({required this.item, required this.store, required this.index});
+  const _StoreCompactItemCard({required this.data, required this.store, required this.index});
 
   @override
   Widget build(BuildContext context) {
+    // Bridge the slim card model to a minimal Item for the shared card widgets
+    // (CartCountView, CustomFavouriteWidget) and item navigation — each re-fetches
+    // full details by id, so the minimal Item is sufficient.
+    final Item item = data.toItem();
     final double discount = item.discount ?? 0;
     final bool hasDiscount = discount > 0;
     final bool hasFreeDelivery = store.delivery == true && store.freeDelivery == true;
@@ -1692,7 +1803,7 @@ class _StoreCompactItemCard extends StatelessWidget {
                 ]),
                 const SizedBox(height: 12),
                 Wrap(spacing: 7, runSpacing: 7, children: [
-                  if (hasDiscount)_SmallDealBadge(text: _discountBadgeText(item)),
+                  if (hasDiscount)_SmallDealBadge(text: _discountBadgeText(item), textDirection: TextDirection.ltr),
                   if (hasFreeDelivery) _SmallDealBadge(text: 'free'.tr, icon: Icons.pedal_bike_outlined, soft: true),
                 ]),
               ]),
@@ -1882,25 +1993,6 @@ class _VerifiedChip extends StatelessWidget {
   }
 }
 
-class _ClosedStoreRibbon extends StatelessWidget {
-  const _ClosedStoreRibbon();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 44, width: 44,
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(14)
-      ), 
-      alignment: Alignment.center,
-      child: Text('closed_now'.tr, textAlign: TextAlign.center,
-        style: robotoRegular.copyWith(fontSize: 8, color: Colors.white),
-      ),
-    );
-  }
-}
-
 class _CardCircleButton extends StatelessWidget {
   final Widget child;
   final double size;
@@ -1944,8 +2036,9 @@ class _SmallDealBadge extends StatelessWidget {
   final String text;
   final IconData? icon;
   final bool soft;
+  final TextDirection? textDirection;
 
-  const _SmallDealBadge({required this.text, this.icon, this.soft = false});
+  const _SmallDealBadge({required this.text, this.icon, this.soft = false, this.textDirection});
 
   @override
   Widget build(BuildContext context) {
@@ -1964,6 +2057,7 @@ class _SmallDealBadge extends StatelessWidget {
           ],
           Text(
             text,
+            textDirection: textDirection,
             style: robotoMedium.copyWith(
               fontSize: Dimensions.fontSizeExtraSmall,
               color: soft ? const Color(0xFFFF2020) : Colors.white,
@@ -2012,10 +2106,4 @@ class SliverDelegate extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(SliverDelegate oldDelegate) {
     return oldDelegate.maxExtent != height || oldDelegate.minExtent != height || child != oldDelegate.child;
   }
-}
-
-class CategoryProduct {
-  CategoryModel category;
-  List<Item> products;
-  CategoryProduct(this.category, this.products);
 }

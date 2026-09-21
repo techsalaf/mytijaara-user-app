@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import 'package:sixam_mart/common/widgets/custom_snackbar.dart';
 import 'package:sixam_mart/features/checkout/controllers/checkout_controller.dart';
 import 'package:sixam_mart/features/checkout/widgets/coupon_bottom_sheet.dart';
@@ -168,6 +168,8 @@ class _AppliedCouponBox extends StatelessWidget {
 
   const _AppliedCouponBox({required this.coupon, required this.freeDelivery, required this.onCancel});
 
+  bool get _isNumericDiscountLabel => !(freeDelivery || coupon.couponType == 'free_delivery') && coupon.discount != null;
+
   String _discountLabel(BuildContext context) {
     if (freeDelivery || coupon.couponType == 'free_delivery') {
       return 'free_delivery'.tr;
@@ -217,6 +219,7 @@ class _AppliedCouponBox extends StatelessWidget {
           const SizedBox(width: Dimensions.paddingSizeSmall),
           Text(
             _discountLabel(context),
+            textDirection: _isNumericDiscountLabel ? TextDirection.ltr : null,
             style: robotoBold.copyWith(
               fontSize: Dimensions.fontSizeDefault,
               color: Theme.of(context).textTheme.bodyLarge?.color,

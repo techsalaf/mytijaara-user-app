@@ -43,7 +43,7 @@ class SplashScreenState extends State<SplashScreen> {
         if(isConnected) {
           print('=========here coming-----1-->> ${Get.find<SplashController>().deeplinkRoute}');
           if(Get.find<SplashController>().deeplinkRoute == null) {
-            Get.find<SplashController>().getConfigData(notificationBody: widget.body);
+            Get.find<SplashController>().getConfigData(notificationBody: widget.body, fromSplash: true);
           }
         }
       }
@@ -58,7 +58,7 @@ class SplashScreenState extends State<SplashScreen> {
     // _route();
     print('=========here coming-----2-->> ${Get.find<SplashController>().deeplinkRoute == null}');
     if(Get.find<SplashController>().deeplinkRoute == null) {
-      Get.find<SplashController>().getConfigData(notificationBody: widget.body);
+      Get.find<SplashController>().getConfigData(notificationBody: widget.body, fromSplash: true);
     }
     _route();
   }
@@ -71,7 +71,7 @@ class SplashScreenState extends State<SplashScreen> {
   }
 
   void _route() {
-    Get.find<SplashController>().getConfigData(handleMaintenanceMode: false, notificationBody: widget.body);
+    Get.find<SplashController>().getConfigData(handleMaintenanceMode: false, notificationBody: widget.body, fromSplash: true);
   }
 
   @override

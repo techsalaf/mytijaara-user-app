@@ -38,6 +38,16 @@ class DateConverter {
     }
     return DateFormat('dd MMM yyyy,  ${_timeFormatter()}').format(d);
   }
+  static String dateTimeStringToShortDateTime(String dateTime) {
+    DateTime d;
+    try{
+      d = DateFormat('yyyy-MM-dd HH:mm:ss').parse(dateTime);
+    } catch(_) {
+     d = isoStringToLocalDate(dateTime);
+    }
+    return DateFormat('d MMM yy, ${_timeFormatter()}').format(d);
+  }
+
   static String dateTimeStringToTime(String dateTime) {
     DateTime d;
     try{
@@ -64,8 +74,25 @@ class DateConverter {
     return DateFormat('yyyy-MM-dd HH:mm:ss').parse(dateTime);
   }
 
+  /// Combines an API date ('yyyy-MM-dd') and optional time ('HH:mm:ss' / 'HH:mm')
+  /// into a local DateTime. Returns null when the date is missing or unparseable.
+  static DateTime? dateAndTimeStringToDate(String? date, String? time) {
+    if (date == null || date.isEmpty) return null;
+    String timePart = (time == null || time.isEmpty) ? '00:00:00' : time;
+    if (timePart.length == 5) timePart = '$timePart:00';
+    try {
+      return DateFormat('yyyy-MM-dd HH:mm:ss').parse('${date.split(' ').first} $timePart');
+    } catch (_) {
+      return null;
+    }
+  }
+
   static DateTime isoStringToLocalDate(String dateTime) {
     return DateFormat('yyyy-MM-ddTHH:mm:ss.SSS').parse(dateTime);
+  }
+
+  static DateTime isoStringToLocalDateTime(String dateTime) {
+    return DateTime.parse(dateTime).toLocal();
   }
 
   static String isoStringToLocalString(String dateTime) {
@@ -244,6 +271,16 @@ class DateConverter {
     return parsedTime.difference(DateTime.now()).inMinutes;
   }
 
+  static bool isWithinDays(String? dateTime, int days) {
+    if (dateTime == null || dateTime.isEmpty) return false;
+    try {
+      final int diffDays = DateTime.now().difference(isoStringToLocalDateTime(dateTime)).inDays;
+      return diffDays >= 0 && diffDays <= days;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static String dateToDateTime(DateTime dateTime) {
     return DateFormat('yyyy-MM-dd HH:mm:ss').format(dateTime);
   }
@@ -263,6 +300,23 @@ class DateConverter {
     }
 
     return formatter.format(createdDate);
+  }
+
+  /// dateKey must be `yyyy-MM-dd` (e.g. as produced by [dateToDate]).
+  static String dateKeyToTodayYesterdayLabel(String dateKey) {
+    if (dateKey.isEmpty) return dateKey;
+    try {
+      final DateTime date = DateTime.parse(dateKey);
+      final DateTime now = DateTime.now();
+      final DateTime today = DateTime(now.year, now.month, now.day);
+      final DateTime yesterday = today.subtract(const Duration(days: 1));
+      final DateTime target = DateTime(date.year, date.month, date.day);
+      if (target == today) return 'today'.tr;
+      if (target == yesterday) return 'yesterday'.tr;
+      return dateToReadableDate(date);
+    } catch (_) {
+      return dateKey;
+    }
   }
 
   static String stringDateTimeToDate(String dateTime) {
@@ -313,6 +367,10 @@ class DateConverter {
     return DateFormat('yyyy-MM-ddTHH:mm:ss.SSS').parse(dateTime, true).toLocal();
   }
 
+  static String isoUtcStringToLocalDateOnly(String dateTime) {
+    return DateFormat('dd MMM yyyy').format(isoUtcStringToLocalDate(dateTime));
+  }
+
   static DateFormat _localDateFormatter(String format){
     return DateFormat(format);
   }
@@ -328,6 +386,12 @@ class DateConverter {
 
   static String dateStringMonthYear(DateTime ? dateTime) {
     return DateFormat('d MMM, y').format(dateTime!);
+  }
+
+  /// Day + short month only (e.g. `26 Jul`) — used where a list of dates has to
+  /// stay compact, such as the schedule-conflict banner on service checkout.
+  static String dayMonthShort(DateTime dateTime) {
+    return DateFormat('d MMM').format(dateTime);
   }
 
   static String dateMonthYearTime(DateTime ? dateTime) {
@@ -397,5 +461,54 @@ class DateConverter {
   }
 
   static int daysBetweenInclusive(DateTime start, DateTime end) => end.difference(start).inDays + 1;
+
+  /// Minimum lead-time before a scheduled booking, from the service_module config
+  /// (`schedule_time_restriction_value` + `_unit`: 'min' | 'hour' | 'day').
+  static Duration scheduleRestrictionLeadTime(int? value, String? unit) {
+    final int v = value ?? 0;
+    switch ((unit ?? '').toLowerCase()) {
+      case 'hour':
+      case 'hours':
+      case 'hr':
+        return Duration(hours: v);
+      case 'day':
+      case 'days':
+        return Duration(days: v);
+      case 'min':
+      case 'mins':
+      case 'minute':
+      case 'minutes':
+      default:
+        return Duration(minutes: v);
+    }
+  }
+
+  /// True when [chosen] is sooner than now + [lead] — i.e. it violates the
+  /// schedule time restriction.
+  static bool isBeforeScheduleLeadTime(DateTime chosen, Duration lead) {
+    return chosen.difference(DateTime.now()) < lead;
+  }
+
+  /// Earliest schedule datetime allowed under the restriction, formatted for display.
+  static String earliestScheduleLabel(Duration lead) {
+    return dateMonthYearTime(DateTime.now().add(lead));
+  }
+
+  /// True when the post created at [createdAt] is older than [days] days.
+  /// [days] <= 0 means unlimited — never expired.
+  static bool isExpiredAfterDays(String? createdAt, int days) {
+    if (days <= 0 || createdAt == null || createdAt.isEmpty) return false;
+    try {
+      DateTime created;
+      try {
+        created = dateTimeStringToDate(createdAt);
+      } catch (_) {
+        created = isoStringToLocalDateTime(createdAt);
+      }
+      return DateTime.now().isAfter(created.add(Duration(days: days)));
+    } catch (_) {
+      return false;
+    }
+  }
 
 }

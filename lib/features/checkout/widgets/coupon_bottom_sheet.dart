@@ -9,11 +9,23 @@ import 'package:sixam_mart/util/images.dart';
 import 'package:sixam_mart/util/styles.dart';
 import 'package:sixam_mart/features/coupon/widgets/coupon_card_widget.dart';
 
-class CouponBottomSheet extends StatelessWidget {
+class CouponBottomSheet extends StatefulWidget {
   final int? storeId;
   final CheckoutController checkoutController;
   final Future<bool> Function(String code)? onCouponSelected;
   const CouponBottomSheet({super.key, required this.storeId, required this.checkoutController, this.onCouponSelected});
+
+  @override
+  State<CouponBottomSheet> createState() => _CouponBottomSheetState();
+}
+
+class _CouponBottomSheetState extends State<CouponBottomSheet> {
+  /// An apply request is in flight — repeat taps are ignored so the API is hit once.
+  bool _applying = false;
+
+  /// This sheet has already been popped — makes the close idempotent, so a late
+  /// response can never pop the checkout screen sitting underneath.
+  bool _closed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +60,7 @@ class CouponBottomSheet extends StatelessWidget {
             if(couponController.couponList != null) {
               couponList = [];
               for(CouponModel coupon in couponController.couponList!) {
-                if(coupon.storeId == null || (coupon.couponType != 'store_wise' && coupon.couponType != 'default' && coupon.couponType != 'free_delivery') || coupon.storeId == storeId) {
+                if(coupon.storeId == null || (coupon.couponType != 'store_wise' && coupon.couponType != 'default' && coupon.couponType != 'free_delivery') || coupon.storeId == widget.storeId) {
                   couponList.add(coupon);
                 }
               }
@@ -66,16 +78,33 @@ class CouponBottomSheet extends StatelessWidget {
               itemBuilder: (context, index) {
                 return InkWell(
                   onTap: () async {
-                    final code = couponList![index].code;
+                    if (_applying || _closed) return;
+                    final String? code = couponList![index].code;
                     if (code == null) return;
+
+                    /// Pop this sheet's own route only — `navigator.mounted` stays true
+                    /// after the sheet closes, so it would pop the page underneath.
                     final NavigatorState navigator = Navigator.of(context);
-                    if (onCouponSelected == null) {
-                      checkoutController.couponController.text = code;
-                      navigator.pop();
+                    final ModalRoute<dynamic>? route = ModalRoute.of(context);
+
+                    if (widget.onCouponSelected == null) {
+                      widget.checkoutController.couponController.text = code;
+                      _closed = true;
+                      if (route?.isCurrent ?? false) navigator.pop();
                       return;
                     }
-                    final ok = await onCouponSelected!(code);
-                    if (ok && navigator.mounted) navigator.pop();
+
+                    _applying = true;
+                    bool ok = false;
+                    try {
+                      ok = await widget.onCouponSelected!(code);
+                    } finally {
+                      _applying = false;
+                    }
+
+                    if (!ok || _closed || !mounted) return;
+                    _closed = true;
+                    if (route?.isCurrent ?? false) navigator.pop();
                   },
                   child: CouponCardWidget(coupon: couponList![index], index: index),
                 );

@@ -4,7 +4,7 @@ import 'package:sixam_mart/common/models/module_model.dart';
 import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/common/widgets/custom_ink_well.dart';
 import 'package:sixam_mart/features/ai_chat_bot/domain/models/ai_chat_message_model.dart';
-import 'package:sixam_mart/features/cart/domain/models/online_cart_model.dart';
+import 'package:sixam_mart/features/cart/screens/global_cart_screen.dart';
 import 'package:sixam_mart/features/category/domain/models/category_model.dart';
 import 'package:sixam_mart/features/item/controllers/item_controller.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
@@ -96,21 +96,11 @@ class AiChatMetadataViewWidget extends StatelessWidget {
       ));
     }
 
-    if (metadata.hasCartItems) {
+    if (metadata.hasCart) {
+      final AiChatCart cart = metadata.cart!;
       sections.add(const SizedBox(height: Dimensions.paddingSizeSmall));
-      sections.add(_SectionTitle(title: 'in_your_cart'.tr));
-      sections.add(SizedBox(
-        height: 90,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          padding: EdgeInsets.zero,
-          itemCount: metadata.cartItems!.length,
-          separatorBuilder: (_, _) => const SizedBox(width: Dimensions.paddingSizeSmall),
-          itemBuilder: (context, index) {
-            return _CartItemCard(cartItem: metadata.cartItems![index]);
-          },
-        ),
-      ));
+      sections.add(_CartSectionTitle(title: 'in_your_cart'.tr, itemCount: cart.totalItems ?? 0));
+      sections.add(_CartSection(cart: cart));
     }
 
     if (sections.isEmpty) {
@@ -143,19 +133,80 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-class _CartItemCard extends StatelessWidget {
-  final OnlineCartModel cartItem;
-  const _CartItemCard({required this.cartItem});
+class _CartSectionTitle extends StatelessWidget {
+  final String title;
+  final int itemCount;
+  const _CartSectionTitle({required this.title, required this.itemCount});
 
   @override
   Widget build(BuildContext context) {
-    final String name = cartItem.item?.name ?? '';
-    final String image = cartItem.item?.imageFullUrl ?? '';
-    final double unitPrice = cartItem.price ?? cartItem.item?.price ?? 0;
-    final int qty = cartItem.quantity ?? 0;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Dimensions.paddingSizeExtraSmall),
+      child: Row(children: [
+        Icon(Icons.shopping_cart_outlined, size: 15, color: Theme.of(context).hintColor),
+        const SizedBox(width: 4),
+        Text(
+          itemCount > 0 ? '$title · $itemCount ${'items'.tr}' : title,
+          style: robotoMedium.copyWith(
+            fontSize: Dimensions.fontSizeSmall,
+            color: Theme.of(context).hintColor,
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+class _CartSection extends StatelessWidget {
+  final AiChatCart cart;
+  const _CartSection({required this.cart});
+
+  @override
+  Widget build(BuildContext context) {
+    final bool anyStoreScrolls = cart.stores.any((g) => g.items.length > _CartStoreItemList.maxVisibleItems);
+    final double maxWidth = MediaQuery.of(context).size.width * 0.78;
+
+    final List<Widget> children = [];
+    for (int i = 0; i < cart.stores.length; i++) {
+      if (i != 0) {
+        children.add(const SizedBox(height: Dimensions.paddingSizeSmall));
+      }
+      children.add(_CartStoreGroupSection(storeGroup: cart.stores[i]));
+    }
+    if (cart.grandTotal != null) {
+      children.add(const SizedBox(height: Dimensions.paddingSizeSmall));
+      children.add(_CartGrandTotalBar(grandTotal: cart.grandTotal!));
+    }
+
+    final Widget column = Column(
+      crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: children,
+    );
+
+    // Width is decided once for the whole cart, not per card, so every card and the
+    // grand-total bar resolve to the same width. IntrinsicWidth (content-hugging) is only
+    // safe when no store's item list uses a ListView (a scrolling store forces the full cap).
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: InkWell(
+        onTap: () => Get.to(() => const GlobalCartScreen(fromNav: false)),
+        borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
+        child: anyStoreScrolls ? column : IntrinsicWidth(child: column),
+      ),
+    );
+  }
+}
+
+class _CartStoreGroupSection extends StatelessWidget {
+  final AiChatCartStoreGroup storeGroup;
+  const _CartStoreGroupSection({required this.storeGroup});
+
+  @override
+  Widget build(BuildContext context) {
+    final String storeName = storeGroup.storeName ?? '';
+    final double subtotal = storeGroup.storeSubtotal ?? 0;
+    final Color dividerColor = Theme.of(context).disabledColor.withValues(alpha: 0.15);
 
     return Container(
-      width: 240,
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
@@ -164,54 +215,218 @@ class _CartItemCard extends StatelessWidget {
           width: 0.6,
         ),
       ),
-      child: CustomInkWell(
-        radius: Dimensions.radiusDefault,
-        onTap: () {},
-        child: Padding(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            Dimensions.paddingSizeSmall, Dimensions.paddingSizeSmall,
+            Dimensions.paddingSizeSmall, Dimensions.paddingSizeExtraSmall,
+          ),
+          child: Text(
+            storeName,
+            style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeSmall),
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+          ),
+        ),
+
+        Divider(height: 1, thickness: 1, color: dividerColor),
+
+        _CartStoreItemList(items: storeGroup.items),
+
+        Divider(height: 1, thickness: 1, color: dividerColor),
+
+        Padding(
           padding: const EdgeInsets.all(Dimensions.paddingSizeSmall),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
-              child: CustomImage(
-                image: image,
-                height: 56, width: 56, fit: BoxFit.cover,
+          child: Row(children: [
+            const Spacer(),
+            Text(
+              'subtotal'.tr,
+              style: robotoRegular.copyWith(
+                fontSize: Dimensions.fontSizeExtraSmall,
+                color: Theme.of(context).hintColor,
               ),
             ),
-            const SizedBox(width: Dimensions.paddingSizeSmall),
-
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-
-                Text(
-                  name,
-                  style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeSmall),
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-
-                Text(
-                  PriceConverter.convertPrice(unitPrice),
-                  style: robotoBold.copyWith(
-                    fontSize: Dimensions.fontSizeSmall,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                ),
-                const SizedBox(height: 2),
-
-                Text(
-                  '${'qty'.tr}: $qty',
-                  style: robotoRegular.copyWith(
-                    fontSize: Dimensions.fontSizeExtraSmall,
-                    color: Theme.of(context).hintColor,
-                  ),
-                ),
-
-              ]),
+            const SizedBox(width: Dimensions.paddingSizeExtraSmall),
+            Text(
+              PriceConverter.convertPrice(subtotal),
+              style: robotoBold.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).primaryColor),
             ),
-
           ]),
         ),
+
+      ]),
+    );
+  }
+}
+
+class _CartStoreItemList extends StatelessWidget {
+  final List<AiChatCartItem> items;
+  const _CartStoreItemList({required this.items});
+
+  static const int maxVisibleItems = 4;
+  static const double _rowHeight = 56;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool needsScroll = items.length > maxVisibleItems;
+    final Color separatorColor = Theme.of(context).disabledColor.withValues(alpha: 0.1);
+
+    if (!needsScroll) {
+      final List<Widget> rows = [];
+      for (int i = 0; i < items.length; i++) {
+        if (i != 0) {
+          rows.add(Divider(height: Dimensions.paddingSizeSmall, thickness: 0.6, color: separatorColor));
+        }
+        rows.add(_CartItemRow(cartItem: items[i]));
+      }
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeSmall),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: rows),
+      );
+    }
+
+    return SizedBox(
+      height: (_rowHeight * maxVisibleItems) + (Dimensions.paddingSizeSmall * (maxVisibleItems - 1)),
+      child: ListView.separated(
+        physics: const ClampingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeSmall),
+        itemCount: items.length,
+        separatorBuilder: (_, _) => Divider(height: Dimensions.paddingSizeSmall, thickness: 0.6, color: separatorColor),
+        itemBuilder: (context, index) => SizedBox(
+          height: _rowHeight,
+          child: _CartItemRow(cartItem: items[index]),
+        ),
       ),
+    );
+  }
+}
+
+class _CartItemRow extends StatelessWidget {
+  final AiChatCartItem cartItem;
+  const _CartItemRow({required this.cartItem});
+
+  @override
+  Widget build(BuildContext context) {
+    final String name = cartItem.name ?? '';
+    final String image = cartItem.imageFullUrl ?? '';
+    final int qty = cartItem.quantity ?? 0;
+    final double lineTotal = cartItem.lineTotal ?? ((cartItem.unitPrice ?? 0) * qty);
+    final String variation = cartItem.variation ?? '';
+
+    return Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+      ClipRRect(
+        borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+        child: CustomImage(
+          image: image,
+          height: 40, width: 40, fit: BoxFit.cover,
+        ),
+      ),
+      const SizedBox(width: Dimensions.paddingSizeSmall),
+
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+
+          Text(
+            name,
+            style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeSmall),
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+
+          Row(children: [
+            if (variation.isNotEmpty) ...[
+              Flexible(child: _VariationPill(variation: variation)),
+              const SizedBox(width: Dimensions.paddingSizeExtraSmall),
+            ],
+            Text(
+              '${'qty'.tr}: $qty',
+              style: robotoRegular.copyWith(
+                fontSize: Dimensions.fontSizeExtraSmall,
+                color: Theme.of(context).hintColor,
+              ),
+            ),
+          ]),
+
+        ]),
+      ),
+
+      const SizedBox(width: Dimensions.paddingSizeSmall),
+      SizedBox(
+        width: 70,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: AlignmentDirectional.centerEnd,
+          child: Text(
+            PriceConverter.convertPrice(lineTotal),
+            style: robotoBold.copyWith(fontSize: Dimensions.fontSizeSmall,),
+          ),
+        ),
+      ),
+    ]);
+  }
+}
+
+class _VariationPill extends StatelessWidget {
+  final String variation;
+  const _VariationPill({required this.variation});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: variation,
+      triggerMode: TooltipTriggerMode.tap,
+      child: Container(
+        // constraints: const BoxConstraints(maxWidth: 90),
+        padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeExtraSmall, vertical: 1),
+        decoration: BoxDecoration(
+          color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+        ),
+        child: Text(
+          variation,
+          style: robotoMedium.copyWith(
+            fontSize: Dimensions.fontSizeOverSmall,
+            color: Theme.of(context).primaryColor,
+          ),
+          maxLines: 1, overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+  }
+}
+
+class _CartGrandTotalBar extends StatelessWidget {
+  final double grandTotal;
+  const _CartGrandTotalBar({required this.grandTotal});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Dimensions.paddingSizeSmall,
+        vertical: Dimensions.paddingSizeSmall,
+      ),
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
+      ),
+      child: Row(children: [
+        Text(
+          'grand_total'.tr,
+          style: robotoMedium.copyWith(
+            fontSize: Dimensions.fontSizeSmall,
+            color: Theme.of(context).primaryColor,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          PriceConverter.convertPrice(grandTotal),
+          style: robotoBold.copyWith(
+            fontSize: Dimensions.fontSizeSmall,
+            color: Theme.of(context).primaryColor,
+          ),
+        ),
+      ]),
     );
   }
 }
@@ -317,6 +532,7 @@ class _ProductCard extends StatelessWidget {
                     discountType == 'percent'
                         ? '${discount.toStringAsFixed(0)}% ${'off'.tr}'
                         : '${PriceConverter.convertPrice(discount)} ${'off'.tr}',
+                    textDirection: TextDirection.ltr,
                     style: robotoMedium.copyWith(
                       fontSize: Dimensions.fontSizeExtraSmall,
                       color: Colors.white,
@@ -456,6 +672,7 @@ class _AiChatStoreCard extends StatelessWidget {
                   ),
                   child: Text(
                     discountText,
+                    textDirection: TextDirection.ltr,
                     style: robotoMedium.copyWith(
                       color: Colors.white, fontSize: Dimensions.fontSizeExtraSmall,
                     ),

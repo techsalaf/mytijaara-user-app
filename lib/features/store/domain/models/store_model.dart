@@ -10,9 +10,10 @@ class StoreModel {
     totalSize = _toInt(json['total_size']);
     limit = json['limit']?.toString();
     offset = _toInt(json['offset']);
-    if (json['stores'] != null) {
+    final dynamic storeList = json['stores'] ?? json['providers'];
+    if (storeList != null) {
       stores = [];
-      json['stores'].forEach((v) {
+      storeList.forEach((v) {
         stores!.add(Store.fromJson(v));
       });
     }
@@ -579,6 +580,7 @@ class Items {
 class TopItem {
   int? id;
   String? name;
+  String? slug;
   String? imageFullUrl;
   double? price;
   double? discountedPrice;
@@ -588,18 +590,29 @@ class TopItem {
   double? avgRating;
 
   TopItem({
-    this.id, this.name, this.imageFullUrl, this.price, this.discountedPrice,
-    this.discount, this.discountType, this.orderCount, this.avgRating,
+    this.id, this.name, this.slug, this.imageFullUrl, this.price,
+    this.discountedPrice, this.discount, this.discountType, this.orderCount, this.avgRating,
   });
 
   TopItem.fromJson(Map<String, dynamic> json) {
     id = _toInt(json['id']);
     name = json['name']?.toString();
-    imageFullUrl = json['image_full_url']?.toString();
-    price = _toDouble(json['price']);
+    slug = json['slug']?.toString();
+    // Service module top_items use `thumbnail_full_url`/`base_price`; fall back to
+    // those so the same TopItem renders service top-items too.
+    imageFullUrl = json['image_full_url']?.toString() ?? json['thumbnail_full_url']?.toString();
+    price = _toDouble(json['price']) ?? _toDouble(json['base_price']);
     discountedPrice = _toDouble(json['discounted_price']);
     discount = _toDouble(json['discount']);
     discountType = json['discount_type']?.toString();
+    // Service top_items don't carry a pre-computed discounted price — derive it so
+    // the card shows the real current price (and a meaningful strikethrough).
+    if (discountedPrice == null && price != null && (discount ?? 0) > 0) {
+      final double computed = discountType == 'percent'
+          ? price! - (price! * (discount! / 100))
+          : price! - discount!;
+      discountedPrice = computed < 0 ? 0 : computed;
+    }
     orderCount = _toInt(json['order_count']);
     avgRating = _toDouble(json['avg_rating']);
   }
@@ -608,6 +621,7 @@ class TopItem {
     final Map<String, dynamic> data = <String, dynamic>{};
     data['id'] = id;
     data['name'] = name;
+    data['slug'] = slug;
     data['image_full_url'] = imageFullUrl;
     data['price'] = price;
     data['discounted_price'] = discountedPrice;

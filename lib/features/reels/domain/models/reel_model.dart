@@ -13,6 +13,8 @@ class ReelModel {
   int? itemId;
   int? vehicleId;
   bool? orderNowButton;
+  String? productType;
+  int? productId;
 
   ReelModel({
     this.reelId,
@@ -27,6 +29,8 @@ class ReelModel {
     this.itemId,
     this.vehicleId,
     this.orderNowButton,
+    this.productType,
+    this.productId,
   });
 
   ReelModel.fromJson(Map<String, dynamic> json) {
@@ -59,6 +63,8 @@ class ReelModel {
     itemId = _readInt(json['item_id'] ?? json['food_id']);
     vehicleId = _readInt(json['vehicle_id']);
     orderNowButton = json['order_now_button'] == true || json['order_now_button'] == 1;
+    productType = _readString(json['product_type']);
+    productId = _readInt(json['product_id']);
   }
 
   String get resolvedTitle {
@@ -103,6 +109,8 @@ class ReelModel {
       itemId: other.itemId ?? itemId,
       vehicleId: other.vehicleId ?? vehicleId,
       orderNowButton: other.orderNowButton ?? orderNowButton,
+      productType: other.productType ?? productType,
+      productId: other.productId ?? productId,
     );
   }
 
@@ -120,6 +128,8 @@ class ReelModel {
       'item_id': itemId,
       'vehicle_id': vehicleId,
       'order_now_button': orderNowButton,
+      'product_type': productType,
+      'product_id': productId,
     };
   }
 

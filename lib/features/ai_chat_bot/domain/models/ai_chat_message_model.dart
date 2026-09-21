@@ -1,4 +1,3 @@
-import 'package:sixam_mart/features/cart/domain/models/online_cart_model.dart';
 import 'package:sixam_mart/features/category/domain/models/category_model.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
@@ -101,10 +100,10 @@ class AiChatMetadata {
   List<Item>? products;
   List<Store>? stores;
   List<CategoryModel>? categories;
-  List<OnlineCartModel>? cartItems;
+  AiChatCart? cart;
   bool? cartUpdated;
 
-  AiChatMetadata({this.products, this.stores, this.categories, this.cartItems, this.cartUpdated});
+  AiChatMetadata({this.products, this.stores, this.categories, this.cart, this.cartUpdated});
 
   AiChatMetadata.fromJson(Map<String, dynamic> json) {
     cartUpdated = json['cart_updated'] is bool ? json['cart_updated'] as bool : null;
@@ -142,23 +141,18 @@ class AiChatMetadata {
       }
     }
 
-    if (json['cart_items'] is List) {
-      cartItems = <OnlineCartModel>[];
-      for (var v in (json['cart_items'] as List)) {
-        if (v is Map<String, dynamic>) {
-          try {
-            cartItems!.add(OnlineCartModel.fromJson(v));
-          } catch (_) {}
-        }
-      }
+    if (json['cart'] is Map<String, dynamic>) {
+      try {
+        cart = AiChatCart.fromJson(json['cart']);
+      } catch (_) {}
     }
   }
 
   bool get hasProducts => products != null && products!.isNotEmpty;
   bool get hasStores => stores != null && stores!.isNotEmpty;
   bool get hasCategories => categories != null && categories!.isNotEmpty;
-  bool get hasCartItems => cartItems != null && cartItems!.isNotEmpty;
-  bool get isEmpty => !hasProducts && !hasStores && !hasCategories && !hasCartItems;
+  bool get hasCart => cart != null && cart!.stores.isNotEmpty;
+  bool get isEmpty => !hasProducts && !hasStores && !hasCategories && !hasCart;
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = <String, dynamic>{};
@@ -171,12 +165,120 @@ class AiChatMetadata {
     if (categories != null) {
       data['categories'] = categories!.map((v) => v.toJson()).toList();
     }
-    if (cartItems != null) {
-      data['cart_items'] = cartItems!.map((v) => v.toJson()).toList();
+    if (cart != null) {
+      data['cart'] = cart!.toJson();
     }
     if (cartUpdated != null) {
       data['cart_updated'] = cartUpdated;
     }
+    return data;
+  }
+}
+
+class AiChatCart {
+  List<AiChatCartStoreGroup> stores;
+  double? grandTotal;
+  int? totalItems;
+
+  AiChatCart({required this.stores, this.grandTotal, this.totalItems});
+
+  AiChatCart.fromJson(Map<String, dynamic> json) : stores = <AiChatCartStoreGroup>[] {
+    grandTotal = (json['grand_total'] as num?)?.toDouble();
+    totalItems = json['total_items'] is String ? int.tryParse(json['total_items']) : json['total_items'];
+
+    if (json['stores'] is List) {
+      for (var v in (json['stores'] as List)) {
+        if (v is Map<String, dynamic>) {
+          try {
+            stores.add(AiChatCartStoreGroup.fromJson(v));
+          } catch (_) {}
+        }
+      }
+    }
+  }
+
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data['stores'] = stores.map((v) => v.toJson()).toList();
+    data['grand_total'] = grandTotal;
+    data['total_items'] = totalItems;
+    return data;
+  }
+}
+
+class AiChatCartStoreGroup {
+  int? storeId;
+  String? storeName;
+  List<AiChatCartItem> items;
+  double? storeSubtotal;
+
+  AiChatCartStoreGroup({this.storeId, this.storeName, required this.items, this.storeSubtotal});
+
+  AiChatCartStoreGroup.fromJson(Map<String, dynamic> json) : items = <AiChatCartItem>[] {
+    storeId = json['store_id'];
+    storeName = json['store_name'];
+    storeSubtotal = (json['store_subtotal'] as num?)?.toDouble();
+
+    if (json['items'] is List) {
+      for (var v in (json['items'] as List)) {
+        if (v is Map<String, dynamic>) {
+          try {
+            items.add(AiChatCartItem.fromJson(v));
+          } catch (_) {}
+        }
+      }
+    }
+  }
+
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data['store_id'] = storeId;
+    data['store_name'] = storeName;
+    data['items'] = items.map((v) => v.toJson()).toList();
+    data['store_subtotal'] = storeSubtotal;
+    return data;
+  }
+}
+
+class AiChatCartItem {
+  int? cartId;
+  int? itemId;
+  String? name;
+  String? variation;
+  String? image;
+  String? imageFullUrl;
+  int? quantity;
+  double? unitPrice;
+  double? lineTotal;
+
+  AiChatCartItem({
+    this.cartId, this.itemId, this.name, this.variation, this.image,
+    this.imageFullUrl, this.quantity, this.unitPrice, this.lineTotal,
+  });
+
+  AiChatCartItem.fromJson(Map<String, dynamic> json) {
+    cartId = json['cart_id'];
+    itemId = json['item_id'];
+    name = json['name'];
+    variation = json['variation'];
+    image = json['image'];
+    imageFullUrl = json['image_full_url'];
+    quantity = json['quantity'] is String ? int.tryParse(json['quantity']) : json['quantity'];
+    unitPrice = (json['unit_price'] as num?)?.toDouble();
+    lineTotal = (json['line_total'] as num?)?.toDouble();
+  }
+
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data['cart_id'] = cartId;
+    data['item_id'] = itemId;
+    data['name'] = name;
+    data['variation'] = variation;
+    data['image'] = image;
+    data['image_full_url'] = imageFullUrl;
+    data['quantity'] = quantity;
+    data['unit_price'] = unitPrice;
+    data['line_total'] = lineTotal;
     return data;
   }
 }

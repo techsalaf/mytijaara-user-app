@@ -73,6 +73,11 @@ class HomeScreen {
       Get.find<NotificationController>().getNotificationList(reload);
       if(Get.find<SplashController>().configModel!.repeatOrderOption == 1) {
         Get.find<OrderController>().getLastOrders(reload: reload, isHome: true);
+        // Also refresh the module-scoped list (LastOrdersSectionWidget reads this
+        // when a module screen passes moduleType) — module screens only fetch it
+        // once in initState, so without this it stays stale after placing an
+        // order and simply popping back instead of switching modules.
+        Get.find<OrderController>().getLastOrders(reload: reload, isHome: false);
       }
       if(!Get.find<SplashController>().configModel!.moduleConfig!.module!.isRide!) {
         Get.find<CouponController>().getCouponList();
@@ -92,6 +97,7 @@ class HomeScreen {
     if(Get.find<SplashController>().module != null && Get.find<SplashController>().module!.moduleType.toString() == AppConstants.pharmacy) {
       Get.find<ItemController>().getBasicMedicine(reload, false);
       Get.find<StoreController>().getFeaturedStoreList();
+      Get.find<StoreController>().getVerifiedStoreList(reload: reload, notify: false);
       Get.find<ItemController>().getCommonConditions(false);
     }
   }

@@ -112,7 +112,7 @@ class _ProPlanSelectorWidgetState extends State<ProPlanSelectorWidget> {
         Stack(
           children: [
             Container(
-              padding: EdgeInsets.all(Dimensions.paddingSizeExtraSmall),
+              padding: const EdgeInsets.all(Dimensions.paddingSizeExtraSmall),
               width: double.infinity,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
@@ -137,7 +137,7 @@ class _ProPlanSelectorWidgetState extends State<ProPlanSelectorWidget> {
                             boxShadow: [
                               if(isSelected) BoxShadow(
                                 color: Theme.of(context).disabledColor.withAlpha(30),
-                                offset: Offset(0, 2),
+                                offset: const Offset(0, 2),
                               ),
                             ],
                           ),

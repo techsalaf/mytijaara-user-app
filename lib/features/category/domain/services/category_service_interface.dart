@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 import 'package:sixam_mart/common/enums/data_source_enum.dart';
 import 'package:sixam_mart/features/category/domain/models/category_model.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
+import 'package:sixam_mart/features/service_module/service_home/domain/models/service_category_model.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 
 abstract class CategoryServiceInterface {
@@ -11,4 +12,5 @@ abstract class CategoryServiceInterface {
   Future<StoreModel?> getCategoryStoreList(String? categoryID, int offset, String type);
   Future<Response> getSearchData(String? query, String? categoryID, bool isStore, String type);
   Future<bool> saveUserInterests(List<int?> interests);
+  Future<List<ServiceCategoryModel>?> getCategoriesWithChildes();
 }

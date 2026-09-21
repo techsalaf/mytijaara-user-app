@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:sixam_mart/common/widgets/custom_app_bar.dart';
 import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
 import 'package:sixam_mart/features/order/screens/my_items_screen.dart';
+import 'package:sixam_mart/features/order/screens/my_order_screen.dart';
 import 'package:sixam_mart/features/profile/domain/constant.dart';
 import 'package:sixam_mart/features/profile/widgets/profile_header_card_widget.dart';
 import 'package:sixam_mart/features/profile/widgets/profile_logout_button_widget.dart';
@@ -10,8 +11,10 @@ import 'package:sixam_mart/features/profile/widgets/profile_menu_section_widget.
 import 'package:sixam_mart/features/profile/widgets/profile_stat_cards_widget.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
+import 'package:sixam_mart/helper/module_helper.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
+import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/images.dart';
 
@@ -96,11 +99,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
           iconAsset: Images.proPlanCrown,
           route: RouteHelper.getSubscriptionPlanRoute(),
         ),
+
+        
       if(AuthHelper.isLoggedIn() && Get.find<SplashController>().configModel?.monthlyOrderRemainder == 1)
         ProfileMenuItem(
           titleKey: 'monthly_cart_list',
           iconAsset: Images.monthlyCart,
           onTap: () => Get.to(() => const MyItemsScreen()),
+        ),
+      if(AuthHelper.isLoggedIn() && ModuleHelper.isActiveServiceModule())
+        ProfileMenuItem(
+          titleKey: 'custom_service',
+          iconAsset: Images.servicePostCustomizedIcon,
+          route: RouteHelper.getCustomServiceListRoute(),
+        ),
+      if(AuthHelper.isLoggedIn() && ModuleHelper.isActiveServiceModule())
+        ProfileMenuItem(
+          titleKey: 'requested_service',
+          iconAsset: Images.serviceQuickEmergencyIcon,
+          route: RouteHelper.getRequestedServiceRoute(),
+        ),
+      if(!AuthHelper.isLoggedIn() && ModuleHelper.isActiveServiceModule())
+        ProfileMenuItem(
+          titleKey: 'track_booking',
+          iconAsset: Images.tracking,
+          route: RouteHelper.getBookingTrackRoute(),
+        ),
+      if(!AuthHelper.isLoggedIn() && !ModuleHelper.isActiveServiceModule())
+        ProfileMenuItem(
+          titleKey: 'track_order',
+          iconAsset: Images.tracking,
+          onTap: () => Get.to(() => const MyOrderScreen()),
         ),
       ProfileMenuItem(
         titleKey: 'settings',
@@ -198,7 +227,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         iconAsset: Images.termsIcon,
         route: RouteHelper.termsAndCondition,
       ),
-      ProfileMenuItem(
+      const ProfileMenuItem(
         titleKey: 'privacy_policy',
         iconAsset: Images.termsIcon,
         route: RouteHelper.privacyPolicy,
@@ -206,7 +235,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ];
 
     if (isRideShare) {
-      items.add(ProfileMenuItem(
+      items.add(const ProfileMenuItem(
         titleKey: 'safety_policy',
         iconAsset: Images.termsIcon,
         route: RouteHelper.safety,
@@ -214,7 +243,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     if (config.refundPolicyStatus == 1) {
-      items.add(ProfileMenuItem(
+      items.add(const ProfileMenuItem(
         titleKey: 'refund_policy',
         iconAsset: Images.termsIcon,
         route: RouteHelper.refundPolicy,
@@ -222,7 +251,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     if (config.cancellationPolicyStatus == 1) {
-      items.add(ProfileMenuItem(
+      items.add(const ProfileMenuItem(
         titleKey: 'cancellation_policy',
         iconAsset: Images.termsIcon,
         route: RouteHelper.cancellationPolicy,
@@ -230,7 +259,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     if (config.shippingPolicyStatus == 1) {
-      items.add(ProfileMenuItem(
+      items.add(const ProfileMenuItem(
         titleKey: 'shipping_policy',
         iconAsset: Images.termsIcon,
         route: RouteHelper.shippingPolicy,

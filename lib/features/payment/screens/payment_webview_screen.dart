@@ -54,6 +54,7 @@ class PaymentScreenState extends State<PaymentWebViewScreen> {
       selectedUrl = widget.addFundUrl!;
     }
 
+    print('selectedUrl: $selectedUrl');
 
     _initData();
   }

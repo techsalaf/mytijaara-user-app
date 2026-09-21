@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:sixam_mart/util/app_constants.dart';
 
-ThemeData light({Color color = const Color(0xFF039D55)}) => ThemeData(
+ThemeData light({Color color = const Color(0xFF0B5D3B)}) => ThemeData(
   fontFamily: AppConstants.fontFamily,
   primaryColor: color,
-  secondaryHeaderColor: const Color(0xFF1ED7AA),
+  secondaryHeaderColor: const Color(0xFFD4AF37),
   disabledColor: const Color(0xFF9F9F9F),
   brightness: Brightness.light,
   hintColor: const Color(0xFF9F9F9F),
   cardColor: Colors.white,
   shadowColor: Colors.black.withValues(alpha: 0.03),
   textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(foregroundColor: color)),
-  colorScheme: ColorScheme.light(primary: color, secondary: color).copyWith(
-      surface: const Color(0xFFF5F5F5)).copyWith(error: const Color(0xFFE84D4F),
-      surfaceBright: const Color(0xFFEFEFEF)),
+  colorScheme: ColorScheme.light(primary: color, secondary: const Color(0xFFD4AF37)).copyWith(
+      surface: const Color(0xFFF7F8F5)).copyWith(error: const Color(0xFFE84D4F),
+      surfaceBright: const Color(0xFFF1F3EE)),
   popupMenuTheme: const PopupMenuThemeData(color: Colors.white, surfaceTintColor: Colors.white),
   dialogTheme: const DialogThemeData(surfaceTintColor: Colors.white),
   floatingActionButtonTheme: FloatingActionButtonThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(500))),
@@ -29,6 +29,7 @@ const Map<String, Color> buttonBackgroundColorMap ={
   'pending': Color(0x457bc2f6),
   'accepted': Color(0x499ad0fb),
   'ongoing': Color(0x629ac5f8),
+  'on_hold': Color(0x66ffa000),
   'completed': Color(0x5faff4c1),
   'settled': Color(0x6e93b347),
   'canceled': Color(0x51F6A9A9),
@@ -49,6 +50,7 @@ const Map<String, Color> buttonTextColorMap ={
   'pending': Color(0xff058df3),
   'accepted': Color(0xff2B95FF),
   'ongoing': Color(0xff2B95FF),
+  'on_hold': Color(0xffFF8F00),
   'completed': Color(0xff03b158),
   'settled': Color(0xf57b9826),
   'canceled': Color(0xfff44747),

@@ -24,6 +24,8 @@ class AdvertisementController extends GetxController implements GetxService {
       if (responseAdvertisement != null) {
         _advertisementList = responseAdvertisement;
       }
+      _currentIndex = 0;
+      autoPlay = true;
       update();
       getAdvertisementList(dataSource: DataSourceEnum.client);
     } else {

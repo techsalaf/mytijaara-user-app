@@ -1,7 +1,9 @@
 import 'package:get/get.dart';
-import 'package:sixam_mart/features/redesign_feature/common/models/new_item_model.dart';
+import 'package:sixam_mart/features/offer/domain/models/new_item_model.dart';
 import 'package:sixam_mart/features/offer/domain/services/offer_service_interface.dart';
+import 'package:sixam_mart/features/service_module/service_home/domain/models/service_model.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
+import 'package:sixam_mart/util/app_constants.dart';
 
 class OfferController extends GetxController implements GetxService {
   final OfferServiceInterface offerServiceInterface;
@@ -14,6 +16,9 @@ class OfferController extends GetxController implements GetxService {
 
   NewItemListResponse? _itemList;
   NewItemListResponse? get itemList => _itemList;
+
+  ServiceModel? _serviceItemList;
+  ServiceModel? get serviceItemList => _serviceItemList;
 
   StoreModel? _storeList;
   StoreModel? get storeList => _storeList;
@@ -30,6 +35,11 @@ class OfferController extends GetxController implements GetxService {
   int? _selectedModuleId;
   int? get selectedModuleId => _selectedModuleId;
 
+  String? _selectedModuleType;
+  String? get selectedModuleType => _selectedModuleType;
+
+  bool get isServiceModule => _selectedModuleType == AppConstants.service;
+
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
@@ -39,28 +49,45 @@ class OfferController extends GetxController implements GetxService {
   int _storeOffset = 1;
   int get storeOffset => _storeOffset;
 
-  Future<void> loadOffers({String? type, String? search, int? moduleId, bool clearModule = false, bool reload = false, bool notify = true}) async {
+  int _serviceItemOffset = 1;
+  int get serviceItemOffset => _serviceItemOffset;
+
+  Future<void> loadOffers({
+    String? type,
+    String? search,
+    int? moduleId,
+    String? moduleType,
+    bool clearModule = false,
+    bool reload = false,
+    bool notify = true,
+  }) async {
     final String nextType = type ?? _selectedType;
     final String nextSearch = search ?? _searchQuery;
     final int? nextModuleId = clearModule ? null : (moduleId ?? _selectedModuleId);
+    final String? nextModuleType = clearModule ? null : (moduleType ?? _selectedModuleType);
     final bool typeChanged = nextType != _selectedType;
     final bool searchChanged = nextSearch != _searchQuery;
-    final bool moduleChanged = nextModuleId != _selectedModuleId;
+    final bool moduleChanged = nextModuleId != _selectedModuleId || nextModuleType != _selectedModuleType;
 
     if (reload || typeChanged || searchChanged || moduleChanged) {
       _selectedType = nextType;
       _searchQuery = nextSearch;
       _selectedModuleId = nextModuleId;
+      _selectedModuleType = nextModuleType;
       _itemList = null;
       _storeList = null;
+      _serviceItemList = null;
       _itemOffset = 1;
       _storeOffset = 1;
+      _serviceItemOffset = 1;
     }
 
-    // Exclusive deals depend on the module only — refetch on first load or a
-    // module switch, but not on type/search changes (those keep the same deals).
-    final bool fetchDeals = moduleChanged || _exclusiveDeals == null;
+    // Exclusive deals apply only to non-service modules. Refetch on first load
+    // or a module switch, but not on type/search changes.
+    final bool fetchDeals = !isServiceModule && (moduleChanged || _exclusiveDeals == null);
     if (fetchDeals) {
+      _exclusiveDeals = null;
+    } else if (isServiceModule) {
       _exclusiveDeals = null;
     }
 
@@ -69,6 +96,7 @@ class OfferController extends GetxController implements GetxService {
 
     await Future.wait<void>(<Future<void>>[
       if (_shouldFetchItems) _fetchItems(offset: 1, replace: true),
+      if (_shouldFetchServiceItems) _fetchServiceItems(offset: 1, replace: true),
       if (_shouldFetchStores) _fetchStores(offset: 1, replace: true),
       if (fetchDeals) _fetchExclusiveDeals(),
     ]);
@@ -96,6 +124,23 @@ class OfferController extends GetxController implements GetxService {
       _itemList!.offset = response.offset;
     }
     _itemOffset = offset;
+  }
+
+  Future<void> _fetchServiceItems({required int offset, bool replace = false}) async {
+    final ServiceModel? response = await offerServiceInterface.getServiceOfferItems(
+      offset: offset, limit: pageLimit, search: _searchQuery, moduleId: _selectedModuleId,
+    );
+    if (response == null) return;
+    if (replace || _serviceItemList == null) {
+      _serviceItemList = response;
+    } else {
+      _serviceItemList!.services ??= <Service>[];
+      if (response.services != null) _serviceItemList!.services!.addAll(response.services!);
+      _serviceItemList!.totalSize = response.totalSize;
+      _serviceItemList!.limit = response.limit;
+      _serviceItemList!.offset = response.offset;
+    }
+    _serviceItemOffset = offset;
   }
 
   Future<void> _fetchStores({required int offset, bool replace = false}) async {
@@ -126,15 +171,25 @@ class OfferController extends GetxController implements GetxService {
     loadOffers(search: trimmed, reload: true);
   }
 
-  void setModuleFilter(int? moduleId) {
-    if (_selectedModuleId == moduleId) return;
-    loadOffers(moduleId: moduleId, clearModule: moduleId == null, reload: true);
+  void setModuleFilter(int? moduleId, {String? moduleType}) {
+    if (_selectedModuleId == moduleId && _selectedModuleType == moduleType) return;
+    loadOffers(moduleId: moduleId, moduleType: moduleType, clearModule: moduleId == null, reload: true);
   }
 
-  bool get _shouldFetchItems => _selectedType == typeAll || _selectedType == typeItem;
+  // Items are fetched only for non-service modules.
+  bool get _shouldFetchItems => !isServiceModule && (_selectedType == typeAll || _selectedType == typeItem);
+  // Service items are fetched only for the service module.
+  bool get _shouldFetchServiceItems => isServiceModule && (_selectedType == typeAll || _selectedType == typeItem);
   bool get _shouldFetchStores => _selectedType == typeAll || _selectedType == typeStore;
 
   int get totalResultCount {
+    if (isServiceModule) {
+      final int serviceTotal = _serviceItemList?.totalSize ?? 0;
+      final int storeTotal = _storeList?.totalSize ?? 0;
+      if (_selectedType == typeItem) return serviceTotal;
+      if (_selectedType == typeStore) return storeTotal;
+      return serviceTotal + storeTotal;
+    }
     final int itemTotal = _itemList?.totalSize ?? 0;
     final int storeTotal = _storeList?.totalSize ?? 0;
     if (_selectedType == typeItem) return itemTotal;
@@ -142,8 +197,7 @@ class OfferController extends GetxController implements GetxService {
     return itemTotal + storeTotal;
   }
 
-  // Pagination is driven by PaginatedListView, which owns the offset/dedup/loader
-  // state. These just fetch+append the requested page for the active vertical list.
+  // Pagination is driven by PaginatedListView for the active vertical list.
   Future<void> paginateItems(int? offset) async {
     if (offset == null) return;
     await _fetchItems(offset: offset);
@@ -153,6 +207,12 @@ class OfferController extends GetxController implements GetxService {
   Future<void> paginateStores(int? offset) async {
     if (offset == null) return;
     await _fetchStores(offset: offset);
+    update();
+  }
+
+  Future<void> paginateServiceItems(int? offset) async {
+    if (offset == null) return;
+    await _fetchServiceItems(offset: offset);
     update();
   }
 }

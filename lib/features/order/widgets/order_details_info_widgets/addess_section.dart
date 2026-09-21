@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/common/widgets/custom_snackbar.dart';
 import 'package:sixam_mart/features/address/domain/models/address_model.dart';
 import 'package:sixam_mart/features/notification/domain/models/notification_body_model.dart';
 import 'package:sixam_mart/features/order/domain/models/order_model.dart';
+import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
+import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/images.dart';
@@ -219,7 +220,7 @@ class _AddressActionSlot extends StatelessWidget {
     final status = order.orderStatus;
     final bool refundActive = Get.find<SplashController>().configModel?.refundActiveStatus ?? false;
 
-    if (status == 'delivered' && refundActive) {
+    if (status == 'delivered' && refundActive && order.orderType != 'parcel' && !AuthHelper.isLoggedIn() && !AuthHelper.isGuestLoggedIn()) {
       return _RefundOrderPill(orderId: order.id);
     }
 

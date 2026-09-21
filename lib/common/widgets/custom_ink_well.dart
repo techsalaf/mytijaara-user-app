@@ -19,12 +19,20 @@ class CustomInkWell extends StatefulWidget {
 
 class _CustomInkWellState extends State<CustomInkWell> with SingleTickerProviderStateMixin {
   static const double _pressedScale = 0.93;
-  static const Duration _pressDuration = Duration(milliseconds: 200);
-  static const Duration _releaseDuration = Duration(milliseconds: 320);
-  static const Duration _tapDelay = Duration(milliseconds: 120);
+  static const Duration _pressDuration = Duration(milliseconds: 80);
+  static const Duration _releaseDuration = Duration(milliseconds: 140);
 
   late final AnimationController _controller;
   late final Animation<double> _scale;
+
+  // Runs the full press-down/release-back animation to completion before
+  // invoking onTap, so a quick tap shows the same visible feedback as a
+  // press-and-hold instead of getting cut short by an immediate reverse.
+  Future<void> _animateThenInvoke() async {
+    await _controller.forward();
+    await _controller.reverse();
+    widget.onTap!();
+  }
 
   @override
   void initState() {
@@ -56,9 +64,9 @@ class _CustomInkWellState extends State<CustomInkWell> with SingleTickerProvider
         color: Colors.transparent,
         borderRadius: borderRadius,
         child: InkWell(
-          onTap: enabled ? () => Future.delayed(_tapDelay, () => widget.onTap!()) : null,
+          onTap: enabled ? _animateThenInvoke : null,
           onHighlightChanged: enabled
-              ? (pressed) => pressed ? _controller.forward() : _controller.reverse()
+              ? (pressed) => pressed ? _controller.forward() : null
               : null,
           borderRadius: borderRadius,
           highlightColor: widget.highlightColor,
@@ -77,9 +85,8 @@ class _CustomInkWellState extends State<CustomInkWell> with SingleTickerProvider
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTapDown: enabled ? (_) => _controller.forward() : null,
-      onTapUp: enabled ? (_) => _controller.reverse() : null,
       onTapCancel: enabled ? () => _controller.reverse() : null,
-      onTap: enabled ? () => Future.delayed(_tapDelay, () => widget.onTap!()) : null,
+      onTap: enabled ? _animateThenInvoke : null,
       child: ScaleTransition(
         scale: _scale,
         child: Padding(

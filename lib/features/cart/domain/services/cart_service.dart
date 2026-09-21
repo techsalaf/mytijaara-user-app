@@ -181,7 +181,7 @@ class CartService implements CartServiceInterface {
   }
 
   @override
-  Future<int> decideItemQuantity(bool isIncrement, List<CartModel> cartList, int cartIndex, int? stock, int ? quantityLimit, bool moduleStock) async{
+  int decideItemQuantity(bool isIncrement, List<CartModel> cartList, int cartIndex, int? stock, int ? quantityLimit, bool moduleStock){
     int quantity = cartList[cartIndex].quantity!;
     if (isIncrement) {
       if(moduleStock && cartList[cartIndex].quantity! >= stock!) {

@@ -93,6 +93,37 @@ class _OrderItemRowState extends State<_OrderItemRow> {
     return od.addOns!.map((a) => '${a.name} (${a.quantity})').join(',  ');
   }
 
+  // The single-line "collapsed" representation: both categories joined with a
+  // separator when both are present, so collapsing always means exactly one line.
+  List<InlineSpan> _buildCollapsedSpans({required String variationText, required String addOnText, required Color color}) {
+    final TextStyle labelStyle = robotoMedium.copyWith(fontSize: Dimensions.fontSizeSmall, color: color);
+    final List<InlineSpan> spans = [];
+    if (variationText.isNotEmpty) {
+      spans.add(TextSpan(text: '${'variations'.tr}: ', style: labelStyle));
+      spans.add(TextSpan(text: variationText));
+    }
+    if (variationText.isNotEmpty && addOnText.isNotEmpty) {
+      spans.add(const TextSpan(text: '   •   '));
+    }
+    if (addOnText.isNotEmpty) {
+      spans.add(TextSpan(text: '${'addons'.tr}: ', style: labelStyle));
+      spans.add(TextSpan(text: addOnText));
+    }
+    return spans;
+  }
+
+  // Whether the given spans would wrap past one line at maxWidth — used to decide
+  // if the toggle is needed at all (nothing to collapse to if it already fits).
+  bool _spansOverflowOneLine(BuildContext context, List<InlineSpan> spans, Color color, double maxWidth) {
+    final TextPainter painter = TextPainter(
+      text: TextSpan(style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: color), children: spans),
+      maxLines: 1,
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout(maxWidth: maxWidth);
+    return painter.didExceedMaxLines;
+  }
+
   @override
   Widget build(BuildContext context) {
     final od = widget.orderDetails;
@@ -151,30 +182,46 @@ class _OrderItemRowState extends State<_OrderItemRow> {
 
           if (hasAdditional) ...[
             const SizedBox(height: 6),
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  if (variationText.isNotEmpty)
-                    _LabeledNote(label: 'variations'.tr, value: variationText, expanded: _additionalExpanded, color: disabled),
-                  if (variationText.isNotEmpty && addOnText.isNotEmpty)
-                    const SizedBox(height: 2),
-                  if (addOnText.isNotEmpty)
-                    _LabeledNote(label: 'addons'.tr, value: addOnText, expanded: _additionalExpanded, color: disabled),
-                ]),
-              ),
-              InkWell(
-                onTap: () => setState(() => _additionalExpanded = !_additionalExpanded),
-                borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
-                child: Padding(
-                  padding: const EdgeInsets.all(2),
-                  child: AnimatedRotation(
-                    turns: _additionalExpanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 200),
-                    child: Icon(Icons.keyboard_arrow_down, size: 18, color: disabled),
-                  ),
+            LayoutBuilder(builder: (context, constraints) {
+              const double arrowReservedWidth = 24;
+              final double textMaxWidth = (constraints.maxWidth - arrowReservedWidth).clamp(0.0, double.infinity);
+              final List<InlineSpan> collapsedSpans = _buildCollapsedSpans(
+                variationText: variationText, addOnText: addOnText, color: disabled,
+              );
+              final bool needsToggle = _spansOverflowOneLine(context, collapsedSpans, disabled, textMaxWidth);
+
+              return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(
+                  child: _additionalExpanded
+                      ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          if (variationText.isNotEmpty)
+                            _LabeledNote(label: 'variations'.tr, value: variationText, color: disabled),
+                          if (variationText.isNotEmpty && addOnText.isNotEmpty)
+                            const SizedBox(height: 2),
+                          if (addOnText.isNotEmpty)
+                            _LabeledNote(label: 'addons'.tr, value: addOnText, color: disabled),
+                        ])
+                      : RichText(
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          text: TextSpan(style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: disabled), children: collapsedSpans),
+                        ),
                 ),
-              ),
-            ]),
+                if (needsToggle)
+                  InkWell(
+                    onTap: () => setState(() => _additionalExpanded = !_additionalExpanded),
+                    borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+                    child: Padding(
+                      padding: const EdgeInsets.all(2),
+                      child: AnimatedRotation(
+                        turns: _additionalExpanded ? 0.5 : 0,
+                        duration: const Duration(milliseconds: 200),
+                        child: Icon(Icons.keyboard_arrow_down, size: 18, color: disabled),
+                      ),
+                    ),
+                  ),
+              ]);
+            }),
           ],
         ]),
       ),
@@ -197,16 +244,13 @@ class _OrderItemRowState extends State<_OrderItemRow> {
 class _LabeledNote extends StatelessWidget {
   final String label;
   final String value;
-  final bool expanded;
   final Color color;
 
-  const _LabeledNote({required this.label, required this.value, required this.expanded, required this.color});
+  const _LabeledNote({required this.label, required this.value, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return RichText(
-      maxLines: expanded ? null : 1,
-      overflow: expanded ? TextOverflow.visible : TextOverflow.ellipsis,
       text: TextSpan(style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: color), children: [
         TextSpan(
           text: '$label: ',

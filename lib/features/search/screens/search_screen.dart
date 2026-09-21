@@ -19,8 +19,8 @@ import 'package:sixam_mart/features/cart/controllers/cart_controller.dart';
 import 'package:sixam_mart/features/cart/screens/global_cart_screen.dart';
 import 'package:sixam_mart/features/category/controllers/category_controller.dart';
 import 'package:sixam_mart/features/category/domain/models/category_model.dart';
-import 'package:sixam_mart/features/redesign_feature/dashboard/widgets/top_picks_near_you_widget.dart';
-import 'package:sixam_mart/features/redesign_feature/global_widgets/brand_item_widget.dart';
+import 'package:sixam_mart/features/dashboard/widgets/top_picks_near_you_widget.dart';
+import 'package:sixam_mart/features/brands/widgets/brand_item_widget.dart';
 import 'package:sixam_mart/features/search/controllers/search_controller.dart' as search;
 import 'package:sixam_mart/features/search/domain/models/recent_search_entry.dart';
 import 'package:sixam_mart/features/search/domain/models/search_new_filter_state.dart';
@@ -29,9 +29,11 @@ import 'package:sixam_mart/features/search/domain/models/trending_search_model.d
 import 'package:sixam_mart/features/search/screens/search_new_filter_screen.dart';
 import 'package:sixam_mart/features/search/screens/section/search_result_section.dart';
 import 'package:sixam_mart/features/search/widgets/search_field_widget.dart';
+import 'package:sixam_mart/features/service_module/service_cart/controllers/service_cart_controller.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/store/controllers/store_controller.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
+import 'package:sixam_mart/helper/module_helper.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/helper/voice_permission_handler.dart';
@@ -86,6 +88,11 @@ class SearchScreenState extends State<SearchScreen> {
       Get.find<search.SearchController>().getSuggestedItems();
     }
     Get.find<search.SearchController>().getHistoryList(moduleKey: isGlobal ? '' : (widget.moduleName ?? ''));
+    // The service module keeps its cart in its own controller; load its groups so
+    // the floating "View Cart (N)" pill shows the correct service booking count.
+    if(ModuleHelper.getModule()?.moduleType == AppConstants.service) {
+      Get.find<ServiceCartController>().getServiceCartGroups(notify: false);
+    }
     // Top Brands only apply to grocery and shop (ecommerce) modules.
     final String? moduleType = Get.find<SplashController>().module?.moduleType;
     if(moduleType == AppConstants.grocery || moduleType == AppConstants.ecommerce) {
@@ -409,18 +416,31 @@ class SearchScreenState extends State<SearchScreen> {
         ))),
 
         floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-        floatingActionButton: GetBuilder<CartController>(builder: (cartController) {
-          // Always shown when the cart has items, except while the suggestion list
-          // is visible (_showSuggestion) or while scrolling content down (_showCartOnScroll).
-          final bool showCart = cartController.allCartsGroups != null
-              && cartController.allCartsGroups!.isNotEmpty
-              && !ResponsiveHelper.isDesktop(context)
-              && !_showSuggestion
-              && _showCartOnScroll;
-          return showCart
-              ? _ViewCartFloatingButton(count: cartController.allCartsGroups!.length)
-              : const SizedBox.shrink();
-        }),
+        // The service module keeps its cart in a separate controller, so the pill
+        // reads that count when the active module is a service module.
+        floatingActionButton: ModuleHelper.getModule()?.moduleType == AppConstants.service
+            ? GetBuilder<ServiceCartController>(builder: (serviceCartController) {
+                final int count = serviceCartController.serviceCartItemCount;
+                // Shown when there are booked services, except while the suggestion list
+                // is visible (_showSuggestion) or while scrolling content down (_showCartOnScroll).
+                final bool showCart = count > 0
+                    && !ResponsiveHelper.isDesktop(context)
+                    && !_showSuggestion
+                    && _showCartOnScroll;
+                return showCart ? _ViewCartFloatingButton(count: count) : const SizedBox.shrink();
+              })
+            : GetBuilder<CartController>(builder: (cartController) {
+                // Always shown when the cart has items, except while the suggestion list
+                // is visible (_showSuggestion) or while scrolling content down (_showCartOnScroll).
+                final bool showCart = cartController.allCartsGroups != null
+                    && cartController.allCartsGroups!.isNotEmpty
+                    && !ResponsiveHelper.isDesktop(context)
+                    && !_showSuggestion
+                    && _showCartOnScroll;
+                return showCart
+                    ? _ViewCartFloatingButton(count: cartController.allCartsGroups!.length)
+                    : const SizedBox.shrink();
+              }),
       ),
     );
   }

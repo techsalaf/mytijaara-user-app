@@ -1,19 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:sixam_mart/features/chat/controllers/chat_controller.dart';
-import 'package:sixam_mart/features/chat/enums/user_type_enum.dart';
-import 'package:sixam_mart/features/chat/widgets/chat_serach_field_widget.dart';
-import 'package:sixam_mart/features/language/controllers/language_controller.dart';
-import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
-import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
-import 'package:sixam_mart/features/notification/domain/models/notification_body_model.dart';
-import 'package:sixam_mart/features/chat/domain/models/conversation_model.dart';
-import 'package:sixam_mart/helper/auth_helper.dart';
-import 'package:sixam_mart/helper/date_converter.dart';
-import 'package:sixam_mart/helper/responsive_helper.dart';
-import 'package:sixam_mart/helper/route_helper.dart';
-import 'package:sixam_mart/util/dimensions.dart';
-import 'package:sixam_mart/util/styles.dart';
 import 'package:sixam_mart/common/widgets/custom_app_bar.dart';
 import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/common/widgets/custom_ink_well.dart';
@@ -22,7 +8,22 @@ import 'package:sixam_mart/common/widgets/footer_view.dart';
 import 'package:sixam_mart/common/widgets/menu_drawer.dart';
 import 'package:sixam_mart/common/widgets/not_logged_in_screen.dart';
 import 'package:sixam_mart/common/widgets/paginated_list_view.dart';
+import 'package:sixam_mart/features/chat/controllers/chat_controller.dart';
+import 'package:sixam_mart/features/chat/domain/models/conversation_model.dart';
+import 'package:sixam_mart/features/chat/enums/user_type_enum.dart';
+import 'package:sixam_mart/features/chat/widgets/chat_serach_field_widget.dart';
 import 'package:sixam_mart/features/chat/widgets/web_chat_view_widget.dart';
+import 'package:sixam_mart/features/chat/widgets/web_conversation_list_view_widget.dart';
+import 'package:sixam_mart/features/language/controllers/language_controller.dart';
+import 'package:sixam_mart/features/notification/domain/models/notification_body_model.dart';
+import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
+import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
+import 'package:sixam_mart/helper/auth_helper.dart';
+import 'package:sixam_mart/helper/date_converter.dart';
+import 'package:sixam_mart/helper/responsive_helper.dart';
+import 'package:sixam_mart/helper/route_helper.dart';
+import 'package:sixam_mart/util/dimensions.dart';
+import 'package:sixam_mart/util/styles.dart';
 
 class ConversationScreen extends StatefulWidget {
   final bool fromNavBar;
@@ -32,22 +33,44 @@ class ConversationScreen extends StatefulWidget {
   State<ConversationScreen> createState() => _ConversationScreenState();
 }
 
-class _ConversationScreenState extends State<ConversationScreen> {
+class _ConversationScreenState extends State<ConversationScreen> with SingleTickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
+  late final TabController _tabController;
+  bool _isTabLoading = false;
+
+  static final List<String> _tabTypes = [UserType.vendor.name, UserType.delivery_man.name];
 
   @override
   void initState() {
     super.initState();
 
+    _tabController = TabController(length: _tabTypes.length, vsync: this);
     initCall();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   void initCall(){
     if(AuthHelper.isLoggedIn()) {
       Get.find<ProfileController>().getUserInfo();
-      Get.find<ChatController>().getConversationList(1, type: ResponsiveHelper.isDesktop(Get.context) ? 'vendor1' : '');
+      Get.find<ChatController>().getConversationList(1, type: ResponsiveHelper.isDesktop(Get.context) ? 'vendor1' : _tabTypes[_tabController.index]);
+      if(!ResponsiveHelper.isDesktop(Get.context)) {
+        Get.find<ChatController>().getAdminConversation();
+      }
     }
+  }
+
+  Future<void> _onTabTap(int index) async {
+    _searchController.text = '';
+    Get.find<ChatController>().removeSearchMode();
+    setState(() => _isTabLoading = true);
+    await Get.find<ChatController>().getConversationList(1, type: _tabTypes[index]);
+    if(mounted) setState(() => _isTabLoading = false);
   }
 
   @override
@@ -116,10 +139,31 @@ class _ConversationScreenState extends State<ConversationScreen> {
             SizedBox(height: (AuthHelper.isLoggedIn() && conversation != null && conversation.conversations != null
                 && chatController.conversationModel!.conversations!.isNotEmpty) ? Dimensions.paddingSizeSmall : 0),
 
-            Expanded(child: AuthHelper.isLoggedIn() ? (conversation != null && conversation.conversations != null)
+            (AuthHelper.isLoggedIn() && chatController.adminConversationModel != null
+            && chatController.adminConversationModel!.conversations != null
+            && chatController.adminConversationModel!.conversations!.isNotEmpty) ? Padding(
+              padding: const EdgeInsets.only(bottom: Dimensions.paddingSizeSmall),
+              child: Center(child: SizedBox(width: Dimensions.webMaxWidth, child: _ConversationTile(
+                conversationItem: chatController.adminConversationModel!.conversations!.first!,
+              ))),
+            ) : const SizedBox(),
+
+            AuthHelper.isLoggedIn() ? Center(child: SizedBox(width: Dimensions.webMaxWidth, child: TabBar(
+              controller: _tabController,
+              indicatorColor: Theme.of(context).primaryColor,
+              labelColor: Theme.of(context).primaryColor,
+              unselectedLabelColor: Theme.of(context).disabledColor,
+              labelStyle: robotoBold.copyWith(fontSize: Dimensions.fontSizeDefault),
+              unselectedLabelStyle: robotoRegular.copyWith(fontSize: Dimensions.fontSizeDefault),
+              tabs: [Tab(text: 'vendor'.tr), Tab(text: 'delivery_man'.tr)],
+              onTap: _onTabTap,
+            ))) : const SizedBox(),
+            SizedBox(height: AuthHelper.isLoggedIn() ? Dimensions.paddingSizeSmall : 0),
+
+            Expanded(child: AuthHelper.isLoggedIn() ? (_isTabLoading ? const ConversationShimmer() : (conversation != null && conversation.conversations != null)
             ? conversation.conversations!.isNotEmpty ? RefreshIndicator(
               onRefresh: () async {
-                await Get.find<ChatController>().getConversationList(1);
+                await Get.find<ChatController>().getConversationList(1, type: _tabTypes[_tabController.index]);
               },
               child: SingleChildScrollView(
                 controller: _scrollController,
@@ -127,7 +171,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 child: FooterView(
                   child: SizedBox(width: Dimensions.webMaxWidth, child: PaginatedListView(
                     scrollController: _scrollController,
-                    onPaginate: (int? offset) => chatController.getConversationList(offset!),
+                    onPaginate: (int? offset) => chatController.getConversationList(offset!, type: _tabTypes[_tabController.index]),
                     totalSize: conversation.totalSize,
                     offset: conversation.offset,
                     enabledPagination: chatController.searchConversationModel == null,
@@ -137,103 +181,16 @@ class _ConversationScreenState extends State<ConversationScreen> {
                       shrinkWrap: true,
                       padding: EdgeInsets.zero,
                       itemBuilder: (context, index) {
-                        User? user;
-                        String? type;
-                        if(conversation!.conversations![index]!.senderType == UserType.user.name
-                            || conversation.conversations![index]!.senderType == UserType.customer.name) {
-                          user = conversation.conversations![index]!.receiver;
-                          type = conversation.conversations![index]!.receiverType;
-                        }else {
-                          user = conversation.conversations![index]!.sender;
-                          type = conversation.conversations![index]!.senderType;
-                        }
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: Dimensions.paddingSizeSmall),
-
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
-                            boxShadow: const [BoxShadow(color: Colors.black12, spreadRadius: 1, blurRadius: 5)],
-                          ),
-                          child: CustomInkWell(
-                            onTap: () {
-                              if(user != null) {
-                                Get.toNamed(RouteHelper.getChatRoute(
-                                  notificationBody: NotificationBodyModel(
-                                    type: conversation!.conversations![index]!.senderType,
-                                    notificationType: NotificationType.message,
-                                    adminId: type == UserType.admin.name ? 0 : null,
-                                    restaurantId: type == UserType.vendor.name ? user.id : null,
-                                    deliverymanId: type == UserType.delivery_man.name ? user.id : null,
-                                  ),
-                                  conversationID: conversation.conversations![index]!.id,
-                                  index: index,
-                                ));
-                              }else {
-                                showCustomSnackBar('${type!.tr} ${'not_found'.tr}');
-                              }
-                            },
-                            highlightColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0.1),
-                            radius: Dimensions.radiusSmall,
-                            child: Stack(children: [
-                              Padding(
-                                padding: const EdgeInsets.all(Dimensions.paddingSizeSmall),
-                                child: Row(children: [
-                                  ClipOval(child: CustomImage(
-                                    height: 50, width: 50,
-                                    image: '${user != null ? user.imageFullUrl : ''}',
-                                  )),
-                                  const SizedBox(width: Dimensions.paddingSizeSmall),
-
-                                  Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.start, crossAxisAlignment: CrossAxisAlignment.start, children: [
-
-                                    user != null ? Text(
-                                      '${user.fName} ${user.lName}', style: robotoMedium,
-                                    ) : Text('${type!.tr} ${'deleted'.tr}', style: robotoMedium),
-                                    const SizedBox(height: Dimensions.paddingSizeExtraSmall),
-
-                                    user != null ? Text(
-                                      type!.tr,
-                                      style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).disabledColor),
-                                    ) : const SizedBox(),
-                                  ])),
-                                ]),
-                              ),
-
-                              Positioned(
-                                right: Get.find<LocalizationController>().isLtr ? 5 : null, bottom: 5, left: Get.find<LocalizationController>().isLtr ? null : 5,
-                                child: Text(
-                                  DateConverter.localDateToIsoStringAMPM(DateConverter.dateTimeStringToDate(
-                                      conversation.conversations![index]!.lastMessageTime!)),
-                                  style: robotoRegular.copyWith(color: Theme.of(context).hintColor, fontSize: Dimensions.fontSizeExtraSmall),
-                                ),
-                              ),
-
-                              GetBuilder<ProfileController>(builder: (profileController) {
-                                return (profileController.userInfoModel != null && profileController.userInfoModel!.userInfo != null
-                                && conversation!.conversations![index]!.lastMessage!.senderId != profileController.userInfoModel!.userInfo!.id
-                                && conversation.conversations![index]!.unreadMessageCount! > 0) ? Positioned(
-                                  right: Get.find<LocalizationController>().isLtr ? 5 : null, top: 5, left: Get.find<LocalizationController>().isLtr ? null : 5,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(Dimensions.paddingSizeExtraSmall),
-                                    decoration: BoxDecoration(color: Theme.of(context).primaryColor, shape: BoxShape.circle),
-                                    child: Text(
-                                      conversation.conversations![index]!.unreadMessageCount.toString(),
-                                      style: robotoMedium.copyWith(color: Theme.of(context).cardColor, fontSize: Dimensions.fontSizeExtraSmall),
-                                    ),
-                                  ),
-                                ) : const SizedBox();
-                              }),
-
-                            ]),
-                          ),
+                        return _ConversationTile(
+                          conversationItem: conversation!.conversations![index]!,
+                          index: index,
                         );
                       },
                     ),
                   )),
                 ),
               ),
-            ) : Center(child: Text('no_conversation_found'.tr)) : const Center(child: CircularProgressIndicator()) :  NotLoggedInScreen(callBack: (value){
+            ) : Center(child: Text('no_conversation_found'.tr)) : const Center(child: CircularProgressIndicator())) :  NotLoggedInScreen(callBack: (value){
               initCall();
               setState(() {});
             })),
@@ -242,5 +199,112 @@ class _ConversationScreenState extends State<ConversationScreen> {
         ),
       );
     });
+  }
+}
+
+class _ConversationTile extends StatelessWidget {
+  final Conversation conversationItem;
+  final int? index;
+
+  const _ConversationTile({required this.conversationItem, this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    User? user;
+    String? type;
+    if(conversationItem.senderType == UserType.user.name || conversationItem.senderType == UserType.customer.name) {
+      user = conversationItem.receiver;
+      type = conversationItem.receiverType;
+    }else {
+      user = conversationItem.sender;
+      type = conversationItem.senderType;
+    }
+
+    final String? lastMessageText = conversationItem.lastMessage?.message;
+    final bool hasLastMessageAttachment = conversationItem.lastMessage?.fileFullUrl?.isNotEmpty ?? false;
+    final String lastMessagePreview = (lastMessageText != null && lastMessageText.isNotEmpty)
+        ? lastMessageText
+        : hasLastMessageAttachment ? 'sent_a_photo'.tr : type!.tr;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: Dimensions.paddingSizeSmall),
+
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+        boxShadow: const [BoxShadow(color: Colors.black12, spreadRadius: 1, blurRadius: 5)],
+      ),
+      child: CustomInkWell(
+        onTap: () {
+          if(user != null) {
+            Get.toNamed(RouteHelper.getChatRoute(
+              notificationBody: NotificationBodyModel(
+                type: conversationItem.senderType,
+                notificationType: NotificationType.message,
+                adminId: type == UserType.admin.name ? 0 : null,
+                restaurantId: type == UserType.vendor.name ? user.id : null,
+                deliverymanId: type == UserType.delivery_man.name ? user.id : null,
+              ),
+              conversationID: conversationItem.id,
+              index: index,
+            ));
+          }else {
+            showCustomSnackBar('${type!.tr} ${'not_found'.tr}');
+          }
+        },
+        highlightColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0.1),
+        radius: Dimensions.radiusSmall,
+        child: Stack(children: [
+          Padding(
+            padding: const EdgeInsets.all(Dimensions.paddingSizeSmall),
+            child: Row(children: [
+              ClipOval(child: CustomImage(
+                height: 50, width: 50,
+                image: '${user != null ? user.imageFullUrl : ''}',
+              )),
+              const SizedBox(width: Dimensions.paddingSizeSmall),
+
+              Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.start, crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+                user != null ? Text(
+                  '${user.fName} ${user.lName}', style: robotoMedium,
+                ) : Text('${type!.tr} ${'deleted'.tr}', style: robotoMedium),
+                const SizedBox(height: Dimensions.paddingSizeExtraSmall),
+
+                user != null ? Text(
+                  lastMessagePreview,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).disabledColor),
+                ) : const SizedBox(),
+              ])),
+            ]),
+          ),
+
+          Positioned(
+            right: Get.find<LocalizationController>().isLtr ? 5 : null, top: 5, left: Get.find<LocalizationController>().isLtr ? null : 5,
+            child: Text(
+              DateConverter.localDateToIsoStringAMPM(DateConverter.dateTimeStringToDate(conversationItem.lastMessageTime!)),
+              style: robotoRegular.copyWith(color: Theme.of(context).hintColor, fontSize: Dimensions.fontSizeExtraSmall),
+            ),
+          ),
+
+          GetBuilder<ProfileController>(builder: (profileController) {
+            return (profileController.userInfoModel != null && profileController.userInfoModel!.userInfo != null
+            && conversationItem.lastMessage!.senderId != profileController.userInfoModel!.userInfo!.id
+            && conversationItem.unreadMessageCount! > 0) ? Positioned(
+              right: Get.find<LocalizationController>().isLtr ? 5 : null, bottom: 5, left: Get.find<LocalizationController>().isLtr ? null : 5,
+              child: Container(
+                padding: const EdgeInsets.all(Dimensions.paddingSizeExtraSmall),
+                decoration: BoxDecoration(color: Theme.of(context).primaryColor, shape: BoxShape.circle),
+                child: Text(
+                  conversationItem.unreadMessageCount.toString(),
+                  style: robotoMedium.copyWith(color: Theme.of(context).cardColor, fontSize: Dimensions.fontSizeExtraSmall),
+                ),
+              ),
+            ) : const SizedBox();
+          }),
+
+        ]),
+      ),
+    );
   }
 }

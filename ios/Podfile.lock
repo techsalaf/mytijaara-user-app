@@ -20,7 +20,11 @@ PODS:
   - GoogleMaps/Maps (9.4.0)
   - location (0.0.1):
     - Flutter
+  - open_filex (0.0.2):
+    - Flutter
   - OrderedSet (6.0.3)
+  - permission_handler_apple (9.3.0):
+    - Flutter
   - sign_in_with_apple (0.0.1):
     - Flutter
 
@@ -30,6 +34,8 @@ DEPENDENCIES:
   - flutter_keyboard_visibility (from `.symlinks/plugins/flutter_keyboard_visibility/ios`)
   - google_maps_flutter_ios (from `.symlinks/plugins/google_maps_flutter_ios/ios`)
   - location (from `.symlinks/plugins/location/ios`)
+  - open_filex (from `.symlinks/plugins/open_filex/ios`)
+  - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
   - sign_in_with_apple (from `.symlinks/plugins/sign_in_with_apple/ios`)
 
 SPEC REPOS:
@@ -49,6 +55,10 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/google_maps_flutter_ios/ios"
   location:
     :path: ".symlinks/plugins/location/ios"
+  open_filex:
+    :path: ".symlinks/plugins/open_filex/ios"
+  permission_handler_apple:
+    :path: ".symlinks/plugins/permission_handler_apple/ios"
   sign_in_with_apple:
     :path: ".symlinks/plugins/sign_in_with_apple/ios"
 
@@ -57,10 +67,12 @@ SPEC CHECKSUMS:
   flutter_inappwebview_ios: 6f63631e2c62a7c350263b13fa5427aedefe81d4
   flutter_keyboard_visibility: 0339d06371254c3eb25eeb90ba8d17dca8f9c069
   Google-Maps-iOS-Utils: 0a484b05ed21d88c9f9ebbacb007956edd508a96
-  google_maps_flutter_ios: 5f2ee3f5cc4fc2398574367f893e3f97bbbcea39
+  google_maps_flutter_ios: 11687ec5d93f8e025e12daab0a5636fa9f71d53e
   GoogleMaps: 0608099d4870cac8754bdba9b6953db543432438
   location: d5cf8598915965547c3f36761ae9cc4f4e87d22e
+  open_filex: 6e26e659846ec990262224a12ef1c528bb4edbe4
   OrderedSet: e539b66b644ff081c73a262d24ad552a69be3a94
+  permission_handler_apple: 9878588469a2b0d0fc1e048d9f43605f92e6cec2
   sign_in_with_apple: f3bf75217ea4c2c8b91823f225d70230119b8440
 
 PODFILE CHECKSUM: 9c46fd01abff66081b39f5fa5767b3f1d0b11d76

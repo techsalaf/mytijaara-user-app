@@ -9,6 +9,7 @@ import 'package:sixam_mart/features/coupon/domain/models/coupon_model.dart';
 import 'package:sixam_mart/features/language/controllers/language_controller.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/helper/date_converter.dart';
+import 'package:sixam_mart/helper/module_helper.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
@@ -61,12 +62,13 @@ class CouponCardWidget extends StatelessWidget {
 
                 Text(
                   coupon.couponType == 'free_delivery' ? 'free_delivery'.tr : '${coupon.discount}${coupon.discountType == 'percent' ? '%' : Get.find<SplashController>().configModel!.currencySymbol} ${'off'.tr}',
+                  textDirection: coupon.couponType == 'free_delivery' ? null : TextDirection.ltr,
                   style: robotoBold.copyWith(fontSize: Dimensions.fontSizeDefault),
                 ),
                 const SizedBox(height: Dimensions.paddingSizeExtraSmall),
 
                 coupon.store == null ?  Flexible(child: Text(
-                  coupon.couponType == 'store_wise' ? '${'on'.tr} ${coupon.data}' : Get.find<SplashController>().module?.moduleName == 'Rental' ? "on_all_provider".tr : 'on_all_store'.tr,
+                  coupon.couponType == 'store_wise' ? '${'on'.tr} ${coupon.data}' : (Get.find<SplashController>().module?.moduleName == 'Rental' || ModuleHelper.isBookingModule()) ? "on_all_provider".tr : 'on_all_store'.tr,
                   style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeExtraSmall),
                   maxLines: 1, overflow: TextOverflow.ellipsis,
                 )) : Row( mainAxisAlignment: MainAxisAlignment.center, children: [

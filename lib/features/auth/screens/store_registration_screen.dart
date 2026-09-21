@@ -420,7 +420,10 @@ class _StoreRegistrationScreenState extends State<StoreRegistrationScreen> with 
                                 Positioned(left: 10, top: -15, child: Container(
                                   decoration: BoxDecoration(color: Theme.of(context).cardColor),
                                   padding: const EdgeInsets.all(5),
-                                  child: Text('select_estimated_delivery_time'.tr, style: robotoRegular.copyWith(color: Theme.of(context).disabledColor)),
+                                  child: Text(
+                                    storeRegController.isServiceModuleSelected ? 'select_estimated_service_time'.tr : 'select_estimated_delivery_time'.tr,
+                                    style: robotoRegular.copyWith(color: Theme.of(context).disabledColor),
+                                  ),
                                 )),
                               ]),
                             ),

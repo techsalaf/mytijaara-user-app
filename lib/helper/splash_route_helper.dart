@@ -52,6 +52,14 @@ import 'package:sixam_mart/util/app_constants.dart';
       NotificationType.cashback: () => Get.toNamed(RouteHelper.getWalletRoute(fromNotification: true)),
       NotificationType.loyalty_point: () => Get.toNamed(RouteHelper.getLoyaltyRoute(fromNotification: true)),
       NotificationType.general: () => Get.toNamed(RouteHelper.getNotificationRoute(fromNotification: true)),
+      NotificationType.booking_status: () => Get.toNamed(RouteHelper.getBookingDetailsRoute(notificationBody!.orderId, fromNotification: true)),
+      NotificationType.booking_reschedule: () => Get.toNamed(RouteHelper.getBookingDetailsRoute(notificationBody!.orderId, fromNotification: true)),
+      NotificationType.booking_location: () => Get.toNamed(RouteHelper.getBookingDetailsRoute(notificationBody!.orderId, fromNotification: true)),
+      NotificationType.booking_edit: () => Get.toNamed(RouteHelper.getBookingDetailsRoute(notificationBody!.orderId, fromNotification: true)),
+      NotificationType.serviceman_assigned: () => Get.toNamed(RouteHelper.getBookingDetailsRoute(notificationBody!.orderId, fromNotification: true)),
+      NotificationType.custom_service_bid: () async => await NotificationHelper.customServiceBidRouteCheck(notificationBody!.orderId, notificationBody.moduleId),
+      NotificationType.custom_service_request_posted: () async => await NotificationHelper.customServiceBidRouteCheck(notificationBody!.orderId, notificationBody.moduleId),
+      NotificationType.custom_service_bid_withdrawn: () async => await NotificationHelper.customServiceBidRouteCheck(notificationBody!.orderId, notificationBody.moduleId),
       NotificationType.ride_request: () async {
         if(notificationBody != null) {
           // Convert NotificationBodyModel to Map for notificationRouteCheck

@@ -6,6 +6,7 @@ import 'package:sixam_mart/features/pro/controllers/pro_controller.dart';
 import 'package:sixam_mart/features/pro/domain/models/pro_active_offer_model.dart';
 import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
+import 'package:sixam_mart/helper/module_helper.dart';
 import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/styles.dart';
@@ -14,12 +15,11 @@ class ProCouponBenefitBanner extends StatelessWidget {
   final bool? couponApplied;
   const ProCouponBenefitBanner({super.key, this.couponApplied});
 
-  static const Color _green = Color(0xFF22A45D);
-
   @override
   Widget build(BuildContext context) {
     if (!Get.find<SplashController>().proStaus) return const SizedBox();
-    if (Get.find<SplashController>().module?.moduleType == AppConstants.parcel) return const SizedBox();
+    final String? moduleType = Get.find<SplashController>().module?.moduleType;
+    if (moduleType == AppConstants.parcel) return const SizedBox();
     if (!(Get.find<ProfileController>().userInfoModel?.proStatus ?? false)) return const SizedBox();
 
     return GetBuilder<ProController>(builder: (proController) {
@@ -27,19 +27,33 @@ class ProCouponBenefitBanner extends StatelessWidget {
       final bool hasCouponBenefit = benefit?.type == ProBenefitType.coupon && proController.isBenefitAllowedForCurrentModule(benefit?.type);
       if (!hasCouponBenefit) return const SizedBox();
 
+      // The service module books rather than orders, so its copy reads "booking".
+      final bool isService = ModuleHelper.isBookingModule(moduleType: moduleType);
+
       // Rental/rideshare pass their own coupon state; stores fall back to the shared CouponController.
       if (couponApplied != null) {
-        return couponApplied! ? const SizedBox() : _banner(context);
+        return couponApplied! ? const SizedBox() : _BannerCard(isService: isService);
       }
 
       return GetBuilder<CouponController>(builder: (couponController) {
         final bool applied = (couponController.discount ?? 0) > 0 || couponController.coupon != null || couponController.freeDelivery;
-        return applied ? const SizedBox() : _banner(context);
+        return applied ? const SizedBox() : _BannerCard(isService: isService);
       });
     });
   }
+}
 
-  Widget _banner(BuildContext context) {
+/// The dotted-green hint card itself. Rendered only once [ProCouponBenefitBanner]
+/// has cleared every pro/module/coupon gate, so it carries no gating of its own.
+class _BannerCard extends StatelessWidget {
+  final bool isService;
+
+  const _BannerCard({required this.isService});
+
+  static const Color _green = Color(0xFF22A45D);
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: Dimensions.paddingSizeSmall),
       child: DottedBorder(
@@ -69,7 +83,9 @@ class ProCouponBenefitBanner extends StatelessWidget {
               const SizedBox(height: 2),
 
               Text(
-                'apply_your_pro_coupon_above_to_claim_discount_on_this_order'.tr,
+                isService
+                    ? 'apply_your_pro_coupon_above_to_claim_discount_on_this_booking'.tr
+                    : 'apply_your_pro_coupon_above_to_claim_discount_on_this_order'.tr,
                 style: robotoRegular.copyWith(color: Theme.of(context).hintColor, fontSize: Dimensions.fontSizeSmall),
               ),
             ])),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:get/get.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 import 'package:sixam_mart/common/models/module_model.dart';
@@ -251,7 +253,7 @@ class CartController extends GetxController implements GetxService {
     update();
 
     int oldQuantity = _cartList[cartIndex].quantity!;
-    _cartList[cartIndex].quantity = await cartServiceInterface.decideItemQuantity(isIncrement, _cartList, cartIndex, stock, quantityLimit, Get.find<SplashController>().configModel!.moduleConfig!.module!.stock!);
+    _cartList[cartIndex].quantity = cartServiceInterface.decideItemQuantity(isIncrement, _cartList, cartIndex, stock, quantityLimit, Get.find<SplashController>().configModel!.moduleConfig!.module!.stock!);
 
     if (oldQuantity == _cartList[cartIndex].quantity) {
       _isLoading = false;
@@ -267,6 +269,48 @@ class CartController extends GetxController implements GetxService {
     await updateCartQuantityOnline(_cartList[cartIndex].id!, discountedPrice, _cartList[cartIndex].quantity!,
       storeId: _cartList[cartIndex].item?.storeId);
 
+  }
+
+  // ── Debounced cart-quantity sync ───────────────────────────────────────────
+  // Tapping +/- updates the quantity (and totals) in-memory immediately so the
+  // UI stays responsive, then schedules a single backend sync that fires only
+  // after the user has stopped tapping for [_quantitySyncDelay]. Rapid taps
+  // collapse into one API call instead of one-per-tap, and the buttons are never
+  // blocked while a previous request is in flight. Keyed by cart id so several
+  // items can be adjusted independently.
+  static const Duration _quantitySyncDelay = Duration(seconds: 2);
+  final Map<int, Timer> _quantitySyncTimers = {};
+
+  void changeQuantity(bool isIncrement, int cartIndex, int? stock, int? quantityLimit) {
+    final int oldQuantity = _cartList[cartIndex].quantity!;
+    final int newQuantity = cartServiceInterface.decideItemQuantity(
+      isIncrement, _cartList, cartIndex, stock, quantityLimit,
+      Get.find<SplashController>().configModel!.moduleConfig!.module!.stock!,
+    );
+    // Hit a stock / limit boundary — nothing changed (a snackbar was shown).
+    if (oldQuantity == newQuantity) return;
+
+    _cartList[cartIndex].quantity = newQuantity;
+    calculationCart();
+    update();
+
+    final int cartId = _cartList[cartIndex].id!;
+    _quantitySyncTimers[cartId]?.cancel();
+    _quantitySyncTimers[cartId] = Timer(_quantitySyncDelay, () => _syncQuantityToServer(cartId));
+  }
+
+  Future<void> _syncQuantityToServer(int cartId) async {
+    _quantitySyncTimers.remove(cartId);
+    final int index = _cartList.indexWhere((CartModel c) => c.id == cartId);
+    if (index == -1) return;
+
+    final CartModel cart = _cartList[index];
+    final bool newVariation = ModuleHelper.getModuleConfig(cart.item!.moduleType).newVariation!;
+    final double discountedPrice = await cartServiceInterface.calculateDiscountedPrice(cart, cart.quantity!, newVariation);
+    if (newVariation) {
+      await Get.find<ItemController>().setExistInCart(cart.item, null, notify: true);
+    }
+    await updateCartQuantityOnline(cartId, discountedPrice, cart.quantity!, storeId: cart.item?.storeId);
   }
 
   Future<void> removeFromCart(int index, {Item? item}) async {
@@ -362,9 +406,13 @@ class CartController extends GetxController implements GetxService {
     _isLoading = true;
     update();
     bool success = await cartServiceInterface.updateCartQuantityOnline(cartId, price, quantity, storeId: storeId);
+    // Resync with the server whether the update succeeded or not: on success to
+    // reflect the saved state, on failure (e.g. out of stock, or any other
+    // rejection) to roll the optimistic local quantity back to the real cart
+    // value. The error message itself is surfaced by the API layer.
+    await getAllCarts();
+    calculationCart();
     if(success) {
-      await getAllCarts();
-      calculationCart();
       await Future.delayed(const Duration(milliseconds: 200));
     }
     _isLoading = false;
@@ -468,8 +516,23 @@ class CartController extends GetxController implements GetxService {
             }
           }
         }
+        // Snapshot optimistic quantities of carts still awaiting a debounced
+        // sync so this refresh doesn't snap their numbers back to the (older)
+        // server value while the user is still tapping.
+        final Map<int, int> pendingQuantities = {};
+        for (final CartModel c in _cartList) {
+          if (c.id != null && c.quantity != null && _quantitySyncTimers.containsKey(c.id)) {
+            pendingQuantities[c.id!] = c.quantity!;
+          }
+        }
         _cartList = [];
         _cartList = cartServiceInterface.formatOnlineCartToLocalCart(onlineCartModel: flat);
+        if (pendingQuantities.isNotEmpty) {
+          for (final CartModel c in _cartList) {
+            final int? pendingQty = c.id != null ? pendingQuantities[c.id] : null;
+            if (pendingQty != null) c.quantity = pendingQty;
+          }
+        }
         calculationCart();
       }
     }

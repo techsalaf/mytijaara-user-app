@@ -1,4 +1,5 @@
 import 'package:get/get_connect/http/src/response/response.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sixam_mart/common/models/ongoing_order_model.dart';
 import 'package:sixam_mart/features/checkout/domain/models/payment_model.dart';
@@ -28,4 +29,5 @@ abstract class OrderRepositoryInterface extends RepositoryInterface {
   Future<bool> submitParcelReturn({required int orderId, required String orderStatus, required int returnOtp});
   Future<PaymentModel?> getPaymentFailedDetails(String? orderID);
   Future<OngoingOrderModel?> getDashboardOrders();
+  Future<Response?> getDirection({required LatLng origin, required LatLng destination});
 }

@@ -1,6 +1,11 @@
 import 'package:sixam_mart/features/service_module/common/models/service_provider_model.dart';
 import 'package:sixam_mart/features/service_module/service_home/domain/models/service_category_model.dart';
+import 'package:sixam_mart/features/service_module/service_review/domain/models/service_review_model.dart';
 
+/// Service Module — service list envelope `{ total_size, limit, offset,
+/// services[] }`. Fields are mutable so a controller can append pages in-place
+/// (see ServiceExploreController). The `/explore` endpoint adds `categories[]`
+/// (the tab strip, with an "All" tab); other list endpoints leave it null.
 class ServiceModel {
   int? totalSize;
   int? limit;
@@ -43,7 +48,7 @@ class Service {
   final double? minBidPrice;
   final double? discount;
   final String? discountType;
-  final double? discountedPrice;
+  final double? discountedPrice; // explore card headline price
   final List<ServiceVariation>? variations;
   final List<String>? tags;
   final int? recommended;
@@ -53,20 +58,29 @@ class Service {
   final int? moduleId;
   final int? storeId;
   final String? storeName;
+  final String? providerImageFullUrl; // list endpoints — flat provider avatar
+  final int? verifiedProvider;        // list endpoints — 0/1 verified flag
+  // Distance from the user in km — list endpoints (e.g. service/recommended)
+  // send this as `distance_km`. Null when the endpoint omits it.
+  final double? distanceKm;
   final int? categoryId;
   final int? subCategoryId;
   final ServiceMiniCategory? category;
   final ServiceMiniCategory? subCategory;
-  final ServiceProvider? provider;
-  final List<ServiceFaq>? faqs;
+  final ServiceProvider? provider; // populated only by the service-details endpoint
+  final List<ServiceFaq>? faqs; // populated only by the service-details endpoint
+  final String? deliveryTime; // from provider.delivery_time, e.g. "10-11 min"
+  final int? totalReviews; // details endpoint — total approved reviews for this service
+  final List<ServiceReview>? reviews; // details endpoint — last 3 reviews (preview)
   bool isFavourite;
 
   Service({this.id, this.name, this.slug, this.shortDescription, this.longDescription,
     this.thumbnailFullUrl, this.additionalImagesFullUrl, this.basePrice, this.minBidPrice, this.discount,
     this.discountType, this.discountedPrice, this.variations, this.tags, this.recommended,
     this.orderCount, this.avgRating, this.ratingCount, this.moduleId, this.storeId,
-    this.storeName, this.categoryId, this.subCategoryId, this.category, this.subCategory,
-    this.provider, this.faqs, this.isFavourite = false,
+    this.storeName, this.providerImageFullUrl, this.verifiedProvider, this.distanceKm, this.categoryId, this.subCategoryId,
+    this.category, this.subCategory, this.provider, this.faqs, this.deliveryTime,
+    this.totalReviews, this.reviews, this.isFavourite = false,
   });
 
   factory Service.fromJson(Map<String, dynamic> json) => Service(
@@ -91,48 +105,83 @@ class Service {
     moduleId: int.tryParse(json['module_id']?.toString() ?? ''),
     storeId: int.tryParse(json['store_id']?.toString() ?? ''),
     storeName: json['store_name']?.toString(),
+    providerImageFullUrl: json['provider_image_full_url']?.toString(),
+    verifiedProvider: int.tryParse(json['verified_provider']?.toString() ?? ''),
+    distanceKm: double.tryParse(json['distance_km']?.toString() ?? ''),
     categoryId: int.tryParse(json['category_id']?.toString() ?? ''),
     subCategoryId: int.tryParse(json['sub_category_id']?.toString() ?? ''),
     category: json['category'] != null ? ServiceMiniCategory.fromJson(json['category'] as Map<String, dynamic>) : null,
     subCategory: json['sub_category'] != null ? ServiceMiniCategory.fromJson(json['sub_category'] as Map<String, dynamic>) : null,
     provider: json['provider'] != null ? ServiceProvider.fromJson(json['provider'] as Map<String, dynamic>) : null,
     faqs: (json['faqs'] as List<dynamic>?)?.map((e) => ServiceFaq.fromJson(e as Map<String, dynamic>)).toList(),
+    deliveryTime: (json['provider'] as Map<String, dynamic>?)?['delivery_time']?.toString(),
+    totalReviews: int.tryParse(json['total_reviews']?.toString() ?? ''),
+    reviews: (json['reviews'] as List<dynamic>?)?.map((e) => ServiceReview.fromJson(e as Map<String, dynamic>)).toList(),
     isFavourite: json['is_favorite'] == true || json['is_favourite'] == true,
   );
 
   Map<String, dynamic> toJson() => {
-    'id': id, 'name': name, 'slug': slug, 'short_description': shortDescription,
-    'long_description': longDescription, 'thumbnail_full_url': thumbnailFullUrl,
-    'additional_images_full_url': additionalImagesFullUrl, 'base_price': basePrice,
-    'min_bid_price': minBidPrice, 'discount': discount, 'discount_type': discountType,
-    'discounted_price': discountedPrice, 'variations': variations?.map((e) => e.toJson()).toList(),
-    'tags': tags, 'recommended': recommended, 'order_count': orderCount,
-    'avg_rating': avgRating, 'rating_count': ratingCount, 'module_id': moduleId,
-    'store_id': storeId, 'store_name': storeName, 'category_id': categoryId,
-    'sub_category_id': subCategoryId, 'category': category?.toJson(),
-    'sub_category': subCategory?.toJson(), 'provider': provider?.toJson(),
-    'faqs': faqs?.map((e) => e.toJson()).toList(), 'is_favourite': isFavourite,
+    'id': id,
+    'name': name,
+    'slug': slug,
+    'short_description': shortDescription,
+    'long_description': longDescription,
+    'thumbnail_full_url': thumbnailFullUrl,
+    'additional_images_full_url': additionalImagesFullUrl,
+    'base_price': basePrice,
+    'min_bid_price': minBidPrice,
+    'discount': discount,
+    'discount_type': discountType,
+    'discounted_price': discountedPrice,
+    'variations': variations?.map((e) => e.toJson()).toList(),
+    'tags': tags,
+    'recommended': recommended,
+    'order_count': orderCount,
+    'avg_rating': avgRating,
+    'rating_count': ratingCount,
+    'module_id': moduleId,
+    'store_id': storeId,
+    'store_name': storeName,
+    'provider_image_full_url': providerImageFullUrl,
+    'verified_provider': verifiedProvider,
+    'distance_km': distanceKm,
+    'category_id': categoryId,
+    'sub_category_id': subCategoryId,
+    'category': category?.toJson(),
+    'sub_category': subCategory?.toJson(),
+    'provider': provider?.toJson(),
+    'faqs': faqs?.map((e) => e.toJson()).toList(),
+    'delivery_time': deliveryTime,
+    'total_reviews': totalReviews,
+    'reviews': reviews?.map((e) => e.toJson()).toList(),
+    'is_favourite': isFavourite,
   };
 }
 
 class ServiceVariation {
+  final String? variantKey;
   final String? name;
   final double? price;
   final double? discount;
   final String? discountType;
 
-  ServiceVariation({this.name, this.price, this.discount, this.discountType});
+  ServiceVariation({this.variantKey, this.name, this.price, this.discount, this.discountType});
 
   factory ServiceVariation.fromJson(Map<String, dynamic> json) => ServiceVariation(
+    variantKey: json['variant_key']?.toString(),
     name: json['name']?.toString(),
     price: double.tryParse(json['price']?.toString() ?? ''),
     discount: double.tryParse(json['discount']?.toString() ?? ''),
     discountType: json['discount_type']?.toString(),
   );
 
-  Map<String, dynamic> toJson() => {'name': name, 'price': price, 'discount': discount, 'discount_type': discountType};
+  Map<String, dynamic> toJson() => {
+    'variant_key': variantKey, 'name': name, 'price': price, 'discount': discount, 'discount_type': discountType,
+  };
 }
 
+/// Service Module — FAQ entry, populated only by the service-details endpoint
+/// (active FAQs only).
 class ServiceFaq {
   final int? id;
   final String? question;

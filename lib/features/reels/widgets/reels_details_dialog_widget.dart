@@ -398,6 +398,10 @@ class _ReelDetailsPageState extends State<_ReelDetailsPage> {
       Get.to(() => ProviderDetailScreen(vendorId: storeId));
       return;
     }
+    if(moduleType == AppConstants.service) {
+      Get.toNamed(RouteHelper.getProviderDetailsRoute(storeId));
+      return;
+    }
     Get.toNamed(RouteHelper.getStoreRoute(
       id: storeId,
       page: 'store_new',
@@ -425,6 +429,15 @@ class _ReelDetailsPageState extends State<_ReelDetailsPage> {
 
       Get.find<TaxiCartController>().setReelOrderId(reelModel.reelId);
       Get.to(() => RentalVehicleDetailsScreen(vehicleId: vehicleId), preventDuplicates: false);
+      return;
+    }
+
+    if(moduleType == AppConstants.service) {
+      final int? serviceId = reelModel.productId;
+      if(serviceId == null) {
+        return;
+      }
+      Get.toNamed(RouteHelper.getServiceDetailsRoute(id: serviceId));
       return;
     }
 
@@ -807,7 +820,7 @@ class _ReelDetailsPageState extends State<_ReelDetailsPage> {
                               width: 120,
                               height: 40,
                               radius: Dimensions.radiusDefault,
-                              buttonText: Get.find<SplashController>().module?.moduleType?.toString() == AppConstants.taxi ? 'book_now'.tr : 'order_now'.tr,
+                              buttonText: <String>[AppConstants.taxi, AppConstants.service].contains(Get.find<SplashController>().module?.moduleType?.toString()) ? 'book_now'.tr : 'order_now'.tr,
                               fontSize: Dimensions.fontSizeSmall,
                               isLoading: _isPreparingOrder,
                               onPressed: _isPreparingOrder ? null : () => _onOrderNowTap(widget.reel),

@@ -45,7 +45,7 @@ import 'package:sixam_mart/features/flash_sale/screens/flash_sale_details_screen
 import 'package:sixam_mart/features/home/screens/home_screen.dart';
 import 'package:sixam_mart/features/html/screens/html_viewer_screen.dart';
 import 'package:sixam_mart/features/interest/screens/interest_screen.dart';
-import 'package:sixam_mart/features/redesign_feature/home/screens/preference_screen.dart';
+import 'package:sixam_mart/features/home/screens/preference_screen.dart';
 import 'package:sixam_mart/features/item/domain/models/basic_campaign_model.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 import 'package:sixam_mart/features/item/screens/item_campaign_screen.dart';
@@ -69,9 +69,12 @@ import 'package:sixam_mart/features/rental_module/rental_cart_screen/rental_cart
 import 'package:sixam_mart/features/ride_share_module/ride_location/screens/map_screen.dart' as ride_map;
 import 'package:sixam_mart/features/service_module/common/models/service_provider_model.dart';
 import 'package:sixam_mart/features/service_module/provider_details/screens/provider_details_screen.dart';
-import 'package:sixam_mart/features/service_module/service_category_screen/screens/service_category_screen.dart';
+import 'package:sixam_mart/features/service_module/provider_details/screens/provider_service_search_screen.dart';
+import 'package:sixam_mart/features/service_module/service_category/screens/service_category_screen.dart';
 import 'package:sixam_mart/features/rental_module/vendor/screens/provider_detail_screen.dart';
 import 'package:sixam_mart/features/service_module/service_details/screens/service_details_screen.dart';
+import 'package:sixam_mart/features/service_module/service_review/screens/provider_reviews_screen.dart';
+import 'package:sixam_mart/features/service_module/service_review/screens/service_reviews_screen.dart';
 import 'package:sixam_mart/features/service_module/service_home/domain/models/service_category_model.dart';
 import 'package:sixam_mart/features/parcel/screens/parcel_location_screen.dart';
 import 'package:sixam_mart/features/parcel/screens/parcel_request_screen.dart';
@@ -87,7 +90,7 @@ import 'package:sixam_mart/features/auth/screens/sign_up_screen.dart';
 import 'package:sixam_mart/features/auth/widgets/verification_new/forget_pass_new_screen.dart';
 import 'package:sixam_mart/features/auth/widgets/verification_new/new_pass_new_screen.dart';
 import 'package:sixam_mart/features/auth/widgets/verification_new/verification_new_screen.dart';
-import 'package:sixam_mart/features/redesign_feature/dashboard/widgets/common_widget/item_details_new_screen.dart';
+import 'package:sixam_mart/features/item/screens/item_details_new_screen.dart';
 import 'package:sixam_mart/features/language/screens/language_new_screen.dart';
 import 'package:sixam_mart/features/onboard/screens/onboarding_new_screen.dart';
 import 'package:sixam_mart/features/order/screens/order_details_new_screen.dart';
@@ -107,13 +110,24 @@ import 'package:sixam_mart/features/store/widgets/all_store_web_view_widget.dart
 import 'package:sixam_mart/features/service_module/custom_service_request/screens/custom_service_details_screen.dart';
 import 'package:sixam_mart/features/service_module/request_service/screens/requested_service_screen.dart';
 import 'package:sixam_mart/features/service_module/request_service/screens/new_service_request_screen.dart';
+import 'package:sixam_mart/features/service_module/service_cart/screens/service_cart_screen.dart';
+import 'package:sixam_mart/features/service_module/service_checkout/screens/service_bid_checkout_screen.dart';
+import 'package:sixam_mart/features/service_module/service_checkout/domain/models/service_buy_now_variant.dart';
+import 'package:sixam_mart/features/service_module/service_checkout/screens/service_buy_now_checkout_screen.dart';
+import 'package:sixam_mart/features/service_module/service_campaign/screens/service_campaign_detail_screen.dart';
+import 'package:sixam_mart/features/service_module/booking_details/screens/my_bookings_screen.dart';
+import 'package:sixam_mart/features/service_module/booking_details/screens/booking_details_screen.dart';
+import 'package:sixam_mart/features/service_module/booking_details/screens/track_booking_screen.dart';
 import 'package:sixam_mart/features/service_module/service_checkout/screens/service_checkout_screen.dart';
+import 'package:sixam_mart/features/service_module/service_checkout/screens/service_booking_success_screen.dart';
+import 'package:sixam_mart/features/service_module/service_checkout/widgets/service_digital_payment_failed_screen.dart';
 import 'package:sixam_mart/features/service_module/custom_service_request/screens/custom_service_list_screen.dart';
 import 'package:sixam_mart/features/service_module/custom_service_request/screens/custom_service_request_screen.dart';
 import 'package:sixam_mart/features/support/screens/support_screen.dart';
 import 'package:sixam_mart/features/update/screens/update_screen.dart';
 import 'package:sixam_mart/features/wallet/screens/wallet_screen.dart';
 import 'package:sixam_mart/helper/address_helper.dart';
+import 'package:sixam_mart/helper/date_converter.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/helper/maintance_helper.dart';
 import 'package:sixam_mart/helper/module_helper.dart';
@@ -122,6 +136,15 @@ import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/html_type.dart';
 
 class RouteHelper {
+  static String _safeDecodeComponent(String? value) {
+    if (value == null || value.isEmpty) return '';
+    try {
+      return Uri.decodeComponent(value);
+    } catch (_) {
+      return value;
+    }
+  }
+
   static const String initial = '/';
   static const String splash = '/splash';
   static const String language = '/language';
@@ -188,7 +211,10 @@ class RouteHelper {
   static const String rideMap = '/ride-map';
   static const String serviceDetails = '/service-details'; // Service Module (addon)
   static const String providerDetails = '/provider-details'; // Service Module (addon)
+  static const String providerServiceSearch = '/provider-service-search'; // Service Module (addon)
   static const String serviceCategory = '/service-category'; // Service Module (addon)
+  static const String serviceReviews = '/service-reviews'; // Service Module (addon)
+  static const String providerReviews = '/provider-reviews'; // Service Module (addon)
   static const String vendorDetail = '/vendor-detail';
   static const String searchStoreItem = '/search-store-item';
   static const String order = '/order';
@@ -229,6 +255,17 @@ class RouteHelper {
   static const String requestedService = '/requested-service';
   static const String newServiceRequest = '/new-service-request';
   static const String serviceCheckout = '/service-checkout';
+  static const String serviceBidCheckout = '/service-bid-checkout'; // Service Module (addon)
+  static const String serviceBuyNowCheckout = '/service-buy-now-checkout'; // Service Module (addon)
+  static const String serviceCampaignDetails = '/service-campaign-details'; // Service Module (addon)
+  static const String serviceBookingSuccess = '/service-booking-success'; // Service Module (addon)
+  static const String serviceCart = '/service-cart'; // Service Module (addon)
+  static const String myBookings = '/my-bookings'; // Service Module (addon)
+  static const String bookingDetails = '/booking-details'; // Service Module (addon)
+  static const String subBookingDetails = '/sub-booking-details'; // Service Module (addon)
+  static const String bookingTrack = '/booking-track'; // Service Module (addon)
+  static const String serviceRateReview = '/service-rate-review'; // Service Module (addon)
+  static const String serviceDigitalPaymentFailedScreen = '/service-digital-payment-failed-screen'; // Service Module (addon)
 
 
 
@@ -356,10 +393,16 @@ class RouteHelper {
   static String getParcelCategoryRoute() => parcelCategory;
   static String getRentalCartRoute() => rentalCart;
   static String getRideMapRoute() => rideMap;
-  static String getServiceDetailsRoute({required int id, String slug = '', String heroTag = ''}) =>
-      '$serviceDetails?id=$id&slug=$slug${heroTag.isNotEmpty ? '&hero_tag=${Uri.encodeComponent(heroTag)}' : ''}'; // Service Module (addon)
-  static String getProviderDetailsRoute(int id, {String? slug}) => '$providerDetails?id=$id&slug=${slug ?? ''}'; // Service Module (addon)
+  static String getServiceDetailsRoute({required int id, String slug = ''}) =>
+      '$serviceDetails?id=$id&slug=$slug'; // Service Module (addon)
+  static String getProviderDetailsRoute(int id, {String? slug, bool fromGlobalCart = false}) =>
+      '$providerDetails?id=$id&slug=${slug ?? ''}${fromGlobalCart ? '&from_global_cart=true' : ''}'; // Service Module (addon)
+  static String getProviderServiceSearchRoute(int providerId) => '$providerServiceSearch?provider_id=$providerId'; // Service Module (addon)
   static String getServiceCategoryRoute(int id) => '$serviceCategory?id=$id'; // Service Module (addon)
+  static String getServiceReviewsRoute({required int serviceId, String serviceName = ''}) =>
+      '$serviceReviews?service_id=$serviceId&name=${Uri.encodeComponent(serviceName)}'; // Service Module (addon)
+  static String getProviderReviewsRoute({required int providerId, String providerName = '', double avgRating = 0, int ratingCount = 0}) =>
+      '$providerReviews?provider_id=$providerId&name=${Uri.encodeComponent(providerName)}&avg_rating=$avgRating&rating_count=$ratingCount'; // Service Module (addon)
   static String getVendorDetailRoute(int? vendorId) => '$vendorDetail?id=$vendorId';
   static String getParcelLocationRoute(ParcelCategoryModel category) {
     String data = base64Url.encode(utf8.encode(jsonEncode(category.toJson())));
@@ -449,11 +492,33 @@ class RouteHelper {
   static String getSafetyScreen() => safety;
   static String getAllStoreScreenRoute() => allStoresScreen;
   static String getCustomServiceRequestRoute() => customServiceRequest;
-  static String getCustomServiceListRoute() => customServiceList;
-  static String getCustomServiceDetailsRoute() => customServiceDetails;
+  static String getCustomServiceListRoute({int? createdId}) => createdId != null ? '$customServiceList?created_id=$createdId' : customServiceList;
+  static String getCustomServiceDetailsRoute(int id) => '$customServiceDetails?id=$id';
   static String getRequestedServiceRoute() => requestedService;
-  static String getNewServiceRequestRoute() => newServiceRequest;
-  static String getServiceCheckoutRoute() => serviceCheckout;
+  static String getNewServiceRequestRoute({int? id}) => id != null ? '$newServiceRequest?id=$id' : newServiceRequest;
+  static String getServiceCheckoutRoute(int providerId) => '$serviceCheckout?provider_id=$providerId';
+  static String getServiceBidCheckoutRoute(int providerId, int bidId, double offerPrice, {String? scheduleDate, String? scheduleTime}) =>
+      '$serviceBidCheckout?provider_id=$providerId&bid_id=$bidId&offer_price=$offerPrice'
+      '${(scheduleDate != null && scheduleDate.isNotEmpty) ? '&schedule_date=${Uri.encodeComponent(scheduleDate)}' : ''}'
+      '${(scheduleTime != null && scheduleTime.isNotEmpty) ? '&schedule_time=${Uri.encodeComponent(scheduleTime)}' : ''}';
+  static String getServiceCampaignDetailsRoute(String idOrSlug) =>
+      '$serviceCampaignDetails?id=${Uri.encodeComponent(idOrSlug)}';
+  static String getServiceBuyNowCheckoutRoute({required int providerId, required int campaignId, double? price, int quantity = 1, String? variation, List<ServiceBuyNowVariant>? variants}) =>
+      '$serviceBuyNowCheckout?provider_id=$providerId&campaign_id=$campaignId&is_campaign=1&price=${price ?? 0}&quantity=$quantity'
+      '${(variation != null && variation.isNotEmpty) ? '&variation=${Uri.encodeComponent(variation)}' : ''}'
+      '${(variants != null && variants.isNotEmpty) ? '&variants=${Uri.encodeComponent(jsonEncode(variants.map((ServiceBuyNowVariant v) => v.toRouteJson()).toList()))}' : ''}';
+  static String getServiceBookingSuccessRoute(String bookingId, {bool? createAccount}) =>
+      '$serviceBookingSuccess?id=$bookingId&create_account=$createAccount';
+  static String getServiceCartRoute(int providerId) => '$serviceCart?provider_id=$providerId';
+  static String getMyBookingsRoute() => myBookings;
+  static String getBookingDetailsRoute(int? bookingId, {String? contactNumber, bool fromNotification = false}) =>
+      '$bookingDetails?id=$bookingId${contactNumber != null ? '&contact_number=$contactNumber' : ''}${fromNotification ? '&from_notification=true' : ''}';
+  static String getSubBookingDetailsRoute(int? bookingId) => '$subBookingDetails?id=$bookingId';
+  static String getBookingTrackRoute() => bookingTrack; // Service Module (addon)
+  static String getServiceRateReviewRoute() => serviceRateReview; // Service Module (addon)
+  static String getServiceDigitalPaymentFailedScreen(String bookingId, double totalPrice, {bool isPayAfterServiceActive = true, bool isDigitalPaymentActive = false, bool isOfflinePaymentActive = false, bool? createAccount}) =>
+      '$serviceDigitalPaymentFailedScreen?booking_id=$bookingId&total_price=$totalPrice&is_pay_after_service_active=$isPayAfterServiceActive'
+      '&is_digital_payment_active=$isDigitalPaymentActive&is_offline_payment_active=$isOfflinePaymentActive&create_account=$createAccount'; // Service Module (addon)
   static List<GetPage> routes = [
     GetPage(name: initial, page: () {
       print('=======route: ${Get.parameters['module']} ${Get.parameters['module']} // ${Get.parameters['module'] != null && Get.parameters['module']!.isNotEmpty && Get.parameters['module'] != 'null'}');
@@ -557,14 +622,14 @@ class RouteHelper {
       byPuss: (Get.parameters['module'] != null && Get.parameters['module']!.isNotEmpty && Get.parameters['module'] != 'null'),
       _waitForModule(
         Get.parameters['module'],
-        SearchScreen(queryText: Get.parameters['query'], moduleName: Uri.decodeComponent(Get.parameters['module_name'] ?? '')),
+        SearchScreen(queryText: Get.parameters['query'], moduleName: _safeDecodeComponent(Get.parameters['module_name'])),
       ),
     )),
     GetPage(name: searchNew, page: () => getRoute(
       byPuss: (Get.parameters['module'] != null && Get.parameters['module']!.isNotEmpty && Get.parameters['module'] != 'null'),
       _waitForModule(
         Get.parameters['module'],
-        SearchScreen(queryText: Get.parameters['query'], moduleName: Uri.decodeComponent(Get.parameters['module_name'] ?? '')),
+        SearchScreen(queryText: Get.parameters['query'], moduleName: _safeDecodeComponent(Get.parameters['module_name'])),
       ),
     )),
     GetPage(name: '$store/:slug', page: () {
@@ -577,6 +642,7 @@ class RouteHelper {
                 : null),
             fromModule: Get.parameters['page'] != null && Get.parameters['page'] == 'module',
             slug: Get.parameters['slug'] ?? '',
+            fromDeeplink: Get.parameters['from_deeplink'] == 'true',
           ),
         ),
         byPuss: Get.parameters['slug']?.isNotEmpty ?? false || (Get.parameters['module'] != null && Get.parameters['module']!.isNotEmpty && Get.parameters['module'] != 'null'),
@@ -1011,11 +1077,44 @@ class RouteHelper {
     GetPage(name: allStoresScreen, page: () => getRoute(const AllStoreWebViewWidget())),
 
     GetPage(name: customServiceRequest, page: () => const CustomServiceRequestScreen()),
-    GetPage(name: customServiceList, page: () => const CustomServiceListScreen()),
+    GetPage(name: customServiceList, page: () => CustomServiceListScreen(
+      createdRequestId: int.tryParse(Get.parameters['created_id'] ?? ''),
+    )),
     GetPage(name: customServiceDetails, page: () => const CustomServiceDetailsScreen()),
     GetPage(name: requestedService, page: () => const RequestedServiceScreen()),
     GetPage(name: newServiceRequest, page: () => const NewServiceRequestScreen()),
-    GetPage(name: serviceCheckout, page: () => const ServiceCheckoutScreen()),
+    GetPage(name: serviceCheckout, page: () => getRoute(ServiceCheckoutScreen(
+      providerId: int.tryParse(Get.parameters['provider_id'] ?? '') ?? 0,
+    ))),
+    GetPage(name: serviceBidCheckout, page: () => getRoute(ServiceBidCheckoutScreen(
+      providerId: int.tryParse(Get.parameters['provider_id'] ?? '') ?? 0,
+      bidId: int.tryParse(Get.parameters['bid_id'] ?? '') ?? 0,
+      offerPrice: double.tryParse(Get.parameters['offer_price'] ?? '') ?? 0,
+      initialServiceAddress: Get.arguments is AddressModel ? Get.arguments as AddressModel : null,
+      initialScheduleAt: DateConverter.dateAndTimeStringToDate(Get.parameters['schedule_date'], Get.parameters['schedule_time']),
+    ))),
+    GetPage(name: serviceBuyNowCheckout, page: () => getRoute(ServiceBuyNowCheckoutScreen(
+      providerId: int.tryParse(Get.parameters['provider_id'] ?? '') ?? 0,
+      campaignId: int.tryParse(Get.parameters['campaign_id'] ?? '') ?? 0,
+      isCampaign: Get.parameters['is_campaign'] != '0',
+      unitPrice: double.tryParse(Get.parameters['price'] ?? '') ?? 0,
+      quantity: int.tryParse(Get.parameters['quantity'] ?? '') ?? 1,
+      variation: (Get.parameters['variation']?.isNotEmpty ?? false) ? Get.parameters['variation'] : null,
+      variants: (Get.parameters['variants']?.isNotEmpty ?? false)
+          ? (jsonDecode(Get.parameters['variants']!) as List<dynamic>)
+              .map((dynamic e) => ServiceBuyNowVariant.fromJson(e as Map<String, dynamic>)).toList()
+          : null,
+    ))),
+    GetPage(name: serviceCampaignDetails, page: () => getRoute(ServiceCampaignDetailScreen(
+      idOrSlug: Get.parameters['id'] ?? '',
+    ))),
+    GetPage(name: serviceBookingSuccess, page: () => getRoute(ServiceBookingSuccessScreen(
+      bookingId: Get.parameters['id'] ?? '',
+      createAccount: Get.parameters['create_account'] == 'true',
+    ))),
+    GetPage(name: serviceCart, page: () => getRoute(ServiceCartScreen(
+      providerId: int.tryParse(Get.parameters['provider_id'] ?? '') ?? 0,
+    ))),
     GetPage(name: aiChatBot, page: () => const AiChatBotScreen()),
     GetPage(name: aiChatDetails, page: () {
       final String? rawId = Get.parameters['conversation_id'];
@@ -1032,7 +1131,6 @@ class RouteHelper {
     /// Service Module (addon — removable; delete this entry with the folder)
     GetPage(name: serviceDetails, page: () => getRoute(ServiceDetailsScreen(
       serviceId: int.tryParse(Get.parameters['id'] ?? ''),
-      heroTag: Get.parameters['hero_tag'],
     ))),
 
     /// Service Module (addon — removable; delete this entry with the folder)
@@ -1040,6 +1138,12 @@ class RouteHelper {
       providerId: int.tryParse(Get.parameters['id'] ?? '') ?? 0,
       slug: (Get.parameters['slug']?.isNotEmpty ?? false) ? Get.parameters['slug'] : null,
       initialProvider: Get.arguments is ServiceProvider ? Get.arguments as ServiceProvider : null,
+      fromGlobalCart: Get.parameters['from_global_cart'] == 'true',
+    ))),
+
+    /// Service Module (addon — removable; delete this entry with the folder)
+    GetPage(name: providerServiceSearch, page: () => getRoute(ProviderServiceSearchScreen(
+      providerId: int.tryParse(Get.parameters['provider_id'] ?? '') ?? 0,
     ))),
 
     /// Service Module (addon — removable; delete this entry with the folder)
@@ -1048,6 +1152,70 @@ class RouteHelper {
           ? ServiceCategoryScreen(category: Get.arguments as ServiceCategoryModel)
           : ServiceCategoryScreen(category: ServiceCategoryModel(id: int.tryParse(Get.parameters['id'] ?? ''))),
     )),
+
+    /// Service Module (addon — removable; delete this entry with the folder)
+    GetPage(name: serviceReviews, page: () => getRoute(ServiceReviewsScreen(
+      serviceId: int.tryParse(Get.parameters['service_id'] ?? '') ?? 0,
+      serviceName: Get.parameters['name'],
+    ))),
+
+    /// Service Module (addon — removable; delete this entry with the folder)
+    GetPage(name: providerReviews, page: () => getRoute(ProviderReviewsScreen(
+      providerId: int.tryParse(Get.parameters['provider_id'] ?? '') ?? 0,
+      providerName: Get.parameters['name'],
+      avgRating: double.tryParse(Get.parameters['avg_rating'] ?? ''),
+      ratingCount: int.tryParse(Get.parameters['rating_count'] ?? ''),
+    ))),
+
+    /// Service Module (addon — removable; delete this entry with the folder)
+    GetPage(name: myBookings, page: () => getRoute(const MyBookingsScreen())),
+
+    /// Service Module (addon — removable; delete this entry with the folder)
+    GetPage(name: bookingDetails, page: () => getRoute(BookingDetailsScreen(
+      bookingId: int.tryParse(Get.parameters['id'] ?? ''), trackContactNumber: Get.parameters['contact_number'],
+      fromNotification: Get.parameters['from_notification'] == 'true',
+    ))),
+
+    /// Service Module (addon — removable; delete this entry with the folder)
+    GetPage(name: subBookingDetails, page: () => getRoute(BookingDetailsScreen(
+      bookingId: int.tryParse(Get.parameters['id'] ?? ''), isSubBooking: true,
+    ))),
+
+    /// Service Module (addon — removable; delete this entry with the folder)
+    GetPage(name: bookingTrack, page: () => getRoute(const TrackBookingScreen())),
+
+    /// Service Module (addon — removable; delete this entry with the folder)
+    GetPage(name: serviceRateReview, page: () => getRoute(Get.arguments ?? const NotFound())),
+
+    /// Service Module (addon — removable; delete this entry with the folder)
+    GetPage(name: myBookings, page: () => getRoute(const MyBookingsScreen())),
+
+    /// Service Module (addon — removable; delete this entry with the folder)
+    GetPage(name: bookingDetails, page: () => getRoute(BookingDetailsScreen(
+      bookingId: int.tryParse(Get.parameters['id'] ?? ''), trackContactNumber: Get.parameters['contact_number'],
+      fromNotification: Get.parameters['from_notification'] == 'true',
+    ))),
+
+    /// Service Module (addon — removable; delete this entry with the folder)
+    GetPage(name: subBookingDetails, page: () => getRoute(BookingDetailsScreen(
+      bookingId: int.tryParse(Get.parameters['id'] ?? ''), isSubBooking: true,
+    ))),
+
+    /// Service Module (addon — removable; delete this entry with the folder)
+    GetPage(name: bookingTrack, page: () => getRoute(const TrackBookingScreen())),
+
+    /// Service Module (addon — removable; delete this entry with the folder)
+    GetPage(name: serviceRateReview, page: () => getRoute(Get.arguments ?? const NotFound())),
+
+    /// Service Module (addon — removable; delete this entry with the folder)
+    GetPage(name: serviceDigitalPaymentFailedScreen, page: () => getRoute(ServiceDigitalPaymentFailedScreen(
+      bookingId: Get.parameters['booking_id'] ?? '',
+      totalPrice: double.tryParse(Get.parameters['total_price'] ?? '') ?? 0,
+      isPayAfterServiceActive: Get.parameters['is_pay_after_service_active'] != 'false',
+      isDigitalPaymentActive: Get.parameters['is_digital_payment_active'] == 'true',
+      isOfflinePaymentActive: Get.parameters['is_offline_payment_active'] == 'true',
+      createAccount: Get.parameters['create_account'] == 'true',
+    ))),
 
   ];
 

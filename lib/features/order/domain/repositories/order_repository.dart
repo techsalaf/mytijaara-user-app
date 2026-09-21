@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:get/get_connect/connect.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sixam_mart/api/api_client.dart';
 import 'package:sixam_mart/common/models/ongoing_order_model.dart';
@@ -33,6 +34,12 @@ class OrderRepository implements OrderRepositoryInterface {
       '${AppConstants.trackUri}$orderID${guestId != null ? '&guest_id=$guestId' : ''}'
           '${contactNumber != null ? '&contact_number=$contactNumber' : ''}',
     );
+  }
+
+  @override
+  Future<Response?> getDirection({required LatLng origin, required LatLng destination}) async {
+    return await apiClient.getData('${AppConstants.directionUri}?origin_lat=${origin.latitude}&origin_lng=${origin.longitude}'
+        '&destination_lat=${destination.latitude}&destination_lng=${destination.longitude}');
   }
 
   @override

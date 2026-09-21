@@ -240,7 +240,6 @@ class _CartItemWidgetState extends State<CartItemWidget> {
                           builder: (cartController) => _CartItemQuantityPill(
                             cart: widget.cart,
                             cartIndex: widget.cartIndex,
-                            isLoading: cartController.isLoading,
                           ),
                         ),
                       ]),
@@ -428,8 +427,7 @@ class _CartItemWidgetState extends State<CartItemWidget> {
 class _CartItemQuantityPill extends StatelessWidget {
   final CartModel cart;
   final int cartIndex;
-  final bool isLoading;
-  const _CartItemQuantityPill({required this.cart, required this.cartIndex, required this.isLoading});
+  const _CartItemQuantityPill({required this.cart, required this.cartIndex});
 
   @override
   Widget build(BuildContext context) {
@@ -443,11 +441,10 @@ class _CartItemQuantityPill extends StatelessWidget {
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
 
-        // Decrease / delete
         InkWell(
-          onTap: isLoading ? null : () {
+          onTap: () {
             if (cart.quantity! > 1) {
-              Get.find<CartController>().setQuantity(false, cartIndex, cart.stock, cart.quantityLimit);
+              Get.find<CartController>().changeQuantity(false, cartIndex, cart.stock, cart.quantityLimit);
             } else {
               _confirmRemoveCartItem(cartIndex: cartIndex, item: cart.item);
             }
@@ -458,9 +455,9 @@ class _CartItemQuantityPill extends StatelessWidget {
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeSmall, vertical: Dimensions.paddingSizeSmall),
-            child: cart.quantity! == 1 ? Image.asset(Images.delete, width: 16, height: 16, 
+            child: cart.quantity! == 1 ? Image.asset(Images.delete, width: 16, height: 16,
             color: Theme.of(context).textTheme.bodyLarge?.color): Icon(Icons.remove_rounded,
-              size: 16, color: isLoading ? disabledColor : textColor,
+              size: 16, color: textColor,
             ),
           ),
         ),
@@ -474,11 +471,10 @@ class _CartItemQuantityPill extends StatelessWidget {
           ),
         ),
 
-        // Increase
         InkWell(
-          onTap: isLoading ? null : () {
+          onTap: () {
             Get.find<CartController>().forcefullySetModule(Get.find<CartController>().cartList[0].item!.moduleId!);
-            Get.find<CartController>().setQuantity(true, cartIndex, cart.stock, cart.quantityLimit);
+            Get.find<CartController>().changeQuantity(true, cartIndex, cart.stock, cart.quantityLimit);
           },
           borderRadius: const BorderRadius.only(
             topRight: Radius.circular(Dimensions.radiusSmall),
@@ -489,7 +485,7 @@ class _CartItemQuantityPill extends StatelessWidget {
             child: Icon(
               Icons.add_rounded,
               size: 16,
-              color: isLoading ? disabledColor : textColor,
+              color: textColor,
             ),
           ),
         ),

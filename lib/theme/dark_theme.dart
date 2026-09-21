@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:sixam_mart/util/app_constants.dart';
 
-ThemeData dark({Color color = const Color(0xFF54b46b)}) => ThemeData(
+ThemeData dark({Color color = const Color(0xFF0B5D3B)}) => ThemeData(
   fontFamily: AppConstants.fontFamily,
   primaryColor: color,
-  secondaryHeaderColor: const Color(0xFF009f67),
+  secondaryHeaderColor: const Color(0xFFD4AF37),
   disabledColor: const Color(0xffa2a7ad),
   brightness: Brightness.dark,
   hintColor: const Color(0xFFbebebe),
-  cardColor: const Color(0xFF30313C),
+  cardColor: const Color(0xFF16251E),
   shadowColor: Colors.white.withValues(alpha: 0.03),
   textTheme: const TextTheme(bodyMedium: TextStyle(color: Colors.white70)),
   textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(foregroundColor: color)),
-  colorScheme: ColorScheme.dark(primary: color, secondary: color).copyWith(surface: const Color(0xFF191A26)).copyWith(error: const Color(0xFFdd3135)),
-  popupMenuTheme: const PopupMenuThemeData(color: Color(0xFF29292D), surfaceTintColor: Color(0xFF29292D)),
+  colorScheme: ColorScheme.dark(primary: color, secondary: const Color(0xFFD4AF37)).copyWith(surface: const Color(0xFF0D1712)).copyWith(error: const Color(0xFFdd3135)),
+  popupMenuTheme: const PopupMenuThemeData(color: Color(0xFF16251E), surfaceTintColor: Color(0xFF16251E)),
   dialogTheme: const DialogThemeData(surfaceTintColor: Colors.white10),
   floatingActionButtonTheme: FloatingActionButtonThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(500))),
   bottomAppBarTheme: const BottomAppBarThemeData(

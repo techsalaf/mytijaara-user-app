@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shimmer_animation/shimmer_animation.dart';
 import 'package:sixam_mart/common/widgets/custom_app_bar.dart';
 import 'package:sixam_mart/common/widgets/menu_drawer.dart';
 import 'package:sixam_mart/common/widgets/not_logged_in_screen.dart';
 import 'package:sixam_mart/features/favourite/controllers/favourite_controller.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
-import 'package:sixam_mart/features/redesign_feature/dashboard/widgets/common_widget/featured_store_card.dart';
-import 'package:sixam_mart/features/redesign_feature/global_widgets/exclusive_deal_card.dart';
+import 'package:sixam_mart/common/widgets/featured_store_card.dart';
+import 'package:sixam_mart/common/widgets/exclusive_deal_card.dart';
+import 'package:sixam_mart/features/service_module/common/models/service_provider_model.dart';
+import 'package:sixam_mart/features/service_module/provider_details/widgets/provider_service_item_widget.dart';
+import 'package:sixam_mart/features/service_module/service_home/domain/models/service_model.dart';
+import 'package:sixam_mart/features/service_module/service_home/widgets/service_verified_provider_card_widget.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
+import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/styles.dart';
 
@@ -46,8 +52,10 @@ class FavouriteScreenState extends State<FavouriteScreen> {
 
   bool get _showRestaurantText => Get.find<SplashController>().configModel?.moduleConfig?.module?.showRestaurantText ?? false;
 
-  String get _itemsLabel => _showRestaurantText ? 'foods'.tr : 'items'.tr;
-  String get _storesLabel => _showRestaurantText ? 'restaurants'.tr : 'stores'.tr;
+  bool get _isServiceModule => Get.find<SplashController>().module?.moduleType == AppConstants.service;
+
+  String get _itemsLabel => _isServiceModule ? 'services'.tr : (_showRestaurantText ? 'foods'.tr : 'items'.tr);
+  String get _storesLabel => _isServiceModule ? 'providers'.tr : (_showRestaurantText ? 'restaurants'.tr : 'stores'.tr);
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +77,19 @@ class FavouriteScreenState extends State<FavouriteScreen> {
                     .where((Item? e) => e != null).cast<Item>().toList();
                 final List<Store> stores = (controller.wishStoreList ?? const <Store?>[])
                     .where((Store? e) => e != null).cast<Store>().toList();
+                final List<Service> services = (controller.wishServiceList ?? const <Service?>[])
+                    .where((Service? e) => e != null).cast<Service>().toList();
+                final List<ServiceProvider> providers = (controller.wishStoreList ?? const <Store?>[])
+                    .where((Store? e) => e != null).map((Store? e) => ServiceProvider.fromStore(e!)).toList();
+
+                final int primaryCount = _isServiceModule ? services.length : items.length;
+                final int secondaryCount = _isServiceModule ? providers.length : stores.length;
+
+                // The selected tab's wish list is still null on first load — show a
+                // shimmer for the count instead of a misleading "0".
+                final bool primaryLoading = _isServiceModule ? controller.wishServiceList == null : controller.wishItemList == null;
+                final bool secondaryLoading = controller.wishStoreList == null;
+                final bool countLoading = _selectedFilter == _FavFilter.items ? primaryLoading : secondaryLoading;
 
                 return RefreshIndicator(
                   onRefresh: () async {
@@ -83,18 +104,23 @@ class FavouriteScreenState extends State<FavouriteScreen> {
                           height: 56,
                           child: _FavTypeFilterBar(
                             selected: _selectedFilter,
-                            count: _selectedFilter == _FavFilter.items ? items.length : stores.length,
+                            count: _selectedFilter == _FavFilter.items ? primaryCount : secondaryCount,
                             itemsLabel: _itemsLabel,
                             storesLabel: _storesLabel,
                             onSelected: _selectFilter,
+                            isLoading: countLoading,
                           ),
                         ),
                       ),
 
                       SliverToBoxAdapter(
                         child: _selectedFilter == _FavFilter.items
-                            ? _buildItemsBody(context: context, controller: controller, items: items)
-                            : _buildRestaurantsBody(context: context, controller: controller, stores: stores),
+                            ? (_isServiceModule
+                                ? _ServicesFavouriteView(isLoading: controller.wishServiceList == null, services: services)
+                                : _buildItemsBody(context: context, controller: controller, items: items))
+                            : (_isServiceModule
+                                ? _ProvidersFavouriteView(isLoading: controller.wishStoreList == null, providers: providers)
+                                : _buildRestaurantsBody(context: context, controller: controller, stores: stores)),
                       ),
                     ],
                   ),
@@ -145,7 +171,7 @@ class FavouriteScreenState extends State<FavouriteScreen> {
 
   Widget _buildRestaurantsBody({required BuildContext context, required FavouriteController controller, required List<Store> stores}) {
     if (controller.wishStoreList == null) {
-      return const _LoadingPlaceholder();
+      return const _LoadingPlaceholder(isStore: true);
     }
     if (stores.isEmpty) {
       return _EmptyView(message: 'no_wish_data_found'.tr);
@@ -174,6 +200,7 @@ class FavouriteScreenState extends State<FavouriteScreen> {
       ),
     );
   }
+
 }
 
 class _PinnedHeaderDelegate extends SliverPersistentHeaderDelegate {
@@ -203,9 +230,11 @@ class _FavTypeFilterBar extends StatelessWidget {
   final String itemsLabel;
   final String storesLabel;
   final ValueChanged<_FavFilter> onSelected;
+  final bool isLoading;
 
-  const _FavTypeFilterBar({required this.selected,
-    required this.count, required this.itemsLabel, required this.storesLabel, required this.onSelected,
+  const _FavTypeFilterBar({
+    required this.selected, required this.count, required this.itemsLabel, required this.storesLabel, required this.onSelected,
+    required this.isLoading,
   });
 
   @override
@@ -232,13 +261,24 @@ class _FavTypeFilterBar extends StatelessWidget {
                     horizontal: Dimensions.paddingSizeDefault,
                     vertical: Dimensions.paddingSizeSmall,
                   ),
-                  child: Text(
-                    '$count ${selected == _FavFilter.items ? itemsLabel : storesLabel}',
-                    style: robotoBold.copyWith(
-                      fontSize: Dimensions.fontSizeSmall,
-                      color: Theme.of(context).disabledColor,
-                    ),
-                  ),
+                  child: isLoading
+                      ? Shimmer(
+                          duration: const Duration(seconds: 2),
+                          child: Container(
+                            width: 70, height: 12,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).disabledColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+                            ),
+                          ),
+                        )
+                      : Text(
+                          '$count ${selected == _FavFilter.items ? itemsLabel : storesLabel}',
+                          style: robotoBold.copyWith(
+                            fontSize: Dimensions.fontSizeSmall,
+                            color: Theme.of(context).disabledColor,
+                          ),
+                        ),
                 ),
                 const Spacer(),
                 Padding(
@@ -309,15 +349,156 @@ class _FavFilterChip extends StatelessWidget {
   }
 }
 
-class _LoadingPlaceholder extends StatelessWidget {
-  const _LoadingPlaceholder();
+class _ServicesFavouriteView extends StatelessWidget {
+  final bool isLoading;
+  final List<Service> services;
+  const _ServicesFavouriteView({required this.isLoading, required this.services});
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: Dimensions.paddingSizeExtraLarge * 2),
-      child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+    if (isLoading) {
+      return const _LoadingPlaceholder();
+    }
+    if (services.isEmpty) {
+      return _EmptyView(message: 'no_wish_data_found'.tr);
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Dimensions.paddingSizeDefault,
+        vertical: Dimensions.paddingSizeDefault,
+      ),
+      child: Column(
+        children: services.map((Service service) {
+          final bool isLast = identical(service, services.last);
+          return Container(
+            margin: EdgeInsets.only(bottom: isLast ? 0 : Dimensions.paddingSizeDefault),
+            padding: const EdgeInsets.only(bottom: Dimensions.paddingSizeDefault),
+            decoration: BoxDecoration(
+              border: isLast ? null : Border(
+                bottom: BorderSide(color: Theme.of(context).disabledColor.withValues(alpha: 0.18)),
+              ),
+            ),
+            child: ProviderServiceItemWidget(service: service),
+          );
+        }).toList(),
+      ),
     );
+  }
+}
+
+class _ProvidersFavouriteView extends StatelessWidget {
+  final bool isLoading;
+  final List<ServiceProvider> providers;
+  const _ProvidersFavouriteView({required this.isLoading, required this.providers});
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) {
+      return const _LoadingPlaceholder(isStore: true);
+    }
+    if (providers.isEmpty) {
+      return _EmptyView(message: 'no_wish_data_found'.tr);
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Dimensions.paddingSizeDefault,
+        vertical: Dimensions.paddingSizeDefault,
+      ),
+      child: Column(
+        children: providers.map((ServiceProvider provider) {
+          final bool isLast = identical(provider, providers.last);
+          return Padding(
+            padding: EdgeInsets.only(bottom: isLast ? 0 : Dimensions.paddingSizeDefault),
+            child: ServiceVerifiedProviderCard(provider: provider, width: double.infinity),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _LoadingPlaceholder extends StatelessWidget {
+  // Banner-style card placeholders (stores/providers) vs full-width row
+  // placeholders (items/services).
+  final bool isStore;
+  const _LoadingPlaceholder({this.isStore = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final int count = isStore ? 4 : 6;
+    return Shimmer(
+      duration: const Duration(seconds: 2),
+      color: Theme.of(context).cardColor,
+      child: Padding(
+        padding: const EdgeInsets.all(Dimensions.paddingSizeDefault),
+        child: Column(
+          children: List<Widget>.generate(count, (int index) => Padding(
+            padding: EdgeInsets.only(bottom: index == count - 1 ? 0 : Dimensions.paddingSizeLarge),
+            child: isStore ? const _StoreShimmerBlock() : const _ItemShimmerRow(),
+          )),
+        ),
+      ),
+    );
+  }
+}
+
+/// Grey placeholder box used as the base for the shimmer sweep.
+class _ShimmerBox extends StatelessWidget {
+  final double? width;
+  final double height;
+  final double radius;
+  const _ShimmerBox({this.width, required this.height, this.radius = Dimensions.radiusSmall});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Theme.of(context).disabledColor.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(radius),
+      ),
+    );
+  }
+}
+
+/// Mimics a full-width favourite item/service row (image + text lines).
+class _ItemShimmerRow extends StatelessWidget {
+  const _ItemShimmerRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+      _ShimmerBox(width: 90, height: 90, radius: Dimensions.radiusDefault),
+      SizedBox(width: Dimensions.paddingSizeDefault),
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+          _ShimmerBox(width: 160, height: 14),
+          SizedBox(height: Dimensions.paddingSizeSmall),
+          _ShimmerBox(width: 110, height: 12),
+          SizedBox(height: Dimensions.paddingSizeSmall),
+          _ShimmerBox(width: 70, height: 12),
+          SizedBox(height: Dimensions.paddingSizeSmall),
+          _ShimmerBox(width: 90, height: 14),
+        ]),
+      ),
+    ]);
+  }
+}
+
+/// Mimics a full-width favourite store/provider card (banner image + text lines).
+class _StoreShimmerBlock extends StatelessWidget {
+  const _StoreShimmerBlock();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+      _ShimmerBox(height: 150, radius: Dimensions.radiusDefault),
+      SizedBox(height: Dimensions.paddingSizeDefault),
+      _ShimmerBox(width: 180, height: 14),
+      SizedBox(height: Dimensions.paddingSizeSmall),
+      _ShimmerBox(width: 120, height: 12),
+    ]);
   }
 }
 

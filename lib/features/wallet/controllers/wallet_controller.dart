@@ -13,7 +13,7 @@ class WalletController extends GetxController implements GetxService {
 
   List<Transaction>? _transactionList;
   List<Transaction>? get transactionList => _transactionList;
-  
+
   List<String> _offsetList = [];
   
   int _offset = 1;

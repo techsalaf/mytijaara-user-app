@@ -11,6 +11,7 @@ abstract class AuthServiceInterface{
   Future<ResponseModel> guestLogin();
   Future<ResponseModel> loginWithSocialMedia(SocialLogInBody socialLogInModel, {bool isCustomerVerificationOn = false});
   Future<void> updateToken();
+  Future<void> loginWithToken(String token);
   bool isLoggedIn();
   bool isGuestLoggedIn();
   String getSharedPrefGuestId();

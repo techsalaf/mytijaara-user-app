@@ -18,6 +18,22 @@ enum NotificationType{
   trip,
   //ignore: constant_identifier_names
   ride_request,
+  //ignore: constant_identifier_names
+  booking_status,
+  //ignore: constant_identifier_names
+  booking_reschedule,
+  //ignore: constant_identifier_names
+  booking_location,
+  //ignore: constant_identifier_names
+  booking_edit,
+  //ignore: constant_identifier_names
+  serviceman_assigned,
+  //ignore: constant_identifier_names
+  custom_service_bid,
+  //ignore: constant_identifier_names
+  custom_service_request_posted,
+  //ignore: constant_identifier_names
+  custom_service_bid_withdrawn,
 }
 
 class NotificationBodyModel {
@@ -43,6 +59,7 @@ class NotificationBodyModel {
   String? repeatBookingType;
   String? bookingType;
   String? postId;
+  int? moduleId;
 
 
   NotificationBodyModel({
@@ -67,7 +84,8 @@ class NotificationBodyModel {
     this.bookingId,
     this.bookingType,
     this.postId,
-    this.repeatBookingType
+    this.repeatBookingType,
+    this.moduleId
   });
 
   NotificationBodyModel.fromJson(Map<String, dynamic> json) {
@@ -93,6 +111,7 @@ class NotificationBodyModel {
     repeatBookingType = json['repeat_type'];
     bookingType = json['booking_type'];
     postId = json['post_id'];
+    moduleId = int.tryParse('${json['module_id']}');
   }
 
   Map<String, dynamic> toJson() {
@@ -119,6 +138,7 @@ class NotificationBodyModel {
     data['repeat_type'] = repeatBookingType;
     data['booking_type'] = bookingType;
     data['post_id'] = postId;
+    data['module_id'] = moduleId;
     return data;
   }
 
@@ -137,6 +157,14 @@ class NotificationBodyModel {
       NotificationType.loyalty_point.toString(): NotificationType.loyalty_point,
       NotificationType.trip.toString(): NotificationType.trip,
       NotificationType.ride_request.toString(): NotificationType.ride_request,
+      NotificationType.booking_status.toString(): NotificationType.booking_status,
+      NotificationType.booking_reschedule.toString(): NotificationType.booking_reschedule,
+      NotificationType.booking_location.toString(): NotificationType.booking_location,
+      NotificationType.booking_edit.toString(): NotificationType.booking_edit,
+      NotificationType.serviceman_assigned.toString(): NotificationType.serviceman_assigned,
+      NotificationType.custom_service_bid.toString(): NotificationType.custom_service_bid,
+      NotificationType.custom_service_request_posted.toString(): NotificationType.custom_service_request_posted,
+      NotificationType.custom_service_bid_withdrawn.toString(): NotificationType.custom_service_bid_withdrawn,
     };
 
     return enumMap[enumString] ?? NotificationType.general;

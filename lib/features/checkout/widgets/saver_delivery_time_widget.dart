@@ -37,17 +37,20 @@ class SaverDeliveryTimeWidget extends StatelessWidget {
     required CheckoutController controller, required double deliveryCharge, required double originalDeliveryCharge, bool proFreeDelivery = false,
   }) {
     final ZoneData? saverZoneData = controller.saverZoneData;
-    print("========> ${saverZoneData?.toJson()}");
     final Modules? saverModule = controller.saverModule;
     final double? minimumDeliveryCharge = saverModule?.pivot?.minimumDeliveryCharge;
     final bool belowCurrentDeliveryCharge = minimumDeliveryCharge != null
         && deliveryCharge >= 0
         && deliveryCharge < minimumDeliveryCharge;
     final bool hasCurrentEligibleDeliveryCharge = deliveryCharge > 0 && !belowCurrentDeliveryCharge;
+    // Saver delivery tiers (express / slightly-delay) are platform-fleet options;
+    // when the store delivers with its own fleet they don't apply, so hide them.
+    final bool isSelfDeliveryStore = controller.store?.selfDeliverySystem == 1;
     final bool disableSaverOptions = _disableSaverOptions(
       controller: controller, deliveryCharge: deliveryCharge, originalDeliveryCharge: originalDeliveryCharge, proFreeDelivery: proFreeDelivery,
     );
     return controller.orderType == 'delivery'
+        && !isSelfDeliveryStore
         && saverZoneData != null
         && saverModule?.deliveryOptions != null
         && saverZoneData.status == 1
@@ -129,13 +132,16 @@ class SaverDeliveryTimeWidget extends StatelessWidget {
 
   Widget _saverCard(BuildContext context, int index, {bool isDesktop = false}) {
     final DeliveryOptions deliveryOption = checkoutController.saverModule!.deliveryOptions![index];
-    print("-------> ${deliveryOption.toJson()}");
     final bool isFreeDeliveryCouponApplied = Get.find<CouponController>().freeDelivery;
     final bool select = checkoutController.saverDeliveryType == deliveryOption.deliveryType;
     final String storeDeliveryTime = _finalizeDeliveryTime(checkoutController.store?.deliveryTime ?? '', deliveryOption);
-    double totalDeliveryCharge = checkoutController.getSaverDeliveryChargeAdjustment(
-      deliveryOption: deliveryOption,
-    ) + (isFreeDeliveryCouponApplied ? originalDeliveryCharge : deliveryCharge);
+    // Use the effective (clamped) adjustment so a slightly-delay reduction only
+    // brings this option's charge down to the minimum delivery fee, matching the
+    // amount actually applied to the bill total.
+    final double baseCharge = isFreeDeliveryCouponApplied ? originalDeliveryCharge : deliveryCharge;
+    double totalDeliveryCharge = checkoutController.getEffectiveSaverDeliveryAdjustment(
+      deliveryCharge: baseCharge, deliveryOption: deliveryOption,
+    ) + baseCharge;
     totalDeliveryCharge = totalDeliveryCharge < 0 ? 0 : totalDeliveryCharge;
     final String deliveryChargeText = PriceConverter.convertPrice(totalDeliveryCharge);
 

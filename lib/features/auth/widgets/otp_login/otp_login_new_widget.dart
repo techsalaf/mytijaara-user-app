@@ -110,7 +110,7 @@ class OtpLoginNewWidget extends StatelessWidget {
 
           if (Get.find<SplashController>().configModel!.centralizeLoginSetup!.manualLoginStatus!)
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Text('new_to_6amMart'.tr, style: robotoRegular.copyWith(color: Theme.of(context).hintColor)),
+              Text('new_to_mytijaara'.tr, style: robotoRegular.copyWith(color: Theme.of(context).hintColor)),
 
               InkWell(
                 onTap: authController.isLoading ? null : () {

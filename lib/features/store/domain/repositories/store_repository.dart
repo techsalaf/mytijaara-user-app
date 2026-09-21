@@ -7,7 +7,7 @@ import 'package:sixam_mart/api/local_client.dart';
 import 'package:sixam_mart/common/enums/data_source_enum.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/store/domain/models/cart_suggested_item_model.dart';
-import 'package:sixam_mart/features/store/domain/models/store_category_items_model.dart';
+import 'package:sixam_mart/features/store/domain/models/store_category_item_model.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 import 'package:sixam_mart/common/models/module_model.dart';
 import 'package:sixam_mart/features/store/domain/models/recommended_product_model.dart';
@@ -68,6 +68,19 @@ class StoreRepository implements StoreRepositoryInterface {
     final Response response = await apiClient.getData(
       '${AppConstants.distanceStoresUri}?type=all&name=${Uri.encodeComponent(name)}&limit=$limit&offset=$offset',
       headers: _headersWithModule(moduleId),
+    );
+    if(response.statusCode == 200) {
+      return StoreModel.fromJson(response.body);
+    }
+    return null;
+  }
+
+  @override
+  Future<StoreModel?> getVerifiedStores({int offset = 1, int limit = 10, String? type}) async {
+    final String typeQuery = (type != null && type.isNotEmpty) ? '&type=$type' : '';
+    final Response response = await apiClient.getData(
+      '${AppConstants.serviceVerifiedProvidersUri}?limit=$limit&offset=$offset$typeQuery',
+      moduleScoped: true,
     );
     if(response.statusCode == 200) {
       return StoreModel.fromJson(response.body);
@@ -340,11 +353,11 @@ class StoreRepository implements StoreRepositoryInterface {
   }
 
   @override
-  Future<StoreCategoryItemsModel?> getStoreCategoryItems(int storeId) async {
-    StoreCategoryItemsModel? model;
+  Future<StoreCategoryItemModel?> getStoreCategoryItems(int storeId) async {
+    StoreCategoryItemModel? model;
     Response response = await apiClient.getData('${AppConstants.storeCategoryItemsUri}?store_id=$storeId');
     if (response.statusCode == 200) {
-      model = StoreCategoryItemsModel.fromJson(response.body);
+      model = StoreCategoryItemModel.fromJson(response.body);
     }
     return model;
   }

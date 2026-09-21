@@ -5,8 +5,8 @@ import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 
 abstract class FavouriteServiceInterface {
   Future<Response> getFavouriteList();
-  Future<ResponseModel> addFavouriteList(int? id, bool isStore);
-  Future<ResponseModel> removeFavouriteList(int? id, bool isStore);
+  Future<ResponseModel> addFavouriteList(int? id, bool isStore, {bool isServiceModule = false});
+  Future<ResponseModel> removeFavouriteList(int? id, bool isStore, {bool isServiceModule = false});
   List<Item?> wishItemList(Item item);
   List<int?> wishItemIdList (Item item);
   List<Store?> wishStoreList(dynamic store);

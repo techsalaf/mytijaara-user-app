@@ -7,7 +7,7 @@ import 'package:sixam_mart/common/widgets/menu_drawer.dart';
 import 'package:sixam_mart/common/widgets/no_data_screen.dart';
 import 'package:sixam_mart/features/item/controllers/campaign_controller.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
-import 'package:sixam_mart/features/redesign_feature/global_widgets/exclusive_deal_card.dart';
+import 'package:sixam_mart/common/widgets/exclusive_deal_card.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 
 class ItemCampaignScreen extends StatefulWidget {

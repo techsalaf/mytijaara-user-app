@@ -83,9 +83,10 @@ class AdvertisementModel {
     coverImageFullUrl = json['cover_image_full_url'];
     profileImageFullUrl = json['profile_image_full_url'];
     videoAttachmentFullUrl = json['video_attachment_full_url'];
-    averageRating = json['average_rating']?.toDouble();
-    reviewsCommentsCount = json['reviews_comments_count'];
-    store = json['store'] != null ? StoreDetails.fromJson(json['store']) : null;
+    final Map<String, dynamic>? storeJson = json['store'];
+    averageRating = (json['average_rating'] ?? storeJson?['avg_rating'])?.toDouble();
+    reviewsCommentsCount = json['reviews_comments_count'] ?? storeJson?['rating_count'];
+    store = storeJson != null ? StoreDetails.fromJson(storeJson) : null;
   }
 
   Map<String, dynamic> toJson() {
@@ -133,6 +134,7 @@ class StoreDetails {
   int? moduleId;
   String? moduleType;
   List<TopItems>? topItems;
+  int? itemCount;
 
   StoreDetails(
       {this.id,
@@ -142,7 +144,9 @@ class StoreDetails {
         this.coverPhotoFullUrl,
         this.moduleId,
         this.moduleType,
-        this.topItems});
+        this.topItems,
+        this.itemCount
+      });
 
   StoreDetails.fromJson(Map<String, dynamic> json) {
     id = json['id'];
@@ -152,12 +156,11 @@ class StoreDetails {
     coverPhotoFullUrl = json['cover_photo_full_url'];
     moduleId = json['module_id'];
     moduleType = json['module_type'];
-    if (json['top_items'] != null) {
-      topItems = <TopItems>[];
-      json['top_items'].forEach((v) {
-        topItems!.add(new TopItems.fromJson(v));
-      });
+    final List<dynamic>? topItemsJson = json['top_items'] ?? json['top_services'];
+    if (topItemsJson != null) {
+      topItems = topItemsJson.map((v) => TopItems.fromJson(v)).toList();
     }
+    itemCount = json['item_count'];
   }
 
   Map<String, dynamic> toJson() {
@@ -172,6 +175,7 @@ class StoreDetails {
     if (this.topItems != null) {
       data['top_items'] = this.topItems!.map((v) => v.toJson()).toList();
     }
+    data['item_count'] = itemCount;
     return data;
   }
 }
@@ -199,8 +203,8 @@ class TopItems {
   TopItems.fromJson(Map<String, dynamic> json) {
     id = json['id'];
     name = json['name'];
-    imageFullUrl = json['image_full_url'];
-    price = json['price']?.toDouble();
+    imageFullUrl = json['image_full_url'] ?? json['thumbnail_full_url'];
+    price = (json['price'] ?? json['base_price'])?.toDouble();
     discount = json['discount']?.toDouble();
     discountType = json['discount_type'];
     orderCount = json['order_count'];

@@ -161,6 +161,15 @@ import 'package:sixam_mart/features/offer/domain/repositories/offer_repository.d
 import 'package:sixam_mart/features/offer/domain/repositories/offer_repository_interface.dart';
 import 'package:sixam_mart/features/offer/domain/services/offer_service.dart';
 import 'package:sixam_mart/features/offer/domain/services/offer_service_interface.dart';
+import 'package:sixam_mart/features/service_module/custom_service_request/controllers/custom_service_request_controller.dart';
+import 'package:sixam_mart/features/service_module/custom_service_request/domain/repositories/custom_service_request_repository.dart';
+import 'package:sixam_mart/features/service_module/custom_service_request/domain/repositories/custom_service_request_repository_interface.dart';
+import 'package:sixam_mart/features/service_module/custom_service_request/domain/services/custom_service_request_service.dart';
+import 'package:sixam_mart/features/service_module/custom_service_request/domain/services/custom_service_request_service_interface.dart';
+import 'package:sixam_mart/features/service_module/service_category/domain/repositories/service_category_repository.dart';
+import 'package:sixam_mart/features/service_module/service_category/domain/repositories/service_category_repository_interface.dart';
+import 'package:sixam_mart/features/service_module/service_category/domain/services/service_category_service.dart';
+import 'package:sixam_mart/features/service_module/service_category/domain/services/service_category_service_interface.dart';
 import 'package:sixam_mart/features/rental_module/vendor/controllers/verified_provider_controller.dart';
 import 'package:sixam_mart/features/rental_module/vendor/domain/repositories/verified_provider_repository.dart';
 import 'package:sixam_mart/features/rental_module/vendor/domain/repositories/verified_provider_repository_interface.dart';
@@ -172,14 +181,39 @@ import 'package:sixam_mart/features/service_module/service_details/domain/reposi
 import 'package:sixam_mart/features/service_module/service_details/domain/services/service_details_service.dart';
 import 'package:sixam_mart/features/service_module/service_details/domain/services/service_details_service_interface.dart';
 import 'package:sixam_mart/features/service_module/provider_details/controllers/provider_data_controller.dart';
-import 'package:sixam_mart/features/service_module/service_category_screen/controllers/service_category_controller.dart';
 import 'package:sixam_mart/features/service_module/provider_details/domain/repositories/provider_details_repository.dart';
 import 'package:sixam_mart/features/service_module/provider_details/domain/repositories/provider_details_repository_interface.dart';
 import 'package:sixam_mart/features/service_module/provider_details/domain/services/provider_details_service.dart';
 import 'package:sixam_mart/features/service_module/provider_details/domain/services/provider_details_service_interface.dart';
+import 'package:sixam_mart/features/service_module/request_service/controllers/requested_service_controller.dart';
+import 'package:sixam_mart/features/service_module/booking_details/controllers/booking_controller.dart';
+import 'package:sixam_mart/features/service_module/booking_details/domain/repositories/booking_repository.dart';
+import 'package:sixam_mart/features/service_module/booking_details/domain/repositories/booking_repository_interface.dart';
+import 'package:sixam_mart/features/service_module/booking_details/domain/services/booking_service.dart';
+import 'package:sixam_mart/features/service_module/booking_details/domain/services/booking_service_interface.dart';
+import 'package:sixam_mart/features/service_module/service_review/controllers/service_review_controller.dart';
+import 'package:sixam_mart/features/service_module/service_review/domain/repositories/service_review_repository.dart';
+import 'package:sixam_mart/features/service_module/service_review/domain/repositories/service_review_repository_interface.dart';
+import 'package:sixam_mart/features/service_module/service_review/domain/services/service_review_service.dart';
+import 'package:sixam_mart/features/service_module/service_review/domain/services/service_review_service_interface.dart';
+import 'package:sixam_mart/features/service_module/request_service/domain/repositories/requested_service_repository.dart';
+import 'package:sixam_mart/features/service_module/request_service/domain/repositories/requested_service_repository_interface.dart';
+import 'package:sixam_mart/features/service_module/request_service/domain/services/requested_service_service.dart';
+import 'package:sixam_mart/features/service_module/request_service/domain/services/requested_service_service_interface.dart';
+import 'package:sixam_mart/features/service_module/service_cart/controllers/service_cart_controller.dart';
+import 'package:sixam_mart/features/service_module/service_cart/domain/repositories/service_cart_repository.dart';
+import 'package:sixam_mart/features/service_module/service_cart/domain/repositories/service_cart_repository_interface.dart';
+import 'package:sixam_mart/features/service_module/service_cart/domain/services/service_cart_service.dart';
+import 'package:sixam_mart/features/service_module/service_cart/domain/services/service_cart_service_interface.dart';
+import 'package:sixam_mart/features/service_module/service_checkout/controllers/service_checkout_controller.dart';
+import 'package:sixam_mart/features/service_module/service_checkout/domain/repositories/service_checkout_repository.dart';
+import 'package:sixam_mart/features/service_module/service_checkout/domain/repositories/service_checkout_repository_interface.dart';
+import 'package:sixam_mart/features/service_module/service_checkout/domain/services/service_checkout_service.dart';
+import 'package:sixam_mart/features/service_module/service_checkout/domain/services/service_checkout_service_interface.dart';
 import 'package:sixam_mart/features/service_module/service_home/controllers/service_controller.dart';
 import 'package:sixam_mart/features/service_module/service_home/controllers/service_explore_controller.dart';
 import 'package:sixam_mart/features/service_module/service_home/controllers/service_verified_provider_controller.dart';
+import 'package:sixam_mart/features/service_module/service_campaign/controllers/service_campaign_controller.dart';
 import 'package:sixam_mart/features/service_module/service_home/domain/repositories/service_repository.dart';
 import 'package:sixam_mart/features/service_module/service_home/domain/repositories/service_repository_interface.dart';
 import 'package:sixam_mart/features/service_module/service_home/domain/services/service_service.dart';
@@ -286,6 +320,9 @@ import 'package:sixam_mart/features/wallet/domain/repositories/wallet_repository
 import 'package:sixam_mart/features/wallet/domain/services/wallet_service.dart';
 import 'package:sixam_mart/features/wallet/domain/services/wallet_service_interface.dart';
 import 'package:sixam_mart/util/app_constants.dart';
+import 'package:sixam_mart/features/service_module/service_category/controllers/service_category_controller.dart';
+
+
 
 
 Future<Map<String, Map<String, String>>> init() async {
@@ -547,7 +584,7 @@ Future<Map<String, Map<String, String>>> init() async {
   Get.lazyPut(() => itemServiceInterface);
 
   CategoryServiceInterface categoryServiceInterface = CategoryService(categoryRepositoryInterface: Get.find());
-  Get.lazyPut(() => categoryServiceInterface);
+  Get.lazyPut(() => categoryServiceInterface, fenix: true);
 
   LoyaltyServiceInterface loyaltyServiceInterface = LoyaltyService(loyaltyRepositoryInterface: Get.find());
   Get.lazyPut(() => loyaltyServiceInterface);
@@ -628,10 +665,9 @@ Future<Map<String, Map<String, String>>> init() async {
   Get.lazyPut(() => ProfileController(profileServiceInterface: Get.find()));
   Get.lazyPut(() => BannerController(bannerServiceInterface: Get.find()));
   Get.lazyPut(() => SmartBannerController(smartBannerServiceInterface: Get.find()));
-  Get.lazyPut(() => CategoryController(categoryServiceInterface: Get.find()));
+  Get.lazyPut(() => CategoryController(categoryServiceInterface: Get.find()), fenix: true);
   Get.lazyPut(() => ItemController(itemServiceInterface: Get.find()));
   Get.lazyPut(() => CartController(cartServiceInterface: Get.find()));
-  Get.lazyPut(() => StoreController(storeServiceInterface: storeServiceInterface));
   Get.lazyPut(() => StoreController(storeServiceInterface: storeServiceInterface));
   Get.lazyPut(() => FavouriteController(favouriteServiceInterface: Get.find()));
   Get.lazyPut(() => HomeController(homeServiceInterface: Get.find()));
@@ -679,30 +715,75 @@ Future<Map<String, Map<String, String>>> init() async {
 
 
   /// Service Module (addon — removable; delete this block with the folder)
-  // fenix: true keeps these registrations alive under SmartManagement.full —
-  // ServiceController and ServiceExploreController share serviceServiceInterface,
-  // so disposing one must not cascade-delete the interface the other needs.
   ServiceRepositoryInterface serviceRepositoryInterface = ServiceRepository(apiClient: Get.find());
-  Get.lazyPut(() => serviceRepositoryInterface, fenix: true);
+  Get.lazyPut(() => serviceRepositoryInterface);
   ServiceServiceInterface serviceServiceInterface = ServiceService(serviceRepositoryInterface: Get.find());
   Get.lazyPut(() => serviceServiceInterface, fenix: true);
-  Get.lazyPut(() => ServiceController(serviceServiceInterface: Get.find()), fenix: true);
+  Get.lazyPut(() => ServiceController(serviceServiceInterface: Get.find(), bookingServiceInterface: Get.find()), fenix: true);
   Get.lazyPut(() => ServiceExploreController(serviceServiceInterface: Get.find()), fenix: true);
   Get.lazyPut(() => ServiceVerifiedProviderController(serviceServiceInterface: Get.find()), fenix: true);
+  Get.lazyPut(() => ServiceCampaignController(serviceServiceInterface: Get.find()), fenix: true);
 
   ServiceDetailsRepositoryInterface serviceDetailsRepositoryInterface = ServiceDetailsRepository(apiClient: Get.find());
-  Get.lazyPut(() => serviceDetailsRepositoryInterface, fenix: true);
+  Get.lazyPut(() => serviceDetailsRepositoryInterface);
   ServiceDetailsServiceInterface serviceDetailsServiceInterface = ServiceDetailsService(serviceDetailsRepositoryInterface: Get.find());
-  Get.lazyPut(() => serviceDetailsServiceInterface, fenix: true);
-  Get.lazyPut(() => ServiceDetailsController(serviceDetailsServiceInterface: Get.find()), fenix: true);
   Get.lazyPut(() => serviceDetailsServiceInterface);
   Get.lazyPut(() => ServiceDetailsController(serviceDetailsServiceInterface: Get.find()));
   ProviderDetailsRepositoryInterface providerDetailsRepositoryInterface = ProviderDetailsRepository(apiClient: Get.find());
   Get.lazyPut(() => providerDetailsRepositoryInterface, fenix: true);
   ProviderDetailsServiceInterface providerDetailsServiceInterface = ProviderDetailsService(providerDetailsRepositoryInterface: Get.find());
   Get.lazyPut(() => providerDetailsServiceInterface, fenix: true);
-  Get.lazyPut(() => ProviderDataController(providerDetailsServiceInterface: Get.find()), fenix: true);
-  Get.lazyPut(() => ServiceCategoryController());
+  Get.lazyPut(() => ProviderDataController(providerDetailsServiceInterface: Get.find(), bookingServiceInterface: Get.find()), fenix: true);
+  ServiceCategoryRepositoryInterface serviceCategoryRepositoryInterface = ServiceCategoryRepository(apiClient: Get.find());
+  Get.lazyPut(() => serviceCategoryRepositoryInterface, fenix: true);
+  ServiceCategoryServiceInterface serviceCategoryServiceInterface = ServiceCategoryService(serviceCategoryRepositoryInterface: Get.find());
+  Get.lazyPut(() => serviceCategoryServiceInterface, fenix: true);
+  Get.lazyPut(() => ServiceCategoryController(serviceCategoryServiceInterface: Get.find()), fenix: true);
+
+  ServiceCartRepositoryInterface serviceCartRepositoryInterface = ServiceCartRepository(apiClient: Get.find());
+  Get.lazyPut(() => serviceCartRepositoryInterface, fenix: true);
+  ServiceCartServiceInterface serviceCartServiceInterface = ServiceCartService(serviceCartRepositoryInterface: Get.find());
+  Get.lazyPut(() => serviceCartServiceInterface, fenix: true);
+  Get.lazyPut(() => ServiceCartController(serviceCartServiceInterface: Get.find()), fenix: true);
+
+  ServiceCheckoutRepositoryInterface serviceCheckoutRepositoryInterface = ServiceCheckoutRepository(apiClient: Get.find());
+  Get.lazyPut(() => serviceCheckoutRepositoryInterface, fenix: true);
+  ServiceCheckoutServiceInterface serviceCheckoutServiceInterface = ServiceCheckoutService(serviceCheckoutRepositoryInterface: Get.find());
+  Get.lazyPut(() => serviceCheckoutServiceInterface, fenix: true);
+  Get.lazyPut(() => ServiceCheckoutController(serviceCheckoutServiceInterface: Get.find()), fenix: true);
+
+  CustomServiceRequestRepositoryInterface customServiceRequestRepositoryInterface =
+      CustomServiceRequestRepository(apiClient: Get.find());
+  Get.lazyPut(() => customServiceRequestRepositoryInterface, fenix: true);
+  CustomServiceRequestServiceInterface customServiceRequestServiceInterface =
+      CustomServiceRequestService(customServiceRequestRepositoryInterface: Get.find());
+  Get.lazyPut(() => customServiceRequestServiceInterface, fenix: true);
+  Get.lazyPut(() => CustomServiceRequestController(
+    categoryServiceInterface: Get.find(),
+    customServiceRequestServiceInterface: Get.find(),
+  ), fenix: true);
+
+  RequestedServiceRepositoryInterface requestedServiceRepositoryInterface = RequestedServiceRepository(apiClient: Get.find());
+  Get.lazyPut(() => requestedServiceRepositoryInterface, fenix: true);
+  RequestedServiceServiceInterface requestedServiceServiceInterface = RequestedServiceService(requestedServiceRepositoryInterface: Get.find());
+  Get.lazyPut(() => requestedServiceServiceInterface, fenix: true);
+  Get.lazyPut(() => RequestedServiceController(
+    categoryServiceInterface: Get.find(),
+    requestedServiceServiceInterface: Get.find(),
+  ), fenix: true);
+
+  /// Service Module (addon — removable; delete this block with the folder)
+  BookingRepositoryInterface bookingRepositoryInterface = BookingRepository(apiClient: Get.find());
+  Get.lazyPut(() => bookingRepositoryInterface, fenix: true);
+  BookingServiceInterface bookingServiceInterface = BookingService(bookingRepositoryInterface: Get.find());
+  Get.lazyPut(() => bookingServiceInterface, fenix: true);
+  Get.lazyPut(() => BookingController(bookingServiceInterface: Get.find()), fenix: true);
+
+  ServiceReviewRepositoryInterface serviceReviewRepositoryInterface = ServiceReviewRepository(apiClient: Get.find());
+  Get.lazyPut(() => serviceReviewRepositoryInterface, fenix: true);
+  ServiceReviewServiceInterface serviceReviewServiceInterface = ServiceReviewService(serviceReviewRepositoryInterface: Get.find());
+  Get.lazyPut(() => serviceReviewServiceInterface, fenix: true);
+  Get.lazyPut(() => ServiceReviewController(serviceReviewServiceInterface: Get.find()), fenix: true);
 
   /// Retrieving localized data
   Map<String, Map<String, String>> languages = {};

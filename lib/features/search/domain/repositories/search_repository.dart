@@ -11,6 +11,7 @@ import 'package:sixam_mart/features/search/domain/models/search_suggestion_model
 import 'package:sixam_mart/features/search/domain/models/top_category_model.dart';
 import 'package:sixam_mart/features/search/domain/models/trending_search_model.dart';
 import 'package:sixam_mart/features/search/domain/repositories/search_repository_interface.dart';
+import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 import 'package:sixam_mart/util/app_constants.dart';
 
@@ -112,8 +113,14 @@ class SearchRepository implements SearchRepositoryInterface {
     final Map<String, String>? headers = moduleId != null
         ? {...apiClient.getHeader(), AppConstants.moduleId: moduleId.toString()}
         : null;
+    // Service module exposes item search under a dedicated path; provider/store
+    // search is left on the default route.
+    final bool isServiceModule = Get.find<SplashController>().module?.moduleType == AppConstants.service;
+    final String searchPath = (isServiceModule && !isStore)
+        ? AppConstants.serviceSearchUri
+        : '${AppConstants.searchUri}${isStore ? 'stores' : 'items'}/search';
     final StringBuffer uri = StringBuffer(
-      '${AppConstants.searchUri}${isStore ? 'stores' : 'items'}/search?name=$query&offset=$offset&limit=10',
+      '$searchPath?name=${Uri.encodeQueryComponent(query ?? '')}&offset=$offset&limit=10',
     );
     // Apply the filter params (category_ids, filter, rating_counts, min_price,
     // max_price) to the search request. Values are appended raw so list brackets
@@ -121,6 +128,7 @@ class SearchRepository implements SearchRepositoryInterface {
     filterParams?.forEach((String key, String value) {
       uri.write('&$key=$value');
     });
+
     return await apiClient.getData(uri.toString(), headers: headers);
   }
 
@@ -138,8 +146,11 @@ class SearchRepository implements SearchRepositoryInterface {
     if (isGlobal) {
       headers.remove(AppConstants.moduleId);
     }
+    // Service module exposes the same response under a different path.
+    final bool isServiceModule = Get.find<SplashController>().module?.moduleType == AppConstants.service;
+    final String baseUri = isServiceModule ? AppConstants.serviceItemOrStoreSearchUri : AppConstants.searchSuggestionsUri;
     Response response = await apiClient.getData(
-      '${AppConstants.searchSuggestionsUri}?name=$searchText&is_global=${isGlobal ? 1 : 0}',
+      '$baseUri?name=$searchText&is_global=${isGlobal ? 1 : 0}',
       headers: headers,
     );
     if (response.statusCode == 200) {

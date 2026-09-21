@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shimmer_animation/shimmer_animation.dart';
 import 'package:sixam_mart/common/widgets/confirmation_dialog.dart';
 import 'package:sixam_mart/common/widgets/custom_button.dart';
 import 'package:sixam_mart/common/widgets/custom_snackbar.dart';
@@ -47,6 +48,34 @@ class CartScreen extends StatefulWidget {
   final bool fromNav;
   final int? storeId;
   final String? storeName;
+
+  /// Presents the store cart as a full-height modal bottom sheet.
+  ///
+  /// Capture MediaQuery BEFORE entering the modal route: showModalBottomSheet
+  /// internally calls MediaQuery.removePadding(removeTop: true), which zeroes
+  /// padding.top inside the builder. CartScreen's custom app bar uses padding.top
+  /// to clear the status bar, so without restoring it the bar would overlap the
+  /// system status bar. viewPadding.top always holds the physical device inset
+  /// regardless of any removePadding call.
+  static void openAsBottomSheet(BuildContext context, {required int storeId}) {
+    final MediaQueryData mq = MediaQuery.of(context);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: true,
+      // Cart content is itself scrollable — disable sheet drag to prevent
+      // the dismiss gesture from conflicting with list scrolling.
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
+      builder: (_) => MediaQuery(
+        data: mq.copyWith(padding: mq.viewPadding),
+        child: SizedBox(
+          height: mq.size.height,
+          child: CartScreen(fromNav: false, storeId: storeId),
+        ),
+      ),
+    );
+  }
 
   @override
   State<CartScreen> createState() => _CartScreenState();
@@ -219,13 +248,27 @@ class _CartScreenState extends State<CartScreen> {
                               ])
                             ),
                             const SizedBox(height: 2),
-                            Text(
-                              '${_initializing ? 0 : cartController.cartList.length} ${'items_added'.tr}',
-                              style: robotoRegular.copyWith(
-                                fontSize: Dimensions.fontSizeSmall,
-                                color: Theme.of(context).disabledColor,
-                              ),
-                            ),
+                            // Until the initial store-scoped fetch resolves the real
+                            // count is unknown, so show a shimmer instead of "0 items".
+                            _initializing
+                                ? Shimmer(
+                                    duration: const Duration(seconds: 2),
+                                    child: Container(
+                                      width: 60, height: 12,
+                                      margin: const EdgeInsets.symmetric(vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context).disabledColor.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+                                      ),
+                                    ),
+                                  )
+                                : Text(
+                                    '${cartController.cartList.length} ${'items_added'.tr}',
+                                    style: robotoRegular.copyWith(
+                                      fontSize: Dimensions.fontSizeSmall,
+                                      color: Theme.of(context).disabledColor,
+                                    ),
+                                  ),
                           ],
                         ),
                       ),
@@ -321,7 +364,7 @@ class _CartScreenState extends State<CartScreen> {
               decoration: BoxDecoration(
                 color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
-                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, spreadRadius: 0)],
+                // boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, spreadRadius: 0)],
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 ListView.builder(
@@ -380,7 +423,7 @@ class _CartScreenState extends State<CartScreen> {
                 decoration: BoxDecoration(
                   color: Theme.of(context).cardColor,
                   borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
-                  boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, spreadRadius: 0)],
+                  // boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, spreadRadius: 0)],
                 ),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
 

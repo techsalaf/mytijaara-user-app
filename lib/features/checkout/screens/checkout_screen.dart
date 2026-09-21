@@ -133,7 +133,7 @@ class CheckoutScreenState extends State<CheckoutScreen> {
           }
         });
       }
-      if(Get.find<SplashController>().proStaus && Get.find<ProfileController>().proStatus){
+      if(Get.find<ProfileController>().proStatus){
         Get.find<ProController>().getProActiveOffer(moduleType: Get.find<SplashController>().module?.moduleType);
       }
 
@@ -368,8 +368,11 @@ class CheckoutScreenState extends State<CheckoutScreen> {
 
           // Saver delivery option fee adjustment (express +charge / slightly_delay -charge); 0 for the standard option.
           // Added as its own signed term so picking an option updates the bill (shown as a separate line in BottomSection).
-          final double saverDeliveryAdjustment = (checkoutController.orderType == 'delivery' && checkoutController.isInstantDelivery)
-              ? checkoutController.getSaverDeliveryChargeAdjustment(deliveryOption: checkoutController.selectedSaverDeliveryOption)
+          // Clamped against the delivery fee *after* any Pro delivery discount, so a slightly-delay
+          // reduction only cuts what's left of the fee (down to the minimum) and can't make the total negative.
+          final double saverDeliveryAdjustment = (checkoutController.orderType == 'delivery' && checkoutController.isInstantDelivery
+                  && checkoutController.store?.selfDeliverySystem != 1)
+              ? checkoutController.getEffectiveSaverDeliveryAdjustment(deliveryCharge: deliveryCharge - proDeliveryDiscount, deliveryOption: checkoutController.selectedSaverDeliveryOption)
               : 0;
 
           double total = _calculateTotal(
@@ -502,8 +505,8 @@ class CheckoutScreenState extends State<CheckoutScreen> {
                         style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeLarge, color: Theme.of(context).primaryColor),
                       ),
 
-                      (checkoutController.taxIncluded == 1) ? Text(' ${'vat_tax_inc'.tr}', style: robotoMedium.copyWith(
-                        fontSize: Dimensions.fontSizeExtraSmall, color: Theme.of(context).primaryColor,
+                      ((checkoutController.taxIncluded == 1) || ((checkoutController.orderTax ?? 0) > 0)) ? Text(' ${'vat_tax_inc'.tr}', style: robotoMedium.copyWith(
+                        fontSize: Dimensions.fontSizeExtraSmall,
                       )) : const SizedBox(),
 
                       const Expanded(child: SizedBox()),

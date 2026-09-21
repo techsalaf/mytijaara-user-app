@@ -93,6 +93,17 @@ class AuthService implements AuthServiceInterface{
     await authRepositoryInterface.updateToken();
   }
 
+  // Logs a guest into the account the backend just created for them (e.g. from
+  // a service booking placed with create_new_user=1) — mirrors
+  // _updateHeaderFunctionality's login/registration sequence, minus the
+  // AuthResponseModel verification-status gating that doesn't apply here.
+  @override
+  Future<void> loginWithToken(String token) async {
+    await authRepositoryInterface.saveUserToken(token, alreadyInApp: true);
+    await authRepositoryInterface.updateToken();
+    await authRepositoryInterface.clearSharedPrefGuestId();
+  }
+
   @override
   bool isLoggedIn() {
     return authRepositoryInterface.isLoggedIn();

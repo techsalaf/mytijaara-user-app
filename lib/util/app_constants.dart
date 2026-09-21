@@ -4,18 +4,18 @@ import 'package:sixam_mart/features/language/domain/models/language_model.dart';
 import 'package:sixam_mart/util/images.dart';
 
 class AppConstants {
-  static const String appName = '6amMart';
-  static const double appVersion = 4.0; ///Flutter sdk 3.44.2
+  static const String appName = 'MyTijaara';
+  static const double appVersion = 4.1; ///Flutter sdk 3.44.7
 
   static const String fontFamily = 'DMSans';
   static const bool payInWevView = false;
   static const int balanceInputLen = 10;
-  static const String webHostedUrl = 'https://6ammart-react.6amtech.com';
+  static const String webHostedUrl = 'https://app.mytijaara.com';
   static const bool stopPolylineAnimation = false;
   static const String googleServerClientId = '491987943015-agln6biv84krpnngdphj87jkko7r9lb8.apps.googleusercontent.com';
   static const String pusherBroadcustUrl = '/api/v1/broadcasting/user-auth';
 
-  static const String baseUrl = 'https://6ammart-admin.6amtech.com';
+  static const String baseUrl = 'https://dashboard.mytijaara.com';
   static const String categoryUri = '/api/v1/categories';
   static const String topCategoriesUri = '/api/v1/categories/top';
   static const String trendingSearchesUri = '/api/v1/trending-searches';
@@ -279,7 +279,16 @@ class AppConstants {
   static const String serviceCategoryChildesUri = '/api/v1/categories/childes'; // /{category_id}
   static const String serviceCategoryServicesUri = '/api/v1/categories/services'; // /{category_id}  (+ /all)
   static const String serviceCategoryProvidersUri = '/api/v1/service/categories/providers'; // /{category_id}
+  static const String serviceCategoryItemsUri = '/api/v1/categories/items'; // /{id}?filter=all|services|providers
+  static const String serviceQueryUri = '/api/v1/service/query'; // ?category_id=&sort_by=&limit=&offset=
+  static const String serviceCategoryProvidersQueryUri = '/api/v1/service/category-providers'; // ?category_id=&limit=&offset=
 
+
+  /// service module — custom service requests
+  static const String customServiceRequestsUri = '/api/v1/service/custom-requests';
+
+  /// service module — requested services
+  static const String requestedServicesUri = '/api/v1/service/requested-services';
 
   /// service module — banners
   static const String serviceBannersUri = '/api/v1/banners'; // /{provider_id} for provider banners
@@ -291,6 +300,7 @@ class AppConstants {
   static const String serviceRecommendedUri = '/api/v1/service/recommended';
   static const String serviceSearchUri = '/api/v1/service/search';
   static const String serviceSearchSuggestionUri = '/api/v1/service/search-suggestion';
+  static const String serviceItemOrStoreSearchUri = '/api/v1/service/item-or-store-search';
   static const String serviceDetailsUri = '/api/v1/service/details'; // /{id}  (numeric id or slug)
   static const String serviceRelatedUri = '/api/v1/service/related'; // /{service_id}
   static const String serviceRelatedProviderServicesUri = '/api/v1/service/related-provider-services'; // /{service_id}
@@ -305,9 +315,34 @@ class AppConstants {
   static const String serviceProvidersTopRatedUri = '/api/v1/service/providers/top-rated';
   static const String serviceProvidersRecommendedUri = '/api/v1/service/providers/recommended';
   static const String serviceVerifiedProvidersUri = '/api/v1/stores/verified'; // verified providers (paginated)
+  static const String serviceCombinedDataUri = '/api/v1/service/get-combined-data'; // combined provider/service list (quick actions)
   static const String serviceProvidersSearchUri = '/api/v1/service/providers/search';
-  static const String serviceProviderPopularServicesUri = '/api/v1/service/providers/popular-services'; // /{id}
   static const String serviceProviderDetailsUri = '/api/v1/service/providers/details'; // /{id}
+  static const String serviceOfferItemsUri = '/api/v1/service/offers/items';
+
+  /// service module — campaigns (running campaigns list + id-or-slug details)
+  static const String serviceCampaignsUri = '/api/v1/service/campaigns'; // ?limit=&offset=
+  static const String serviceCampaignDetailsUri = '/api/v1/service/campaigns/details'; // /{id or slug}
+
+  /// service module — booking
+  static const String servicePlaceBookingUri = '/api/v1/service/booking/place';
+  static const String serviceBookingGetTaxUri = '/api/v1/service/booking/get-tax';
+  // Unified payment endpoint — settles/updates a placed booking for every method
+  // (cash_after_service, digital_payment, wallet, partial_payment, offline_payment).
+  static const String serviceBookingPaymentUri = '/api/v1/service/booking/payment';
+  static const String serviceBookingListUri = '/api/v1/service/booking/list'; // ?status=all|running|history&offset=&limit=
+  static const String serviceBookingDetailsUri = '/api/v1/service/booking/details/'; // append booking id
+  static const String serviceBookingTrackUri = '/api/v1/service/booking/track'; // ?booking_id=&contact_number= — public tracker (guest by phone, customer by token)
+  static const String serviceBookingInvoiceUri = '/api/v1/service/booking/invoice/'; // append booking id — streams a PDF
+  static const String serviceBookingCancelUri = '/api/v1/service/booking/cancel'; // POST, body: {id, reason}
+  static const String serviceBookingLastUri = '/api/v1/service/booking/last'; // ?provider_id= (optional) — most recent bookings
+  static const String serviceAllRunningBookingsUri = '/api/v1/service/booking/all-running-bookings'; // running-only, compact OngoingOrderModel shape (dashboard sheet)
+  static const String serviceBookingRebookUri = '/api/v1/service/booking/rebook'; // POST, body: {booking_id, guest_id?} — rebuilds the provider's cart from a past booking
+  static const String serviceBookingDeleteUri = '/api/v1/service/booking/delete'; // DELETE, ?booking_id= (+guest_id for guests) — soft-hide terminal booking
+
+  /// service module — reviews
+  static const String serviceReviewSubmitUri = '/api/v1/service/reviews/submit'; // POST multipart: service_id, booking_id, rating, comment, attachment[]
+  static const String serviceReviewListUri = '/api/v1/service/reviews'; // /{service_id}?limit=&offset= — rating_summary + paginated reviews
 
   static const String getServiceZoneId = '/api/v1/service/customer/get-zone-id';
   static const String dashboardOrderUri = '/api/v1/customer/order/all-running-orders';
@@ -499,6 +534,10 @@ class AppConstants {
     {
       'title' : 'cash_back_transactions',
       'value' : 'CashBack'
+    },
+    {
+      'title' : 'pro_subscription_transactions',
+      'value' : 'pro_subscription'
     },
   ];
 

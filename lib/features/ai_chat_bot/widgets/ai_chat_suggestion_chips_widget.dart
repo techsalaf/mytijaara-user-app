@@ -31,6 +31,11 @@ class AiChatSuggestionChipsWidget extends StatelessWidget {
           'ai_suggestion_pharmacy_show'.tr, 'ai_suggestion_pharmacy_essentials'.tr,
           'ai_suggestion_pharmacy_cold'.tr, 'ai_suggestion_pharmacy_add'.tr,
         ];
+      case AppConstants.service:
+        return [
+          'ai_suggestion_service_show'.tr, 'ai_suggestion_service_find'.tr,
+          'ai_suggestion_service_suggest'.tr, 'ai_suggestion_service_book'.tr,
+        ];
       default:
         return [
           'ai_suggestion_show_food'.tr, 'ai_suggestion_find_popular'.tr,

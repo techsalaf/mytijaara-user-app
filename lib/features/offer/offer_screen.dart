@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -6,13 +7,18 @@ import 'package:sixam_mart/common/models/module_model.dart';
 import 'package:sixam_mart/common/widgets/custom_app_bar.dart';
 import 'package:sixam_mart/common/widgets/paginated_list_view.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
-import 'package:sixam_mart/features/redesign_feature/common/models/new_item_model.dart';
-import 'package:sixam_mart/features/redesign_feature/dashboard/widgets/common_widget/featured_store_card.dart';
-import 'package:sixam_mart/features/redesign_feature/dashboard/widgets/common_widget/food_item_card.dart';
-import 'package:sixam_mart/features/redesign_feature/global_widgets/exclusive_deal_card.dart';
-import 'package:sixam_mart/features/redesign_feature/global_widgets/store_offer_group.dart';
+import 'package:sixam_mart/features/offer/domain/models/new_item_model.dart';
+import 'package:sixam_mart/common/widgets/featured_store_card.dart';
+import 'package:sixam_mart/common/widgets/food_item_card.dart';
+import 'package:sixam_mart/common/widgets/exclusive_deal_card.dart';
+import 'package:sixam_mart/common/widgets/store_offer_group.dart';
 import 'package:sixam_mart/features/item/controllers/item_controller.dart';
 import 'package:sixam_mart/features/offer/controllers/offer_controller.dart';
+import 'package:sixam_mart/features/service_module/common/models/service_provider_model.dart';
+import 'package:sixam_mart/features/service_module/service_home/domain/models/service_model.dart';
+import 'package:sixam_mart/features/service_module/provider_details/widgets/provider_service_item_widget.dart';
+import 'package:sixam_mart/features/service_module/common/widgets/service_item_card.dart';
+import 'package:sixam_mart/features/service_module/service_home/widgets/service_verified_provider_card_widget.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
@@ -48,16 +54,29 @@ class _OfferScreenState extends State<OfferScreen> {
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
+  // Debounces search input so continuous typing hits the offers API only once
+  // the user pauses, instead of firing a request per keystroke.
+  Timer? _searchDebounce;
+
   int _selectedVisibleIndex = 0;
+
+  // The global module active when this screen was opened. Opening an offer detail
+  // switches the global module (via _applySelectedModule) so the details API uses
+  // the offer's module; on leaving we restore this so the caller screen keeps its
+  // own module. For the dashboard tab (never disposed on tab switch) the dashboard
+  // performs the restore; for pushed routes dispose() handles it.
+  ModuleModel? _entryModule;
 
   @override
   void initState() {
     super.initState();
 
     final SplashController splash = Get.find<SplashController>();
+    _entryModule = splash.module;
     final List<ModuleModel> visibleModules = _visibleModulesFrom(splash);
 
     int? initialModuleId;
+    String? initialModuleType;
     if (visibleModules.isNotEmpty) {
       final ModuleModel? currentSplashModule = _moduleAtSplashIndex(splash, splash.selectedModuleIndex);
       int matchIndex = -1;
@@ -66,13 +85,15 @@ class _OfferScreenState extends State<OfferScreen> {
       }
       _selectedVisibleIndex = matchIndex >= 0 ? matchIndex : 0;
       initialModuleId = visibleModules[_selectedVisibleIndex].id;
+      initialModuleType = visibleModules[_selectedVisibleIndex].moduleType;
     }
 
     // Offers are scoped by explicit moduleId only — the dashboard's selected
     // module index is intentionally left untouched here.
     Get.find<OfferController>().loadOffers(
       type: _typeForFilter(_selectedFilter), search: '',
-      moduleId: initialModuleId, clearModule: initialModuleId == null,
+      moduleId: initialModuleId, moduleType: initialModuleType,
+      clearModule: initialModuleId == null,
       reload: true, notify: false,
     );
   }
@@ -90,7 +111,7 @@ class _OfferScreenState extends State<OfferScreen> {
     // the dashboard's selected module index, so returning to the main screen
     // keeps its own selection. Detail navigation handles the header via
     // _applySelectedModule().
-    Get.find<OfferController>().setModuleFilter(module.id);
+    Get.find<OfferController>().setModuleFilter(module.id, moduleType: module.moduleType);
   }
 
   bool _isFoodModuleSelected(SplashController splash) {
@@ -101,9 +122,22 @@ class _OfferScreenState extends State<OfferScreen> {
 
   @override
   void dispose() {
+    // Restore the module that was active when this screen was opened (a pushed
+    // route restores on pop here; the dashboard tab is restored by the dashboard).
+    restoreEntryModule();
+    _searchDebounce?.cancel();
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  // Reverts any module change made while browsing offers back to the module that
+  // was active on entry, so the screen we return to keeps its own module/header.
+  void restoreEntryModule() {
+    final SplashController splash = Get.find<SplashController>();
+    if (splash.module?.id != _entryModule?.id) {
+      splash.setModule(_entryModule, notify: false);
+    }
   }
 
   String _typeForFilter(_OfferFilter filter) {
@@ -124,10 +158,15 @@ class _OfferScreenState extends State<OfferScreen> {
   }
 
   void _onSearchChanged(String value) {
-    Get.find<OfferController>().setSearchQuery(value);
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 500), () {
+      Get.find<OfferController>().setSearchQuery(value);
+    });
   }
 
   void _clearSearch() {
+    // Clearing is explicit — apply immediately and drop any pending debounce.
+    _searchDebounce?.cancel();
     _searchController.clear();
     Get.find<OfferController>().setSearchQuery('');
   }
@@ -137,8 +176,8 @@ class _OfferScreenState extends State<OfferScreen> {
     return stores.map(StoreOfferGroupData.fromStore).toList();
   }
 
-  // Point the active module at the offer's selected module so item/store details
-  // opened from here resolve under the correct module header.
+  // Point the active module at the offer's selected module so item/store/service
+  // details opened from here resolve under the correct module header.
   void _applySelectedModule() {
     final List<ModuleModel> visibleModules = _visibleModulesFrom(Get.find<SplashController>());
     if (visibleModules.isEmpty || _selectedVisibleIndex >= visibleModules.length) return;
@@ -148,6 +187,8 @@ class _OfferScreenState extends State<OfferScreen> {
       splash.setModule(module, notify: false);
     }
   }
+
+  // --- Food/ecommerce navigation ---
 
   void _openStore(StoreOfferGroupData data) {
     _applySelectedModule();
@@ -170,6 +211,22 @@ class _OfferScreenState extends State<OfferScreen> {
     );
   }
 
+  // --- Service module navigation ---
+
+  void _openServiceItem(Service service) {
+    _applySelectedModule();
+    Get.toNamed(RouteHelper.getServiceDetailsRoute(id: service.id ?? 0, slug: service.slug ?? ''));
+  }
+
+  void _openProvider(Store store) {
+    _applySelectedModule();
+    final ServiceProvider provider = ServiceProvider.fromStore(store);
+    Get.toNamed(
+      RouteHelper.getProviderDetailsRoute(store.id ?? 0, slug: store.slug),
+      arguments: provider,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final Color tinted = Color.alphaBlend(
@@ -189,12 +246,18 @@ class _OfferScreenState extends State<OfferScreen> {
           final int totalCount = controller.totalResultCount;
           final bool hasSearchText = controller.searchQuery.isNotEmpty;
           final bool isFood = _isFoodModuleSelected(Get.find<SplashController>());
+          final bool isService = controller.isServiceModule;
           final Size screenSize = MediaQuery.of(context).size;
           final double moduleTabHeight = (screenSize.height * 0.045).clamp(32.0, 44.0);
           final double typeFilterHeight = (screenSize.height * 0.072).clamp(50.0, 64.0);
           // Hide the module tab strip when there's nothing to switch between
           // (single module active).
           final bool showModuleTabs = _visibleModulesFrom(Get.find<SplashController>()).length > 1;
+
+          // Shimmer condition accounts for both food and service item lists.
+          final bool showShimmer = controller.isLoading &&
+              (isService ? controller.serviceItemList == null : controller.itemList == null) &&
+              controller.storeList == null;
 
           return CustomScrollView(controller: _scrollController, slivers: <Widget>[
 
@@ -232,44 +295,50 @@ class _OfferScreenState extends State<OfferScreen> {
                   count: totalCount,
                   onSelected: _selectFilter,
                   isFood: isFood,
+                  isService: isService,
+                  isLoading: controller.isLoading,
                 ),
               ),
             ),
 
-            if (controller.isLoading && controller.itemList == null && controller.storeList == null)
+            if (showShimmer)
               const SliverToBoxAdapter(child: _OfferShimmer())
             else
               SliverToBoxAdapter(
-                // The All & Restaurants tabs paginate the vertical store list; the
-                // Food tab paginates the vertical item list. (In the All tab the
-                // items rail is horizontal, so it stays on page one.)
+                // The All & Restaurants tabs paginate the vertical store/provider
+                // list; the Food/Services tab paginates the vertical item list.
+                // (In the All tab the items/services rail is horizontal, so it
+                // stays on page one.)
                 child: PaginatedListView(
                   scrollController: _scrollController,
                   totalSize: _selectedFilter == _OfferFilter.food
-                      ? controller.itemList?.totalSize
+                      ? (isService ? controller.serviceItemList?.totalSize : controller.itemList?.totalSize)
                       : controller.storeList?.totalSize,
                   offset: _selectedFilter == _OfferFilter.food
-                      ? controller.itemOffset
+                      ? (isService ? controller.serviceItemOffset : controller.itemOffset)
                       : controller.storeOffset,
                   onPaginate: _selectedFilter == _OfferFilter.food
-                      ? controller.paginateItems
+                      ? (isService ? controller.paginateServiceItems : controller.paginateItems)
                       : controller.paginateStores,
-                  itemView: _buildBody(
-                    context: context,
-                    items: items,
-                    restaurants: restaurants,
-                    exclusiveDeals: exclusiveDeals,
-                    isFood: isFood,
-                  ),
+                  itemView: isService
+                      ? _buildServiceBody(context: context, controller: controller)
+                      : _buildBody(
+                          context: context,
+                          items: items,
+                          restaurants: restaurants,
+                          exclusiveDeals: exclusiveDeals,
+                          isFood: isFood,
+                        ),
                 ),
               ),
 
-            // SliverToBoxAdapter(child: SizedBox(height: bottomNavClearance)),
           ]);
         }),
       ),
     );
   }
+
+  // ─── Food / Ecommerce / Grocery / Pharmacy body ────────────────────────────
 
   Widget _buildBody({
     required BuildContext context,
@@ -289,17 +358,8 @@ class _OfferScreenState extends State<OfferScreen> {
       return _buildNoResultsView(context: context);
     }
 
-    // final Size screenSize = MediaQuery.of(context).size;
-    // final double foodCardWidth = screenSize.width * 0.40;
-    // // The card's image is square (scales with width); the text block below is
-    // // font-driven (≈ constant), so add a clamped allowance instead of scaling
-    // // the whole height — keeps the card responsive without overflowing.
-    // final double foodListHeight = foodCardWidth + (screenSize.height * 0.19).clamp(140.0, 170.0);
     final double viewportWidth = MediaQuery.sizeOf(context).width;
     final double cardWidth = math.max(100, viewportWidth * 0.35);
-    // FoodItemCard = square image (height == cardWidth) + a fixed info block below
-    // it. Derive the list height from the card width (so the image never clips as
-    // the card scales) plus the info block, which grows with the text scale.
     final double textScale = MediaQuery.textScalerOf(context).scale(1.0);
     final double cardHeight = cardWidth + Dimensions.paddingSizeDefault + 130 * textScale;
 
@@ -311,7 +371,7 @@ class _OfferScreenState extends State<OfferScreen> {
           child: Text(isFood ? 'foods'.tr : 'items'.tr, style: robotoBold.copyWith(fontSize: Dimensions.fontSizeExtraLarge)),
         ),
         Gaps.verticalGapOf(Dimensions.paddingSizeDefault),
-        _PaginatedItemsRail(items: items, cardWidth: cardWidth, cardHeight: cardHeight),
+        _PaginatedItemsRail(items: items, cardWidth: cardWidth, cardHeight: cardHeight, onBeforeTap: _applySelectedModule),
       ],
       if (exclusiveDeals.isNotEmpty)
         _OfferExclusiveDealsSection(stores: exclusiveDeals, onStoreTap: _openExclusiveStore),
@@ -363,7 +423,7 @@ class _OfferScreenState extends State<OfferScreen> {
                   bottom: BorderSide(color: Theme.of(context).disabledColor.withValues(alpha: 0.18)),
                 ),
               ),
-              child: ExclusiveDealCard(item: deal.toItem(), width: double.infinity),
+              child: ExclusiveDealCard(item: deal.toItem(), width: double.infinity, onBeforeTap: _applySelectedModule),
             );
           }).toList(),
         ),
@@ -406,6 +466,124 @@ class _OfferScreenState extends State<OfferScreen> {
     ]);
   }
 
+  // ─── Service module body ────────────────────────────────────────────────────
+
+  Widget _buildServiceBody({required BuildContext context, required OfferController controller}) {
+    final List<Service> services = controller.serviceItemList?.services ?? <Service>[];
+    final List<Store> providers = controller.storeList?.stores ?? <Store>[];
+
+    if (_selectedFilter == _OfferFilter.food) {
+      return _buildServiceOnlyBody(context: context, services: services);
+    }
+    if (_selectedFilter == _OfferFilter.restaurants) {
+      return _buildProviderOnlyBody(context: context, providers: providers);
+    }
+
+    // All tab
+    if (services.isEmpty && providers.isEmpty) {
+      return _buildNoResultsView(context: context);
+    }
+
+    final double viewportWidth = MediaQuery.sizeOf(context).width;
+    final double cardWidth = math.max(100, viewportWidth * 0.35);
+    final double textScale = MediaQuery.textScalerOf(context).scale(1.0);
+    final double cardHeight = cardWidth + Dimensions.paddingSizeDefault + 130 * textScale;
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+      if (services.isNotEmpty) ...<Widget>[
+        Gaps.verticalGapOf(Dimensions.paddingSizeDefault),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault),
+          child: Text('services'.tr, style: robotoBold.copyWith(fontSize: Dimensions.fontSizeExtraLarge)),
+        ),
+        Gaps.verticalGapOf(Dimensions.paddingSizeDefault),
+        _PaginatedServiceItemsRail(services: services, cardWidth: cardWidth, cardHeight: cardHeight, onTap: _openServiceItem),
+      ],
+      if (providers.isNotEmpty) ...<Widget>[
+        Gaps.verticalGapOf(Dimensions.paddingSizeSmall),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault),
+          child: Text('providers'.tr, style: robotoBold.copyWith(fontSize: Dimensions.fontSizeExtraLarge)),
+        ),
+        Gaps.verticalGapOf(Dimensions.paddingSizeLarge),
+        // Mirror the other modules' All tab: each provider renders as a store
+        // group (header + horizontal top-services rail) via StoreOfferGroup.
+        ...providers.map((Store store) {
+          return StoreOfferGroup(
+            data: StoreOfferGroupData.fromStore(store),
+            showBottomDivider: store != providers.last,
+            onStoreTap: () => _openProvider(store),
+            onItemTap: (TopItem item) => _openServiceTopItem(item),
+          );
+        }),
+      ],
+      Gaps.verticalGapOf(Dimensions.paddingSizeSmall),
+    ]);
+  }
+
+  // Opens a provider's top service (from the All-tab provider group). Applies the
+  // offer's selected module first so details resolve under the correct module.
+  void _openServiceTopItem(TopItem item) {
+    _applySelectedModule();
+    Get.toNamed(RouteHelper.getServiceDetailsRoute(id: item.id ?? 0, slug: item.slug ?? ''));
+  }
+
+  Widget _buildServiceOnlyBody({required BuildContext context, required List<Service> services}) {
+    if (services.isEmpty) {
+      return _buildNoResultsView(context: context);
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+      Gaps.verticalGapOf(Dimensions.paddingSizeDefault),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault),
+        child: Text('all_service_result'.tr, style: robotoBold.copyWith(fontSize: Dimensions.fontSizeExtraLarge)),
+      ),
+      ...services.map((Service service) {
+        final bool isLast = identical(service, services.last);
+        return Column(children: [
+          ProviderServiceItemWidget(service: service, onBeforeTap: _applySelectedModule),
+          if (!isLast) Divider(
+            color: Theme.of(context).disabledColor.withValues(alpha: 0.18),
+            height: 1, indent: Dimensions.paddingSizeDefault, endIndent: Dimensions.paddingSizeDefault,
+          ),
+        ]);
+      }),
+      Gaps.verticalGapOf(Dimensions.paddingSizeSmall),
+    ]);
+  }
+
+  Widget _buildProviderOnlyBody({required BuildContext context, required List<Store> providers}) {
+    if (providers.isEmpty) {
+      return _buildNoResultsView(context: context);
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+      Gaps.verticalGapOf(Dimensions.paddingSizeDefault),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault),
+        child: Text('all_provider_result'.tr, style: robotoBold.copyWith(fontSize: Dimensions.fontSizeExtraLarge)),
+      ),
+      Gaps.verticalGapOf(Dimensions.paddingSizeLarge),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault),
+        child: Column(
+          children: providers.map((Store store) {
+            final ServiceProvider provider = ServiceProvider.fromStore(store);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: Dimensions.paddingSizeDefault),
+              child: GestureDetector(
+                onTap: () => _openProvider(store),
+                child: AbsorbPointer(
+                  child: ServiceVerifiedProviderCard(provider: provider, width: double.infinity),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+      Gaps.verticalGapOf(Dimensions.paddingSizeSmall),
+    ]);
+  }
+
   Widget _buildNoResultsView({required BuildContext context}) {
     return Padding(
       padding: const EdgeInsets.all(Dimensions.paddingSizeLarge),
@@ -428,16 +606,16 @@ class _OfferScreenState extends State<OfferScreen> {
   }
 }
 
-// Horizontal items rail for the All tab. Paginates the item list sideways:
-// scrolling to the right edge fetches the next page and appends to the rail,
-// independent of the vertical store pagination. Mirrors PaginatedListView's
-// offset/dedup/loader logic but laid out horizontally.
+// Horizontal items rail for the All tab (food/ecommerce). Paginates the item
+// list sideways: scrolling to the right edge fetches the next page and appends
+// to the rail, independent of the vertical store pagination.
 class _PaginatedItemsRail extends StatefulWidget {
   final List<NewItem> items;
   final double cardWidth;
   final double cardHeight;
+  final VoidCallback? onBeforeTap;
 
-  const _PaginatedItemsRail({required this.items, required this.cardWidth, required this.cardHeight});
+  const _PaginatedItemsRail({required this.items, required this.cardWidth, required this.cardHeight, this.onBeforeTap});
 
   @override
   State<_PaginatedItemsRail> createState() => _PaginatedItemsRailState();
@@ -488,8 +666,7 @@ class _PaginatedItemsRailState extends State<_PaginatedItemsRail> {
   @override
   Widget build(BuildContext context) {
     // Sync to the controller's offset so a tab/module/search reset (offset → 1)
-    // also resets the rail's pagination. The _isLoading guard keeps an in-flight
-    // page from being re-triggered while this resyncs.
+    // also resets the rail's pagination.
     _offset = Get.find<OfferController>().itemOffset;
     _offsetList = <int>[for (int i = 1; i <= _offset; i++) i];
 
@@ -512,15 +689,106 @@ class _PaginatedItemsRailState extends State<_PaginatedItemsRail> {
               ),
             );
           }
-          return FoodItemCard(data: widget.items[index].toItem(), width: widget.cardWidth, index: index);
+          return FoodItemCard(data: widget.items[index].toItem(), width: widget.cardWidth, index: index, onBeforeTap: widget.onBeforeTap);
         },
       ),
     );
   }
 }
 
-// In-screen search field. Styled to match the offer screen's tinted background
-// (card-colored pill + light border) and filters offers in place via [onChanged].
+// Horizontal services rail for the All tab (service module). Mirrors
+// _PaginatedItemsRail but uses ServiceItemCard and serviceItemList.
+class _PaginatedServiceItemsRail extends StatefulWidget {
+  final List<Service> services;
+  final double cardWidth;
+  final double cardHeight;
+  final void Function(Service) onTap;
+
+  const _PaginatedServiceItemsRail({
+    required this.services, required this.cardWidth, required this.cardHeight, required this.onTap,
+  });
+
+  @override
+  State<_PaginatedServiceItemsRail> createState() => _PaginatedServiceItemsRailState();
+}
+
+class _PaginatedServiceItemsRailState extends State<_PaginatedServiceItemsRail> {
+  final ScrollController _railController = ScrollController();
+  int _offset = 1;
+  List<int> _offsetList = <int>[1];
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _railController.addListener(_handleScroll);
+  }
+
+  @override
+  void dispose() {
+    _railController.removeListener(_handleScroll);
+    _railController.dispose();
+    super.dispose();
+  }
+
+  void _handleScroll() {
+    if (_isLoading || !_railController.hasClients) return;
+    final int? total = Get.find<OfferController>().serviceItemList?.totalSize;
+    if (total == null) return;
+    if (_railController.position.pixels >= _railController.position.maxScrollExtent - 100) {
+      _paginate(total);
+    }
+  }
+
+  Future<void> _paginate(int total) async {
+    final int pageSize = (total / OfferController.pageLimit).ceil();
+    if (_offset >= pageSize || _offsetList.contains(_offset + 1)) return;
+
+    setState(() {
+      _offset += 1;
+      _offsetList.add(_offset);
+      _isLoading = true;
+    });
+    await Get.find<OfferController>().paginateServiceItems(_offset);
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Sync to the controller's offset so a tab/module/search reset (offset → 1)
+    // also resets the rail's pagination.
+    _offset = Get.find<OfferController>().serviceItemOffset;
+    _offsetList = <int>[for (int i = 1; i <= _offset; i++) i];
+
+    final int count = widget.services.length + (_isLoading ? 1 : 0);
+    return SizedBox(
+      height: widget.cardHeight,
+      child: ListView.separated(
+        controller: _railController,
+        scrollDirection: Axis.horizontal,
+        primary: false,
+        padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault),
+        itemCount: count,
+        separatorBuilder: (BuildContext context, int index) => Gaps.horizontalGapOf(Dimensions.paddingSizeSmall),
+        itemBuilder: (BuildContext context, int index) {
+          if (index >= widget.services.length) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault),
+                child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+            );
+          }
+          final Service service = widget.services[index];
+          return ServiceItemCard(service: service, width: widget.cardWidth, onTap: () => widget.onTap(service));
+        },
+      ),
+    );
+  }
+}
+
+// In-screen search field.
 class _OfferSearchBar extends StatelessWidget {
   final TextEditingController controller;
   final bool hasText;
@@ -682,6 +950,7 @@ class _OfferModuleTabs extends StatelessWidget {
     if (moduleType == AppConstants.grocery) return 'Grocery';
     if (moduleType == AppConstants.ecommerce) return 'Shop';
     if (moduleType == AppConstants.pharmacy) return 'Pharmacy';
+    if (moduleType == AppConstants.service) return 'Service';
     return moduleType.isNotEmpty ? moduleType : 'Module';
   }
 }
@@ -691,8 +960,13 @@ class _OfferTypeFilterBar extends StatelessWidget {
   final int count;
   final ValueChanged<_OfferFilter> onSelected;
   final bool isFood;
+  final bool isService;
+  final bool isLoading;
 
-  const _OfferTypeFilterBar({required this.selected, required this.count, required this.onSelected, required this.isFood});
+  const _OfferTypeFilterBar({
+    required this.selected, required this.count, required this.onSelected, required this.isFood, required this.isService,
+    required this.isLoading,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -701,10 +975,14 @@ class _OfferTypeFilterBar extends StatelessWidget {
       Theme.of(context).disabledColor.withAlpha(30),
       Theme.of(context).cardColor,
     );
+
+    final String itemLabel = isService ? 'services'.tr : (isFood ? 'food'.tr : 'items'.tr);
+    final String storeLabel = isService ? 'providers'.tr : (isFood ? 'restaurants'.tr : 'stores'.tr);
+
     final List<(_OfferFilter, String)> tabs = <(_OfferFilter, String)>[
       (_OfferFilter.all, 'all'.tr),
-      (_OfferFilter.food, isFood ? 'food'.tr : 'items'.tr),
-      (_OfferFilter.restaurants, isFood ? 'restaurants'.tr : 'stores'.tr),
+      (_OfferFilter.food, itemLabel),
+      (_OfferFilter.restaurants, storeLabel),
     ];
 
     return _SolidBar(
@@ -714,12 +992,11 @@ class _OfferTypeFilterBar extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                _ResultCountBar(count: count),
+                _ResultCountBar(count: count, isLoading: isLoading),
                 const Spacer(),
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: Dimensions.paddingSizeDefault,
-                    // vertical: Dimensions.paddingSizeExtraSmall,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -783,7 +1060,8 @@ class _FilterChipItem extends StatelessWidget {
 
 class _ResultCountBar extends StatelessWidget {
   final int count;
-  const _ResultCountBar({required this.count});
+  final bool isLoading;
+  const _ResultCountBar({required this.count, required this.isLoading});
 
   @override
   Widget build(BuildContext context) {
@@ -792,19 +1070,26 @@ class _ResultCountBar extends StatelessWidget {
         horizontal: Dimensions.paddingSizeDefault,
         vertical: Dimensions.paddingSizeSmall,
       ),
-      child: Text(
-        '$count ${'results'.tr}',
-        style: robotoBold.copyWith(
-          fontSize: Dimensions.fontSizeSmall,
-          color: Theme.of(context).disabledColor,
-        ),
-      ),
+      // While a fresh page is fetching the result total is not yet known, so show
+      // a shimmer placeholder instead of a misleading "0 results".
+      child: isLoading
+          ? Shimmer(
+              duration: const Duration(seconds: 2),
+              child: const _ShimmerBar(width: 56, height: 14),
+            )
+          : Text(
+              '$count ${'results'.tr}',
+              style: robotoBold.copyWith(
+                fontSize: Dimensions.fontSizeSmall,
+                color: Theme.of(context).disabledColor,
+              ),
+            ),
     );
   }
 }
 
 // Horizontal "Exclusive Deals" store carousel shown in the All tab (after the
-// items rail), mirroring search_result_section.dart's _ExclusiveDealsSection.
+// items rail), for non-service modules only.
 class _OfferExclusiveDealsSection extends StatelessWidget {
   final List<Store> stores;
   final void Function(Store store) onStoreTap;
@@ -856,8 +1141,7 @@ class _OfferExclusiveDealsSection extends StatelessWidget {
 }
 
 // Initial-load placeholder that mirrors the offer body (an items rail + a few
-// store-offer cards), shown only while the first page is fetching. Pagination
-// keeps its own circular loader.
+// store-offer cards), shown only while the first page is fetching.
 class _OfferShimmer extends StatelessWidget {
   const _OfferShimmer();
 
@@ -990,4 +1274,3 @@ Color _shimmerColor(BuildContext context) {
   final bool isDark = Theme.of(context).brightness == Brightness.dark;
   return isDark ? Colors.white.withValues(alpha: 0.18) : const Color(0xFFE9E9E9);
 }
-

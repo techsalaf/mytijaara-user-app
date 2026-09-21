@@ -2,7 +2,7 @@ import 'package:get/get.dart';
 import 'package:sixam_mart/common/enums/data_source_enum.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/store/domain/models/cart_suggested_item_model.dart';
-import 'package:sixam_mart/features/store/domain/models/store_category_items_model.dart';
+import 'package:sixam_mart/features/store/domain/models/store_category_item_model.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 import 'package:sixam_mart/common/models/module_model.dart';
 import 'package:sixam_mart/features/store/domain/models/recommended_product_model.dart';
@@ -12,7 +12,6 @@ import 'package:sixam_mart/features/location/domain/models/zone_response_model.d
 import 'package:sixam_mart/features/store/domain/repositories/store_repository_interface.dart';
 import 'package:sixam_mart/features/store/domain/services/store_service_interface.dart';
 import 'package:sixam_mart/helper/address_helper.dart';
-import 'package:sixam_mart/util/app_constants.dart';
 
 class StoreService implements StoreServiceInterface {
   final StoreRepositoryInterface storeRepositoryInterface;
@@ -96,7 +95,12 @@ class StoreService implements StoreServiceInterface {
   }
 
   @override
-  Future<StoreCategoryItemsModel?> getStoreCategoryItems(int storeId) async {
+  Future<StoreModel?> getVerifiedStores({int offset = 1, int limit = 10, String? type}) async {
+    return await storeRepositoryInterface.getVerifiedStores(offset: offset, limit: limit, type: type);
+  }
+
+  @override
+  Future<StoreCategoryItemModel?> getStoreCategoryItems(int storeId) async {
     return await storeRepositoryInterface.getStoreCategoryItems(storeId);
   }
 
