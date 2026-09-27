@@ -1,65 +1,64 @@
 {
   "project_info": {
-    "project_number": "491987943015",
-    "project_id": "stackmart-500c7",
-    "storage_bucket": "stackmart-500c7.appspot.com"
+    "project_number": "1017926959065",
+    "project_id": "mytijaara-21638",
+    "storage_bucket": "mytijaara-21638.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:491987943015:android:a6fb4303cc4bf3d18f1ec2",
+        "mobilesdk_app_id": "1:1017926959065:android:39237005c9d1b2517e23c8",
         "android_client_info": {
           "package_name": "com.mytijaara.app"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "491987943015-agln6biv84krpnngdphj87jkko7r9lb8.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyCc3OCd5I2xSlnftZ4bFAbuCzMhgQHLivA"
+          "current_key": "AIzaSyA0Zw-TDDsITbuuu10HdxpAHxf9nTVPZc8"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "491987943015-agln6biv84krpnngdphj87jkko7r9lb8.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
+          "other_platform_oauth_client": []
         }
       }
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:491987943015:android:de46aa9776b1b4888f1ec2",
+        "mobilesdk_app_id": "1:1017926959065:android:e208e01c4f2cbc627e23c8",
         "android_client_info": {
-          "package_name": "com.sixamtech.stack_food_user"
+          "package_name": "com.mytijaara.rider"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "491987943015-agln6biv84krpnngdphj87jkko7r9lb8.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyCc3OCd5I2xSlnftZ4bFAbuCzMhgQHLivA"
+          "current_key": "AIzaSyA0Zw-TDDsITbuuu10HdxpAHxf9nTVPZc8"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "491987943015-agln6biv84krpnngdphj87jkko7r9lb8.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1017926959065:android:007a6011921801967e23c8",
+        "android_client_info": {
+          "package_name": "com.mytijaara.vendor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA0Zw-TDDsITbuuu10HdxpAHxf9nTVPZc8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
         }
       }
     }
