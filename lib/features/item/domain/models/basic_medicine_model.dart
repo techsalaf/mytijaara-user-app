@@ -1,3 +1,5 @@
+import 'package:sixam_mart/api/response_parser.dart';
+import 'package:sixam_mart/common/models/pagination_model.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 
 class BasicMedicineModel {
@@ -16,20 +18,28 @@ class BasicMedicineModel {
   });
 
   BasicMedicineModel.fromJson(Map<String, dynamic> json) {
-    totalSize = json['total_size'];
-    limit = json['limit'];
-    offset = json['offset'];
-    if (json['products'] != null) {
+    // Paging is flat on the legacy format and nested under `pagination` now;
+    // the field names here are unchanged so callers need no edit.
+    final PaginationModel pagination = PaginationModel.fromJson(json);
+    totalSize = pagination.totalSize;
+    limit = pagination.limit?.toString();
+    offset = pagination.offset?.toString();
+    // `products` was the legacy key for this list; it is `data` now.
+    final List<dynamic>? productJson = ResponseParser.listOf(json, legacyKey: 'products');
+    if (productJson != null) {
       products = [];
-      json['products'].forEach((v) {
+      for (final dynamic v in productJson) {
         products!.add(Item.fromJson(v));
-      });
+      }
     }
-    if (json['categories'] != null) {
+    // `categories` sits beside the product list, so read it by name — a `data`
+    // fallback here would return the products again.
+    final List<dynamic> categoryJson = ResponseParser.namedListOf(json, 'categories');
+    if (categoryJson.isNotEmpty) {
       categories = <Categories>[];
-      json['categories'].forEach((v) {
+      for (final dynamic v in categoryJson) {
         categories!.add(Categories.fromJson(v));
-      });
+      }
     }
   }
 

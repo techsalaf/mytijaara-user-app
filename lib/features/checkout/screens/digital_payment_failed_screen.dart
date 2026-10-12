@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:sixam_mart/features/checkout/controllers/checkout_controller.dart';
 import 'package:sixam_mart/common/widgets/custom_button.dart';
 import 'package:sixam_mart/common/widgets/custom_snackbar.dart';
 import 'package:sixam_mart/features/auth/controllers/auth_controller.dart';
@@ -222,6 +223,15 @@ class PaymentIncompleteView extends StatelessWidget {
                       height: 50.0,
                       child: OutlinedButton(
                         onPressed: () {
+                          // A trip settles through `rental/user/trip/payment`;
+                          // `switchToCOD` posts to the mart order endpoint and
+                          // would act on the wrong record with a trip id.
+                          if(CheckoutController.isTripPayment(orderController.paymentModel)) {
+                            final CheckoutController checkoutController = Get.find<CheckoutController>();
+                            checkoutController.setPaymentMethod(0, isUpdate: false);
+                            checkoutController.paymentAfterDigitalCancel(orderController.paymentModel!, false);
+                            return;
+                          }
                           if((((orderController.paymentModel?.maxCodOrderAmount != null && orderController.paymentModel!.orderAmount! < orderController.paymentModel!.maxCodOrderAmount!) || orderController.paymentModel!.maxCodOrderAmount == null || orderController.paymentModel!.maxCodOrderAmount == 0) && orderController.paymentModel!.orderType != 'parcel') || orderController.paymentModel!.orderType == 'parcel'){
                             orderController.switchToCOD(orderController.paymentModel!.orderID, guestId: orderController.paymentModel!.guestId).then((success){
                               if(success){

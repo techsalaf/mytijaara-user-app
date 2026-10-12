@@ -17,6 +17,11 @@ class AdvertisementController extends GetxController implements GetxService {
 
   bool autoPlay = true;
 
+  void clearAdvertisementList() {
+    _advertisementList = null;
+    _currentIndex = 0;
+  }
+
   Future<void> getAdvertisementList({DataSourceEnum dataSource = DataSourceEnum.local}) async {
     List<AdvertisementModel>? responseAdvertisement;
     if(dataSource == DataSourceEnum.local) {

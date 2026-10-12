@@ -20,6 +20,12 @@ class _BestReviewItemViewState extends State<BestReviewItemView> {
   ScrollController scrollController = ScrollController();
 
   @override
+  void dispose() {
+    scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return GetBuilder<ItemController>(builder: (itemController) {
       List<Item>? reviewItemList = itemController.reviewedItemList;

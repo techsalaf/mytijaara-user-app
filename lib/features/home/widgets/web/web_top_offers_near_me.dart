@@ -180,6 +180,11 @@ class _WebTopOffersNearMeState extends State<WebTopOffersNearMe> {
     double distance = Get.find<StoreController>().getRestaurantDistance(
       LatLng(double.parse(store.latitude!), double.parse(store.longitude!)),
     );
+    // The API's label is server-computed and already in the platform's configured
+    // unit; the client-side haversine above stays as the fallback for payloads
+    // without one.
+    final String distanceText = store.distanceLabel
+        ?? '${distance > 100 ? '100+' : distance.toStringAsFixed(2)} ${'km'.tr}';
     double discount = store.discount?.discount ?? 0;
     String discountType = store.discount?.discountType ?? '';
     bool isRightSide = Get.find<SplashController>().configModel!.currencySymbolDirection == 'right';
@@ -290,7 +295,7 @@ class _WebTopOffersNearMeState extends State<WebTopOffersNearMe> {
                                 ]),
 
                                 if(isPharmacy)
-                                  distanceWidget(distance),
+                                  distanceWidget(distanceText),
 
 
                               ]),
@@ -300,7 +305,7 @@ class _WebTopOffersNearMeState extends State<WebTopOffersNearMe> {
                         ),
                         const SizedBox(height: Dimensions.paddingSizeSmall),
 
-                        isPharmacy ?  const SizedBox(height: 10) : isFood ? distanceWidget(distance) : Expanded(
+                        isPharmacy ?  const SizedBox(height: 10) : isFood ? distanceWidget(distanceText) : Expanded(
                           flex: 3,
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeSmall, vertical: 3),
@@ -317,7 +322,7 @@ class _WebTopOffersNearMeState extends State<WebTopOffersNearMe> {
                                   const SizedBox(width: Dimensions.paddingSizeExtraSmall),
 
                                   Text(
-                                    '${distance > 100 ? '100+' : distance.toStringAsFixed(2)} ${'km'.tr}',
+                                    distanceText,
                                     style: robotoBold.copyWith(fontSize: Dimensions.fontSizeExtraSmall, color: Theme.of(context).primaryColor),
                                   ),
                                   const SizedBox(width: Dimensions.paddingSizeExtraSmall),
@@ -394,7 +399,7 @@ class _WebTopOffersNearMeState extends State<WebTopOffersNearMe> {
     );
   }
 
-  Widget distanceWidget(double distance) {
+  Widget distanceWidget(String distanceText) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeSmall, vertical: 3),
       decoration: BoxDecoration(
@@ -406,7 +411,7 @@ class _WebTopOffersNearMeState extends State<WebTopOffersNearMe> {
         const SizedBox(width: Dimensions.paddingSizeExtraSmall),
 
         Text(
-          '${distance > 100 ? '100+' : distance.toStringAsFixed(2)} ${'km'.tr}',
+          distanceText,
           style: robotoBold.copyWith(fontSize: Dimensions.fontSizeExtraSmall, color: Theme.of(context).disabledColor),
         ),
         const SizedBox(width: Dimensions.paddingSizeExtraSmall),

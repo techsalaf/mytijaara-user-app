@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'package:get/get.dart';
 import 'package:sixam_mart/api/api_client.dart';
+import 'package:sixam_mart/api/response_parser.dart';
 import 'package:sixam_mart/api/local_client.dart';
 import 'package:sixam_mart/common/enums/data_source_enum.dart';
 import 'package:sixam_mart/features/parcel/domain/models/parcel_cancellation_reasons_model.dart';
 import 'package:sixam_mart/features/parcel/domain/models/parcel_category_model.dart';
 import 'package:sixam_mart/features/parcel/domain/models/parcel_instruction_model.dart';
+import 'package:sixam_mart/features/parcel/domain/models/parcel_tier_model.dart';
 import 'package:sixam_mart/features/parcel/domain/models/video_content_model.dart';
 import 'package:sixam_mart/features/parcel/domain/models/why_choose_model.dart';
 import 'package:sixam_mart/features/parcel/domain/repositories/parcel_repository_interface.dart';
@@ -40,13 +42,13 @@ class ParcelRepository implements ParcelRepositoryInterface {
         Response response = await apiClient.getData(AppConstants.videoContentUri);
         if(response.statusCode == 200) {
           videoContentDetails = VideoContentModel.fromJson(response.body);
-          LocalClient.organize(source, cacheId, jsonEncode(response.body), apiClient.getHeader());
+          LocalClient.organize(source, cacheId, response.bodyString ?? '', apiClient.getHeader());
         }
 
       case DataSourceEnum.local:
         String? cacheResponseData = await LocalClient.organize(source, cacheId, null, null);
         if(cacheResponseData != null) {
-          videoContentDetails = VideoContentModel.fromJson(jsonDecode(cacheResponseData));
+          videoContentDetails = VideoContentModel.fromJson(ResponseParser.payloadOf(jsonDecode(cacheResponseData)));
         }
     }
     return videoContentDetails;
@@ -62,13 +64,13 @@ class ParcelRepository implements ParcelRepositoryInterface {
         Response response = await apiClient.getData(AppConstants.whyChooseUri);
         if(response.statusCode == 200) {
           whyChooseDetails = WhyChooseModel.fromJson(response.body);
-          LocalClient.organize(source, cacheId, jsonEncode(response.body), apiClient.getHeader());
+          LocalClient.organize(source, cacheId, response.bodyString ?? '', apiClient.getHeader());
         }
 
       case DataSourceEnum.local:
         String? cacheResponseData = await LocalClient.organize(source, cacheId, null, null);
         if(cacheResponseData != null) {
-          whyChooseDetails = WhyChooseModel.fromJson(jsonDecode(cacheResponseData));
+          whyChooseDetails = WhyChooseModel.fromJson(ResponseParser.payloadOf(jsonDecode(cacheResponseData)));
         }
     }
     return whyChooseDetails;
@@ -88,7 +90,9 @@ class ParcelRepository implements ParcelRepositoryInterface {
     Response response = await apiClient.getData(AppConstants.parcelCategoryUri);
     if(response.statusCode == 200) {
       parcelCategoryList = [];
-      response.body.forEach((parcel) => parcelCategoryList!.add(ParcelCategoryModel.fromJson(parcel)));
+      for (final dynamic parcel in ResponseParser.listOrEmpty(response.body)) {
+        parcelCategoryList.add(ParcelCategoryModel.fromJson(parcel));
+      }
     }
     return parcelCategoryList;
   }
@@ -111,6 +115,40 @@ class ParcelRepository implements ParcelRepositoryInterface {
       cancellationReasonsModel = ParcelCancellationReasonsModel.fromJson(response.body);
     }
     return cancellationReasonsModel;
+  }
+
+  /// The weight bands this `(zone, module)` prices by.
+  ///
+  /// `zone_id` is required and **singular** — a delivery rule is looked up for
+  /// exactly one zone, while the `zoneId` header carries a list wherever zones
+  /// overlap. `module_id` is sent explicitly rather than left to the `moduleId`
+  /// header for the same reason as `delivery-charge/coverage-list`: the header
+  /// is not enforced on this path, and the wrong module resolves a different rule.
+  ///
+  /// `handleError: false` because an empty or switched-off tier is an ordinary
+  /// answer, not something to pop a snackbar at the customer over.
+  @override
+  Future<ParcelTierListModel<ParcelWeightModel>?> getParcelWeightList({required int zoneId, int? moduleId}) async {
+    return await _getParcelTierList(
+      AppConstants.parcelWeightUri, zoneId, moduleId, ParcelWeightModel.fromJson,
+    );
+  }
+
+  @override
+  Future<ParcelTierListModel<ParcelDimensionModel>?> getParcelDimensionList({required int zoneId, int? moduleId}) async {
+    return await _getParcelTierList(
+      AppConstants.parcelDimensionUri, zoneId, moduleId, ParcelDimensionModel.fromJson,
+    );
+  }
+
+  Future<ParcelTierListModel<T>?> _getParcelTierList<T>(String uri, int zoneId, int? moduleId,
+      T Function(Map<String, dynamic>) rowFromJson) async {
+    final String moduleQuery = moduleId != null ? '&module_id=$moduleId' : '';
+    final Response response = await apiClient.getData('$uri?zone_id=$zoneId$moduleQuery', handleError: false);
+    if (response.statusCode == 200 && response.body is Map) {
+      return ParcelTierListModel<T>.fromJson(Map<String, dynamic>.from(response.body as Map), rowFromJson);
+    }
+    return null;
   }
 
   @override

@@ -100,8 +100,8 @@ class CashBackDialogWidget extends StatelessWidget {
                 ),
 
               Container(
-                height: 80, width: 65,
-                margin: EdgeInsets.only(bottom: 20, right: ResponsiveHelper.isDesktop(context) ? 50 : 0),
+                height: 60,
+                margin: const EdgeInsets.only(bottom: 28, right: 0),
                 child: InkWell(onTap: () => Get.back(), child: const CashBackLogoWidget()),
               ),
             ],

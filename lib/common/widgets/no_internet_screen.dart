@@ -1,4 +1,5 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/images.dart';
@@ -18,7 +19,7 @@ class NoInternetScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(Images.noInternet, width: 300, height: 300),
+            Image.asset(Images.noInternet, width: 300, height: 300, cacheHeight: ImageCacheHelper.pixels(context, 300), cacheWidth: ImageCacheHelper.pixels(context, 300)),
             Text('oops'.tr, style: robotoBold.copyWith(
               fontSize: 30,
               color: Theme.of(context).textTheme.bodyLarge!.color,

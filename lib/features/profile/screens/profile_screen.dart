@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sixam_mart/common/widgets/custom_app_bar.dart';
-import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
 import 'package:sixam_mart/features/order/screens/my_items_screen.dart';
 import 'package:sixam_mart/features/order/screens/my_order_screen.dart';
+import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
 import 'package:sixam_mart/features/profile/domain/constant.dart';
 import 'package:sixam_mart/features/profile/widgets/profile_header_card_widget.dart';
 import 'package:sixam_mart/features/profile/widgets/profile_logout_button_widget.dart';
@@ -14,7 +14,6 @@ import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/helper/module_helper.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
-import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/images.dart';
 
@@ -107,13 +106,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           iconAsset: Images.monthlyCart,
           onTap: () => Get.to(() => const MyItemsScreen()),
         ),
-      if(AuthHelper.isLoggedIn() && ModuleHelper.isActiveServiceModule())
+      if(AuthHelper.isLoggedIn() && ModuleHelper.isActiveServiceModule() && (Get.find<SplashController>().configModel?.serviceModule?.biddingSystem ?? false))
         ProfileMenuItem(
           titleKey: 'custom_service',
           iconAsset: Images.servicePostCustomizedIcon,
           route: RouteHelper.getCustomServiceListRoute(),
         ),
-      if(AuthHelper.isLoggedIn() && ModuleHelper.isActiveServiceModule())
+      if(AuthHelper.isLoggedIn() && ModuleHelper.isActiveServiceModule() && (Get.find<SplashController>().configModel?.serviceModule?.biddingSystem ?? false))
         ProfileMenuItem(
           titleKey: 'requested_service',
           iconAsset: Images.serviceQuickEmergencyIcon,
@@ -269,3 +268,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return items;
   }
 }
+
+// SUMMARY
+// Profile screen. Shows the customer's details and the menu of profile actions —
+// addresses, coupons, subscription, service and booking entries, settings and logout —
+// with each entry shown only when login state and config allow it.

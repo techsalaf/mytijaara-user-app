@@ -223,10 +223,13 @@ class _PickMapScreenState extends State<PickMapScreen> {
                       child: CustomButton(
                         isBold: false,
                         radius: Dimensions.radiusSmall,
-                        buttonText: locationController.inZone ? widget.fromAddAddress ? 'pick_address'.tr : 'pick_location'.tr
+                        // Before the first zone answer there is nothing to refuse yet, so the
+                        // button reads as it normally would rather than opening with a refusal.
+                        buttonText: (!locationController.zoneChecked || locationController.inZone)
+                            ? widget.fromAddAddress ? 'pick_address'.tr : 'pick_location'.tr
                             : 'service_not_available_in_this_area'.tr,
-                        isLoading: locationController.isLoading,
-                        onPressed: locationController.isLoading ? (){} : (locationController.buttonDisabled || locationController.loading) ? null : () {
+                        isLoading: locationController.isLoading || locationController.isConfirmingAddress,
+                        onPressed: (locationController.isLoading || locationController.isConfirmingAddress) ? (){} : (locationController.buttonDisabled || locationController.loading) ? null : () {
                           _onPickAddressButtonPressed(locationController);
                         },
                       ),
@@ -348,26 +351,32 @@ class _PickMapScreenState extends State<PickMapScreen> {
               child: InkWell(
                 highlightColor: Colors.transparent,
                 splashColor: Colors.transparent,
-                  onTap: locationController.isLoading ? (){} : (locationController.buttonDisabled || locationController.loading) ? null : () {
+                  onTap: (locationController.isLoading || locationController.isConfirmingAddress) ? (){} : (locationController.buttonDisabled || locationController.loading || locationController.isConfirmingAddress) ? null : () {
                     _onPickAddressButtonPressed(locationController);
                   },
                 // onTap: (locationController.buttonDisabled || locationController.loading) ? null : () => _onPickAddressButtonPressed(locationController),
                 child: Builder(
                   builder: (context) {
-                    print('======Button Disabled: ${locationController.buttonDisabled}, Loading: ${locationController.loading}');
+                    // isConfirmingAddress covers the gap `loading` doesn't: the
+                    // connectivity check + zone lookup that runs after this
+                    // button is tapped, which previously showed no feedback at
+                    // all while it was in flight.
+                    final bool isBusy = locationController.loading || locationController.isConfirmingAddress;
                     return Container(
-                      padding: EdgeInsets.all(locationController.loading ? Dimensions.paddingSizeExtraSmall : Dimensions.paddingSizeDefault - 2),
+                      padding: EdgeInsets.all(isBusy ? Dimensions.paddingSizeExtraSmall : Dimensions.paddingSizeDefault - 2),
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: locationController.loading ? Theme.of(context).primaryColor.withValues(alpha: 0.8)
+                        color: isBusy ? Theme.of(context).primaryColor.withValues(alpha: 0.8)
                             : locationController.buttonDisabled ? Theme.of(context).disabledColor.withValues(alpha: 0.7)
                             : Theme.of(context).primaryColor,
                         borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
                       ),
-                      child: locationController.loading ? Center(
+                      child: isBusy ? Center(
                         child: LoadingAnimationWidget.waveDots(color: Colors.white, size: 40),
                       ) : Text(
-                        locationController.inZone ? widget.fromAddAddress ? 'confirm_location'.tr : widget.fromGuestCheckout ? 'confirm_address'.tr : 'confirm_location'.tr : 'service_not_available_in_this_area'.tr,
+                        (!locationController.zoneChecked || locationController.inZone)
+                            ? widget.fromAddAddress ? 'confirm_location'.tr : widget.fromGuestCheckout ? 'confirm_address'.tr : 'confirm_location'.tr
+                            : 'service_not_available_in_this_area'.tr,
                         style: robotoBold.copyWith(fontSize: Dimensions.fontSizeLarge, color: Colors.white),
                       ),
                     );
@@ -528,3 +537,7 @@ class _CircleIconButton extends StatelessWidget {
     );
   }
 }
+
+// SUMMARY
+// Map screen for picking a location. Shows the draggable map with search and current
+// location, and confirms the picked point once its zone is known.

@@ -1,8 +1,8 @@
 import 'package:carousel_slider/carousel_slider.dart';
-import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer_animation/shimmer_animation.dart';
+import 'package:sixam_mart/common/widgets/ad_video_player_widget.dart';
 import 'package:sixam_mart/common/widgets/custom_asset_image_widget.dart';
 import 'package:sixam_mart/common/widgets/custom_favourite_widget.dart';
 import 'package:sixam_mart/common/widgets/custom_image.dart';
@@ -18,7 +18,6 @@ import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/images.dart';
 import 'package:sixam_mart/util/styles.dart';
-import 'package:video_player/video_player.dart';
 
 import 'package:sixam_mart/features/store/screens/store_screen.dart';
 
@@ -242,142 +241,84 @@ class HighlightStoreWidget extends StatelessWidget {
   }
 }
 
-class HighlightVideoWidget extends StatefulWidget {
+class HighlightVideoWidget extends StatelessWidget {
   final AdvertisementModel advertisement;
   const HighlightVideoWidget({super.key, required this.advertisement});
 
   @override
-  State<HighlightVideoWidget> createState() => _HighlightVideoWidgetState();
-}
-
-class _HighlightVideoWidgetState extends State<HighlightVideoWidget> {
-
-  late VideoPlayerController videoPlayerController;
-  ChewieController? _chewieController;
-
-  @override
-  void initState() {
-    super.initState();
-    initializePlayer();
-
-    videoPlayerController.addListener(() {
-      if(videoPlayerController.value.duration == videoPlayerController.value.position){
-        if(GetPlatform.isWeb){
-          Future.delayed(const Duration(seconds: 4), () {
-            Get.find<AdvertisementController>().updateAutoPlayStatus(status: true, shouldUpdate: true);
-          });
-        }else{
-          Get.find<AdvertisementController>().updateAutoPlayStatus(status: true, shouldUpdate: true);
-        }
-      }
-    });
-  }
-
-  Future<void> initializePlayer() async {
-    videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(
-      widget.advertisement.videoAttachmentFullUrl ?? "",
-    ));
-
-    await Future.wait([
-      videoPlayerController.initialize(),
-    ]);
-
-    _createChewieController();
-    setState(() {});
-  }
-
-  void _createChewieController() {
-    _chewieController = ChewieController(
-      videoPlayerController: videoPlayerController,
-      autoPlay: true,
-      aspectRatio: videoPlayerController.value.aspectRatio * (ResponsiveHelper.isDesktop(context) ? 1 : 1.3),
-    );
-    _chewieController?.setVolume(0);
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return GetBuilder<AdvertisementController>(builder: (advertisementController) {
-      return Container(
-        margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-        height: 280,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
-          color: Theme.of(context).cardColor,
-          border: Border.all(color: Theme.of(context).disabledColor.withValues(alpha: 0.07), width: 2),
-        ),
-        child: Column(children: [
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+      height: 280,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
+        color: Theme.of(context).cardColor,
+        border: Border.all(color: Theme.of(context).disabledColor.withValues(alpha: 0.07), width: 2),
+      ),
+      child: Column(children: [
 
-          Expanded(
-            flex: 5,
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(Dimensions.radiusDefault)),
-              child: Stack(
-                children: [
-                  _chewieController != null &&  _chewieController!.videoPlayerController.value.isInitialized ? Stack(
-                    children: [
-                      Container(color: Colors.black, child: Chewie(controller: _chewieController!)),
-                    ],
-                  ) : const Center(child: CircularProgressIndicator()),
-                ],
-              ),
+        Expanded(
+          flex: 5,
+          child: ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(Dimensions.radiusDefault)),
+            // The 1.3 multiplier is a deliberate horizontal stretch this layout has
+            // always applied on non-desktop, kept for visual parity. Reading it here
+            // rather than at player-init time also lets it react to web resizes.
+            child: AdVideoPlayerWidget(
+              videoUrl: advertisement.videoAttachmentFullUrl ?? '',
+              aspectRatioMultiplier: ResponsiveHelper.isDesktop(context) ? 1 : 1.3,
             ),
           ),
+        ),
 
-          Expanded(
-            flex: 3,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(
+          flex: 3,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-                Text(
-                  widget.advertisement.title ?? '',
-                  style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeLarge, fontWeight: FontWeight.w600),
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
+              Text(
+                advertisement.title ?? '',
+                style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeLarge, fontWeight: FontWeight.w600),
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: Dimensions.paddingSizeExtraSmall),
+
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+                Expanded(
+                  child: Text(
+                    advertisement.description ?? '',
+                    style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).hintColor),
+                    maxLines: 2, overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                const SizedBox(height: Dimensions.paddingSizeExtraSmall),
+                const SizedBox(width: Dimensions.paddingSizeDefault),
 
-                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-
-                  Expanded(
-                    child: Text(
-                      widget.advertisement.description ?? '',
-                      style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).hintColor),
-                      maxLines: 2, overflow: TextOverflow.ellipsis,
+                InkWell(
+                  onTap: (){
+                    Get.toNamed(RouteHelper.getStoreRoute(id: advertisement.storeId, page: 'store_new', slug: ''),
+                      arguments: StoreScreen(store: Store(id: advertisement.storeId), fromModule: false),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).primaryColor,
+                      borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
                     ),
+                    child: Icon(Icons.arrow_forward, color: Theme.of(context).cardColor, size: 20),
                   ),
-                  const SizedBox(width: Dimensions.paddingSizeDefault),
-
-                  InkWell(
-                    onTap: (){
-                      Get.toNamed(RouteHelper.getStoreRoute(id: widget.advertisement.storeId, page: 'store_new', slug: ''),
-                        arguments: StoreScreen(store: Store(id: widget.advertisement.storeId), fromModule: false),
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).primaryColor,
-                        borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
-                      ),
-                      child: Icon(Icons.arrow_forward, color: Theme.of(context).cardColor, size: 20),
-                    ),
-                  ),
-
-                ]),
+                ),
 
               ]),
-            ),
-          ),
 
-        ]),
-      );
-    });
+            ]),
+          ),
+        ),
+
+      ]),
+    );
   }
 }
 

@@ -74,6 +74,20 @@ class DateConverter {
     return DateFormat('yyyy-MM-dd HH:mm:ss').parse(dateTime);
   }
 
+  /// A [DateTime] from an API timestamp, or null when the field is absent or
+  /// unparseable.
+  ///
+  /// Handles both shapes the API sends — `'yyyy-MM-dd HH:mm:ss'` (transaction
+  /// payloads) and ISO-8601 — and never throws: several endpoints have dropped
+  /// timestamp fields entirely, and a throwing parse took the whole list down with
+  /// it rather than just leaving one date blank.
+  static DateTime? apiStringToDateOrNull(String? dateTime) {
+    if (dateTime == null || dateTime.isEmpty) {
+      return null;
+    }
+    return DateTime.tryParse(dateTime);
+  }
+
   /// Combines an API date ('yyyy-MM-dd') and optional time ('HH:mm:ss' / 'HH:mm')
   /// into a local DateTime. Returns null when the date is missing or unparseable.
   static DateTime? dateAndTimeStringToDate(String? date, String? time) {
@@ -319,6 +333,33 @@ class DateConverter {
     }
   }
 
+  /// `Today` / `Tomorrow` / `12 Sep, 2026` for a date the customer is waiting on.
+  ///
+  /// The forward-looking twin of [dateKeyToTodayYesterdayLabel]: a delivery slot
+  /// or an ETA is never in the past, so "yesterday" is the wrong vocabulary for
+  /// it. Anything further out than tomorrow falls through to the same readable
+  /// date the rest of the app prints.
+  static String dateToTodayTomorrowLabel(DateTime date) {
+    final DateTime now = DateTime.now();
+    final DateTime today = DateTime(now.year, now.month, now.day);
+    // Built by incrementing the day field rather than adding 24 hours, so a DST
+    // shift cannot land "tomorrow" back on today.
+    final DateTime tomorrow = DateTime(now.year, now.month, now.day + 1);
+    final DateTime target = DateTime(date.year, date.month, date.day);
+    if (target == today) return 'today'.tr;
+    if (target == tomorrow) return 'tomorrow'.tr;
+    return dateToReadableDate(date);
+  }
+
+  /// Whether [date] falls on today's local calendar day.
+  ///
+  /// Distinct from [isSameDate], which compares down to the minute — this asks
+  /// only about the day, which is what "do we need to name the day?" needs.
+  static bool isSameCalendarDay(DateTime date) {
+    final DateTime now = DateTime.now();
+    return date.year == now.year && date.month == now.month && date.day == now.day;
+  }
+
   static String stringDateTimeToDate(String dateTime) {
     return DateFormat('dd MMM, yyyy').format(DateFormat('yyyy-MM-dd').parse(dateTime));
   }
@@ -509,6 +550,16 @@ class DateConverter {
     } catch (_) {
       return false;
     }
+  }
+
+  /// Seconds left until [dateTime], or 0 when it is missing, unparsable or already
+  /// past. Used as a fallback countdown when the server sends no remaining-seconds.
+  static int secondsUntil(String? dateTime) {
+    if (dateTime == null || dateTime.isEmpty) return 0;
+    final DateTime? target = DateTime.tryParse(dateTime);
+    if (target == null) return 0;
+    final int seconds = target.difference(DateTime.now()).inSeconds;
+    return seconds > 0 ? seconds : 0;
   }
 
 }

@@ -4,7 +4,6 @@ import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/common/models/config_model.dart';
 import 'package:sixam_mart/features/checkout/controllers/checkout_controller.dart';
 import 'package:sixam_mart/features/store/controllers/store_controller.dart';
-import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/helper/date_converter.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
@@ -138,7 +137,7 @@ class _TimeSlotBottomSheetState extends State<TimeSlotBottomSheet> {
                             itemCount: checkoutController.timeSlots!.length,
                             itemBuilder: (context, index){
                               String time = (index == 0 && checkoutController.selectedDateSlot == 0
-                                  && storeController.isStoreOpenNow(storeController.store!.active!, storeController.store!.schedules)
+                                  && storeController.isStoreOpen(storeController.store!)
                                   && (Get.find<SplashController>().configModel!.moduleConfig!.module!.orderPlaceToScheduleInterval! ? storeController.store!.orderPlaceToScheduleInterval == 0 : true))
                                   ? 'instance'.tr : '${DateConverter.dateToTimeOnly(checkoutController.timeSlots![index].startTime!)} '
                                   '- ${DateConverter.dateToTimeOnly(checkoutController.timeSlots![index].endTime!)}';
@@ -185,19 +184,6 @@ class _TimeSlotBottomSheetState extends State<TimeSlotBottomSheet> {
                       onPressed: () {
                         checkoutController.updateTimeSlot(selectedTimeSlotIndex);
                         checkoutController.setPreferenceTimeForView(selectedTimeSlot);
-
-                        DateTime scheduleEndDate = DateTime.now();
-
-                        DateTime date = checkoutController.selectedDateSlot == 0 ? DateTime.now() : DateTime.now().add(const Duration(days: 1));
-                        DateTime endTime = checkoutController.timeSlots![checkoutController.selectedTimeSlot].endTime!;
-                        scheduleEndDate = DateTime(date.year, date.month, date.day, endTime.hour, endTime.minute+1);
-
-                        checkoutController.getSurgePrice(
-                          zoneId: checkoutController.store!.zoneId.toString(),
-                          moduleId: checkoutController.store!.moduleId.toString(),
-                          dateTime: DateConverter.dateToDateAndTime(scheduleEndDate),
-                          guestId: AuthHelper.getGuestId(),
-                        );
                         Get.back();
                       },
                     ),

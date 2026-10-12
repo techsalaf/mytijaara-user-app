@@ -33,6 +33,13 @@ class _StoreItemSearchScreenState extends State<StoreItemSearchScreen> {
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return GetBuilder<StoreController>(
       builder: (storeController) {

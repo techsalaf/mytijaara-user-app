@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/common/widgets/custom_ink_well.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/styles.dart';
 
@@ -28,7 +29,12 @@ class ParcelCategoryCardWidget extends StatelessWidget {
 
   static const Color _extraColor = Color(0xFFEEEEEE);
 
-  Color _backgroundFor(int index) {
+  /// The pastel a card at [index] is painted with. The first four each get their
+  /// own; everything past them shares [_extraColor].
+  ///
+  /// Deliberately not part of the loading state — the skeleton draws one neutral
+  /// tile, so a half-loaded section never looks like finished content.
+  static Color _backgroundFor(int index) {
     if (index < _categoryColors.length) {
       return _categoryColors[index];
     }
@@ -81,7 +87,13 @@ class ParcelCategoryCardWidget extends StatelessWidget {
           ),
           const SizedBox(width: Dimensions.paddingSizeExtraSmall),
 
-          ClipRRect(borderRadius: BorderRadius.circular(Dimensions.radiusSmall), child: CustomImage(image: image, width: 40, height: 40,)),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+            child: CustomImage(
+              image: image, width: 40, height: 40,
+              cacheWidth: ImageCacheHelper.pixels(context, 40),
+            ),
+          ),
 
         ]),
       ),

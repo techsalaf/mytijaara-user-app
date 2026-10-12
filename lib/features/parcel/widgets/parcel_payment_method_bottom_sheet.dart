@@ -7,6 +7,7 @@ import 'package:sixam_mart/features/parcel/controllers/parcel_controller.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
 import 'package:sixam_mart/features/checkout/controllers/checkout_controller.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
@@ -79,13 +80,13 @@ class _ParcelPaymentMethodBottomSheetState extends State<ParcelPaymentMethodBott
                     Text('total_bill'.tr, style: robotoMedium.copyWith(fontSize: 14, color: Colors.grey.shade700)),
                     const SizedBox(height: Dimensions.paddingSizeExtraSmall),
 
-                    Text(PriceConverter.convertPrice(widget.totalPrice), style: robotoMedium.copyWith(fontSize: 20, color: Theme.of(context).primaryColor)),
+                    Text(PriceConverter.convertPrice(widget.totalPrice), style: robotoMedium.copyWith(fontSize: 20)),
                     const SizedBox(height: Dimensions.paddingSizeLarge),
 
                     walletView(parcelController),
 
                     widget.isCashOnDeliveryActive ? paymentButtonView(
-                      padding: EdgeInsets.only(bottom: Dimensions.paddingSizeDefault),
+                      padding: const EdgeInsets.only(bottom: Dimensions.paddingSizeDefault),
                       title: 'cash_on_delivery'.tr,
                       isSelected: parcelController.paymentIndex == 0,
                       disablePayments: false,
@@ -186,6 +187,7 @@ class _ParcelPaymentMethodBottomSheetState extends State<ParcelPaymentMethodBott
             image != null ? CustomImage(
               height: 15, fit: BoxFit.contain,
               image: image, color: disablePayments ? Theme.of(context).disabledColor : null,
+              cacheWidth: ImageCacheHelper.pixels(context, 50),
             ) : const SizedBox(),
             const SizedBox(width: Dimensions.paddingSizeSmall),
 

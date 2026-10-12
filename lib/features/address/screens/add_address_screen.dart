@@ -122,6 +122,22 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
   @override
   void dispose() {
     _idleDebouncer.dispose();
+    _levelController.dispose();
+    _addressController.dispose();
+    _contactPersonNameController.dispose();
+    _contactPersonNumberController.dispose();
+    _streetNumberController.dispose();
+    _houseController.dispose();
+    _floorController.dispose();
+    _emailController.dispose();
+    _addressNode.dispose();
+    _levelNode.dispose();
+    _nameNode.dispose();
+    _numberNode.dispose();
+    _streetNode.dispose();
+    _houseNode.dispose();
+    _floorNode.dispose();
+    _emailFocus.dispose();
     super.dispose();
   }
 

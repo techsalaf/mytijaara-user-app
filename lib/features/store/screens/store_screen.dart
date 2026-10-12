@@ -4,7 +4,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
-import 'package:sliver_tools/sliver_tools.dart';
 import 'package:sixam_mart/common/widgets/avg_review_widget.dart';
 import 'package:sixam_mart/common/widgets/back_to_top.dart';
 import 'package:sixam_mart/common/widgets/cart_count_view.dart';
@@ -24,6 +23,12 @@ import 'package:sixam_mart/common/widgets/web_item_view.dart';
 import 'package:sixam_mart/common/widgets/web_item_widget.dart';
 import 'package:sixam_mart/common/widgets/web_menu_bar.dart';
 import 'package:sixam_mart/features/address/domain/models/address_model.dart';
+import 'package:sixam_mart/features/bogo_offer/controllers/bogo_offer_controller.dart';
+import 'package:sixam_mart/features/bogo_offer/domain/models/bogo_offer_model.dart';
+import 'package:sixam_mart/features/bogo_offer/widgets/bogo_store_section_widget.dart';
+import 'package:sixam_mart/features/bundle/controllers/bundle_controller.dart';
+import 'package:sixam_mart/features/bundle/widgets/bundle_items_tab_section.dart';
+import 'package:sixam_mart/features/bundle/widgets/bundle_store_section_widget.dart';
 import 'package:sixam_mart/features/cart/controllers/cart_controller.dart';
 import 'package:sixam_mart/features/cart/domain/models/all_carts_model.dart';
 import 'package:sixam_mart/features/cart/screens/cart_screen.dart';
@@ -31,8 +36,11 @@ import 'package:sixam_mart/features/category/controllers/category_controller.dar
 import 'package:sixam_mart/features/checkout/controllers/checkout_controller.dart';
 import 'package:sixam_mart/features/checkout/screens/checkout_screen.dart';
 import 'package:sixam_mart/features/coupon/domain/models/coupon_model.dart' hide Store;
+import 'package:sixam_mart/features/dashboard/widgets/bogo_offer_card_widget.dart';
 import 'package:sixam_mart/features/dashboard/widgets/last_orders_section_widget.dart';
 import 'package:sixam_mart/features/favourite/controllers/favourite_controller.dart';
+import 'package:sixam_mart/features/happy_hour/controllers/happy_hour_controller.dart';
+import 'package:sixam_mart/features/happy_hour/widgets/happy_hour_milestone_banner_widget.dart';
 import 'package:sixam_mart/features/item/controllers/item_controller.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 import 'package:sixam_mart/features/order/controllers/order_controller.dart';
@@ -48,10 +56,13 @@ import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 import 'package:sixam_mart/features/store/widgets/bottom_add_to_cart_widget.dart';
 import 'package:sixam_mart/features/store/widgets/coupon_clipper.dart';
 import 'package:sixam_mart/features/store/widgets/filter_widget.dart';
+import 'package:sixam_mart/features/store/widgets/store_bogo_offer_list_sheet.dart';
 import 'package:sixam_mart/features/store/widgets/store_description_view_widget.dart';
 import 'package:sixam_mart/features/store/widgets/store_screen_shimmer_widget.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/helper/date_converter.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
+import 'package:sixam_mart/helper/module_helper.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
@@ -60,6 +71,7 @@ import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/gaps.dart';
 import 'package:sixam_mart/util/images.dart';
 import 'package:sixam_mart/util/styles.dart';
+import 'package:sliver_tools/sliver_tools.dart';
 
 class StoreScreen extends StatefulWidget {
   final Store? store;
@@ -76,48 +88,40 @@ class StoreScreen extends StatefulWidget {
 }
 
 class _StoreScreenState extends State<StoreScreen> {
-  // AutoScrollController (extends ScrollController) so rows can be scroll-tagged
-  // and jumped to even when off-screen/unmounted. Every row carries a uniform
-  // flat index, and suggestedRowHeight lets scrollToIndex estimate a far target's
-  // offset in ~one jump instead of scanning through (and image-decoding) every
-  // card in between — which is what crashed on large catalogs. The boundary
-  // getter lands a jumped-to section just below the pinned SliverAppBar + tab bar.
   late final AutoScrollController scrollController = AutoScrollController(
     viewportBoundaryGetter: () => Rect.fromLTRB(0, _pinnedTopInset, 0, 0),
     axis: Axis.vertical,
     suggestedRowHeight: 150,
   );
-  // Collapsed SliverAppBar (70) + status-bar inset + pinned category tab bar (40).
-  // Recomputed in build(); mirrors the ~180 threshold used by auto-detect.
   double _pinnedTopInset = 0;
   double _appBarBottom = 70;
   final GlobalKey _categoryTabsKey = GlobalKey();
-  // Maps a tab index (0 = Most Popular, catIndex+1 = category) to the AutoScroll
-  // index of that section's row in the flat list. Rebuilt when the model changes.
-  final Map<int, int> _tabToRowIndex = {0: 0};
+  final Map<int, int> _tabToRowIndex = {0: 0, 1: 1};
+  StoreCategoryItemModel? _rowsSource;
+  List<_StoreRow> _rows = const <_StoreRow>[];
   final TextEditingController _searchController = TextEditingController();
   final Map<int, GlobalKey> categoryKeys = {};
+  final GlobalKey _popularSectionKey = GlobalKey();
+  final GlobalKey _bundleSectionKey = GlobalKey();
+  final Map<int, double> _sectionOffsets = {};
+  int _visibleTabSignature = -1;
   bool _showBackToTop = false;
   static const double _backToTopThreshold = 400;
   static const double _backToTopGap = 12;
-  // Anchor lives in a ValueNotifier, not a setState field: it flips when the tab
-  // bar pins/unpins, which is a different scroll boundary than the pill's own
-  // visibility — routing it through setState would rebuild this whole screen
-  // there, and jitter around the boundary would repeat that rebuild.
   final ValueNotifier<double?> _backToTopTop = ValueNotifier(null);
+  final ValueNotifier<int> _categoryScrollIndex = ValueNotifier(0);
+  final GlobalKey _cartBarKey = GlobalKey();
+  double _cartBarHeight = 0;
   bool _userClickedTab = false;
   int? _pendingTabIndex;
   bool _initialCategorySet = false;
+  bool _catalogRequested = false;
 
   @override
   void initState() {
     super.initState();
     initDataCall();
     if (widget.fromGlobalCart) {
-      // widget.store?.id is passed directly from GlobalCartScreen and is always
-      // non-null by the time we arrive here, so we don't need to wait for the
-      // getStoreDetails API call. Open the sheet on the first frame so it
-      // appears simultaneously with the store page transition.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _openCartBottomSheet(widget.store?.id);
       });
@@ -125,18 +129,48 @@ class _StoreScreenState extends State<StoreScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!ResponsiveHelper.isDesktop(context)) {
+      _ensureCatalogLoaded();
+    }
+  }
+
+  void _ensureCatalogLoaded() {
+    if (_catalogRequested) return;
+    final StoreController storeController = Get.find<StoreController>();
+    final int? storeId = widget.store!.id ?? storeController.store?.id;
+    if (storeId == null) return;
+    _catalogRequested = true;
+    storeController.getStoreCategoryItems(storeId, notify: false);
+  }
+
+  bool _hasBundlesFor(int? storeId) {
+    if (storeId == null) return false;
+    return Get.find<BundleController>().storeBundlesOf(storeId)?.isNotEmpty ?? false;
+  }
+
+  void _syncCartBarHeight() {
+    if (!mounted) return;
+    final RenderObject? box = _cartBarKey.currentContext?.findRenderObject();
+    final double height = (box is RenderBox && box.hasSize) ? box.size.height : 0;
+    if (_cartBarHeight != height) {
+      setState(() => _cartBarHeight = height);
+    }
+  }
+
+  @override
   void dispose() {
-    super.dispose();
+    _searchController.dispose();
     scrollController.removeListener(() {});
     scrollController.dispose();
     _backToTopTop.dispose();
-    // Free the large per-store item collections on the way out. Guard on the
-    // controller still pointing at this store so we don't wipe a different
-    // store's freshly-loaded data (e.g. store-from-store navigation).
+    _categoryScrollIndex.dispose();
     final StoreController storeController = Get.find<StoreController>();
     if (storeController.store?.id == widget.store?.id) {
       storeController.clearStoreCategoryItems();
     }
+    super.dispose();
   }
 
   Future<void> initDataCall() async {
@@ -149,13 +183,8 @@ class _StoreScreenState extends State<StoreScreen> {
       Get.find<StoreController>().changeSearchStatus(isUpdate: false);
     }
     Get.find<StoreController>().hideAnimation();
-    // Distance is not shown on the store screen; checkout recomputes it on entry
-    // (initCheckoutData → getStoreDetails), so skip the redundant distance-api call here.
     await Get.find<StoreController>().getStoreDetails(Store(id: widget.store!.id), widget.fromModule, slug: '', calculateDistance: false)
         .then((value) {Get.find<StoreController>().showButtonAnimation();});
-    // Load the Pro active offer for this store's module so the Pro discount card
-    // can render in the offer scroller for Pro members (the store screen otherwise
-    // never fetches it). Scoped to the store's module, falling back to the active one.
     if (Get.find<SplashController>().proStaus && AuthHelper.isLoggedIn()) {
       Get.find<ProController>().getProActiveOffer(
         moduleType: Get.find<StoreController>().store?.moduleType ?? Get.find<SplashController>().module?.moduleType,
@@ -167,14 +196,22 @@ class _StoreScreenState extends State<StoreScreen> {
     Get.find<StoreController>().getStoreBannerList(
       widget.store!.id ?? Get.find<StoreController>().store!.id,
     );
+    Get.find<StoreController>().getStoreBogoOffers(
+      widget.store!.id ?? Get.find<StoreController>().store!.id,
+    );
+    final int? bundleStoreId = widget.store!.id ?? Get.find<StoreController>().store?.id;
+    final String? bundleModuleType = widget.store!.moduleType ?? Get.find<StoreController>().store?.moduleType;
+    if (bundleStoreId != null && ModuleHelper.isBundleEnabled(moduleType: bundleModuleType)) {
+      Get.find<BundleController>().getStoreBundles(bundleStoreId, reload: true, notify: false);
+    }
+    Get.find<BogoOfferController>().getBogoHomeData();
     Get.find<StoreController>().getRestaurantRecommendedItemList(
       widget.store!.id ?? Get.find<StoreController>().store!.id,
       false,
     );
-    Get.find<StoreController>().getStoreCategoryItems(
-      (widget.store!.id ?? Get.find<StoreController>().store!.id)!,
-      notify: false,
-    );
+    if (!ResponsiveHelper.isDesktop(Get.context)) {
+      _ensureCatalogLoaded();
+    }
     if (AuthHelper.isLoggedIn()) {
       Get.find<OrderController>().getStoreLastOrders(widget.store!.id ?? Get.find<StoreController>().store!.id);
       if(Get.find<SplashController>().proStaus && Get.find<ProfileController>().proStatus){
@@ -187,8 +224,6 @@ class _StoreScreenState extends State<StoreScreen> {
 
       // Show/hide back to top button
       final bool showBackToTop = scrollController.position.pixels > _backToTopThreshold;
-      // The anchor only matters while the pill is on screen, so skip the
-      // measurement entirely for the whole scroll range where it's hidden.
       if (showBackToTop) {
         _backToTopTop.value = _resolveBackToTopTop();
       }
@@ -201,9 +236,6 @@ class _StoreScreenState extends State<StoreScreen> {
   void _handleTabTap(int index) {
     _userClickedTab = true;
     _pendingTabIndex = index;
-    // Jump to the tapped section's flat row index. Every row is tagged with a
-    // uniform index, so scrollToIndex estimates the offset and lands in ~one
-    // jump even for a far, unmounted category — without scanning the list.
     final int target = _tabToRowIndex[index] ?? 0;
     scrollController.scrollToIndex(
       target,
@@ -212,72 +244,76 @@ class _StoreScreenState extends State<StoreScreen> {
     );
     Future.delayed(const Duration(milliseconds: 500), () {
       if (!mounted) return;
-      Get.find<StoreController>().setCategoryScrollIndex(index);
+      _categoryScrollIndex.value = index;
       _userClickedTab = false;
     });
   }
 
+  void _syncTabsChanged({required bool hasMostPopular, required bool hasBundles, required int categoryCount}) {
+    final int signature = (hasMostPopular ? 1 : 0) + (hasBundles ? 2 : 0) + (categoryCount * 4);
+    if (_visibleTabSignature == signature) return;
+    _visibleTabSignature = signature;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _updateCategoryScrollIndex();
+    });
+  }
+
   void _updateCategoryScrollIndex() {
-    if (_userClickedTab) return; // Don't override while user is clicking tabs
+    if (_userClickedTab) return;
 
     final storeController = Get.find<StoreController>();
 
     final cats = storeController.storeCategoryItemsModel?.categories ?? [];
     final bool hasMostPopular = storeController.recommendedItemModel?.items?.isNotEmpty == true;
+    final bool hasBundles = _hasBundlesFor(storeController.store?.id ?? widget.store?.id);
     const double threshold = 180.0;
 
-    // With the item list virtualized (lazy slivers), only categories near the
-    // viewport are mounted, so we can only read positions of realized headers.
-    // Collect (catIndex, top) for every currently-mounted category header.
+    final double pixels = scrollController.hasClients ? scrollController.position.pixels : 0;
     final List<MapEntry<int, double>> realized = [];
-    for (int i = 0; i < cats.length; i++) {
-      final key = categoryKeys[i];
-      if (key?.currentContext != null) {
-        final box = key!.currentContext!.findRenderObject() as RenderBox;
-        realized.add(MapEntry(i, box.localToGlobal(Offset.zero).dy));
+    void measure(int tabIndex, GlobalKey? key) {
+      final RenderObject? box = key?.currentContext?.findRenderObject();
+      if (box is RenderBox && box.hasSize) {
+        final double top = box.localToGlobal(Offset.zero).dy;
+        // Held in scroll space, where it stays true after the section unmounts.
+        _sectionOffsets[tabIndex] = pixels + top;
+        realized.add(MapEntry(tabIndex, top));
+        return;
+      }
+      final double? lastKnown = _sectionOffsets[tabIndex];
+      if (lastKnown != null) {
+        realized.add(MapEntry(tabIndex, lastKnown - pixels));
       }
     }
-
-    // No header mounted at all → we're scrolled deep inside one huge category
-    // whose header has left the cache extent. Retain the current index; it is
-    // already the correct category, so don't reset to Most Popular.
+    if (hasMostPopular) measure(0, _popularSectionKey);
+    if (hasBundles) measure(1, _bundleSectionKey);
+    for (int i = 0; i < cats.length; i++) {
+      measure(i + 2, categoryKeys[i]);
+    }
     if (realized.isEmpty) return;
 
-    // Headers we've already scrolled past (top at/above the threshold): the
-    // deepest one is the active category (tab catIndex+1). Otherwise the topmost
-    // upcoming header is the category we're currently inside — its tab index
-    // equals that header's catIndex (0 → the Most Popular section above it).
     final List<MapEntry<int, double>> passed = realized.where((e) => e.value <= threshold).toList();
     int autoIndex = passed.isNotEmpty
-        ? passed.map((e) => e.key).reduce((a, b) => a > b ? a : b) + 1
-        : realized.map((e) => e.key).reduce((a, b) => a < b ? a : b);
+        ? passed.map((e) => e.key).reduce((a, b) => a > b ? a : b)
+        : realized.first.key;
 
-    // Tab 0 (Most Popular) only exists when there's a Most Popular section;
-    // otherwise tabs start at the first category (index 1).
-    if (!hasMostPopular && autoIndex < 1) autoIndex = 1;
-
-    // If the user physically touches the scroll (any direction), release the
-    // pending override so auto-detect takes over immediately.
     if (_pendingTabIndex != null &&
         scrollController.position.userScrollDirection != ScrollDirection.idle) {
       _pendingTabIndex = null;
     }
 
-    // If the user tapped a tab and auto-detect undershoots it (the section
-    // landed just below the threshold), keep the tapped selection. Only clear
-    // the pending index once auto-detect naturally reaches or passes it.
     if (_pendingTabIndex != null) {
       if (autoIndex < _pendingTabIndex!) {
-        if (storeController.categoryScrollIndex != _pendingTabIndex) {
-          storeController.setCategoryScrollIndex(_pendingTabIndex!);
+        if (_categoryScrollIndex.value != _pendingTabIndex) {
+          _categoryScrollIndex.value = _pendingTabIndex!;
         }
         return;
       }
       _pendingTabIndex = null;
     }
 
-    if (storeController.categoryScrollIndex != autoIndex) {
-      storeController.setCategoryScrollIndex(autoIndex);
+    if (_categoryScrollIndex.value != autoIndex) {
+      _categoryScrollIndex.value = autoIndex;
     }
   }
 
@@ -301,61 +337,106 @@ class _StoreScreenState extends State<StoreScreen> {
     return categoryKeys[index]!;
   }
 
-  // Mobile items: a Most-Popular tag sliver + one flat SliverList.builder of
-  // interleaved header/item rows. The flat list virtualizes uniformly (only the
-  // viewport + cache extent is built), so a store with thousands of items — even
-  // all in one category — never eager-builds every card.
-  Widget _buildMobileItemsSliver(Store store, StoreController storeController) {
-    final StoreCategoryItemModel? model = storeController.storeCategoryItemsModel;
+  void _syncRows(StoreCategoryItemModel? model) {
+    if (identical(_rowsSource, model)) return;
+    _rowsSource = model;
+    _sectionOffsets.clear();
+    _tabToRowIndex..clear()..[0] = 0..[1] = 1;
     if (model == null) {
-      return const SliverToBoxAdapter(child: _StoreItemsLoadingList());
+      _rows = const <_StoreRow>[];
+      return;
     }
 
     final List<StoreItemCategory> cats = model.categories ?? [];
     final Map<String, List<StoreCardItem>> itemMap = model.categoryWiseItems ?? {};
 
-    // Build the flat rows and the tab→row-index map. AutoScroll indices:
-    // 0 = Most Popular sliver; each flat row at position p = index p + 1.
     final List<_StoreRow> rows = [];
-    _tabToRowIndex..clear()..[0] = 0;
     for (int ci = 0; ci < cats.length; ci++) {
       final List<StoreCardItem> items = itemMap[cats[ci].id.toString()] ?? [];
       if (items.isEmpty) continue;
-      _tabToRowIndex[ci + 1] = rows.length + 1; // header row's AutoScroll index
+      _tabToRowIndex[ci + 2] = rows.length + 2; // header row's AutoScroll index
       rows.add(_HeaderRow(catIndex: ci, name: cats[ci].name ?? ''));
       for (int ii = 0; ii < items.length; ii++) {
         rows.add(_ItemRow(item: items[ii], indexInCat: ii, isFirst: ii == 0));
       }
     }
 
+    assert(() {
+      final Set<String> reachable = cats.map((StoreItemCategory c) => c.id.toString()).toSet();
+      final Iterable<String> orphaned = itemMap.keys.where((String k) => !reachable.contains(k));
+      if (orphaned.isNotEmpty) {
+        final int lost = orphaned.fold(0, (int sum, String k) => sum + (itemMap[k]?.length ?? 0));
+        debugPrint('StoreScreen: $lost item(s) under category id(s) ${orphaned.join(', ')} have no matching '
+            'entry in `categories` and will NOT render.');
+      }
+      final int renderedItems = rows.whereType<_ItemRow>().length;
+      if (model.totalSize != null && renderedItems < model.totalSize!) {
+        debugPrint('StoreScreen: rendering $renderedItems of ${model.totalSize} items '
+            '(server sent limit=${model.limit}, offset=${model.offset}) — response is truncated server-side.');
+      }
+      return true;
+    }());
+
+    _rows = rows;
+  }
+
+  Widget _buildMobileItemsSliver(Store store, StoreController storeController) {
+    final StoreCategoryItemModel? model = storeController.storeCategoryItemsModel;
+    _syncRows(model);
+
+    if (model == null) {
+      return const SliverToBoxAdapter(child: _StoreItemsLoadingList());
+    }
+
+    final List<_StoreRow> rows = _rows;
     final bool hasMostPopular = !storeController.isSearching &&
         (storeController.recommendedItemModel?.items?.isNotEmpty ?? false);
-    if (rows.isEmpty && !hasMostPopular) {
-      return SliverFillRemaining(hasScrollBody: false,
-        child: Container(height: 300, alignment: Alignment.center, child: Text('no_item_available'.tr)),
-      );
+    final bool hasBundles = !storeController.isSearching && _hasBundlesFor(store.id);
+    _syncTabsChanged(
+      hasMostPopular: hasMostPopular, hasBundles: hasBundles,
+      categoryCount: storeController.storeCategoryItemsModel?.categories?.length ?? 0,
+    );
+    if (rows.isEmpty && !hasMostPopular && !hasBundles) {
+      return MultiSliver(children: [
+        SliverFillRemaining(hasScrollBody: false,
+          child: Container(height: 300, alignment: Alignment.center, child: Text('no_item_available'.tr)),
+        ),
+      ]);
     }
 
     return MultiSliver(children: [
-      // Tag index 0 = Most Popular (renders SizedBox.shrink when empty).
       SliverToBoxAdapter(
         child: AutoScrollTag(
           key: const ValueKey('sec_0'),
           controller: scrollController,
           index: 0,
-          child: _MostPopularItemsSection(store: store, storeController: storeController),
+          child: KeyedSubtree(
+            key: _popularSectionKey,
+            child: _MostPopularItemsSection(store: store, storeController: storeController),
+          ),
         ),
       ),
+      if (hasBundles)
+        SliverToBoxAdapter(
+          child: AutoScrollTag(
+            key: const ValueKey('sec_1'),
+            controller: scrollController,
+            index: 1,
+            child: KeyedSubtree(key: _bundleSectionKey, child: BundleItemsTabSection(storeId: store.id!)),
+          ),
+        ),
       SliverList.builder(
-        itemCount: rows.length,
-        itemBuilder: (context, i) => _buildStoreRow(context, rows[i], store, i + 1),
+        itemCount: rows.length + 1,
+        itemBuilder: (context, i) {
+          if (i == rows.length) {
+            return Container(color: Theme.of(context).cardColor, height: _cartBarHeight);
+          }
+          return _buildStoreRow(context, rows[i], store, i + 2);
+        },
       ),
     ]);
   }
 
-  // Every row is tagged with its uniform AutoScroll index so scrollToIndex can
-  // estimate a far target's offset and jump straight there. Category headers
-  // additionally carry a GlobalKey that feeds the scroll-position auto-highlight.
   Widget _buildStoreRow(BuildContext context, _StoreRow row, Store store, int autoIndex) {
     if (row is _HeaderRow) {
       return AutoScrollTag(
@@ -402,12 +483,6 @@ class _StoreScreenState extends State<StoreScreen> {
   }
 
   void _handleBack() {
-    // Only reset to Home when this screen instance was itself pushed via a
-    // deep link (no real back stack behind it). Checking the global
-    // SplashController.deeplinkRoute instead of this instance flag is what
-    // caused back to blow away the stack on ordinary in-app navigation (e.g.
-    // Search -> Store): app_links can redeliver a stale/unrelated URI mid-session,
-    // leaving that ambient flag non-null even though this screen was reached normally.
     if (widget.fromDeeplink) {
       Get.find<SplashController>().setDeeplink(null);
       Get.offAllNamed(RouteHelper.getInitialRoute());
@@ -420,58 +495,44 @@ class _StoreScreenState extends State<StoreScreen> {
     Get.toNamed(RouteHelper.getSearchStoreItemRoute(store.id));
   }
 
-  // Native collapsing header. SliverAppBar handles the pin/collapse + content
-  // positioning; everything inside is scroll-linked to the layout extent (no
-  // GlobalKey, no overlay, no scroll-listener animation) so it stays in sync and
-  // reverses cleanly. Dimensions match the previous header (max 200, min 70+inset)
-  // so the content below keeps its exact position.
   Widget _buildStoreSliverHeader(BuildContext context, Store store, StoreController storeController) {
     final double topPadding = MediaQuery.of(context).padding.top;
     final double screenWidth = MediaQuery.of(context).size.width;
-    // Visible header is a full-width 2:1 banner (height = width / 2). SliverAppBar
-    // adds the status-bar inset on top of expandedHeight, so subtract it here — the
-    // total (expandedHeight + status bar) then equals the 2:1 height exactly, with
-    // no extra strip above the banner.
     final double bannerHeight = (screenWidth / 2).clamp(160.0, 320.0).toDouble();
     final double maxH = bannerHeight - topPadding;
-    final double minH = 70 + topPadding;
+    final double minH = 52 + topPadding;
 
     return SliverAppBar(
       pinned: true,
       expandedHeight: maxH,
-      collapsedHeight: 70,
-      toolbarHeight: 70,
+      collapsedHeight: 52,
+      toolbarHeight: 52,
       backgroundColor: Theme.of(context).cardColor,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       automaticallyImplyLeading: false,
       actions: const [SizedBox()],
       flexibleSpace: LayoutBuilder(builder: (BuildContext context, BoxConstraints constraints) {
-        // 0 = fully expanded, 1 = fully collapsed (driven by the real header height).
         final double t = ((maxH - constraints.maxHeight) / (maxH - minH)).clamp(0.0, 1.0);
-        final double coverOpacity = (1 - t * 1.6).clamp(0.0, 1.0);     // image + circular controls fade out
-        final double barOpacity = ((t - 0.55) / 0.45).clamp(0.0, 1.0); // soft bar fades in
-        final double verifiedOpacity = (1 - t * 2).clamp(0.0, 1.0);    // verified chip fades out early
-        final double titleT = ((t - 0.8) / 0.2).clamp(0.0, 1.0);       // title slides up + fades in at the tail
-
+        final double coverOpacity = (1 - t * 1.6).clamp(0.0, 1.0);    
+        final double barOpacity = ((t - 0.55) / 0.45).clamp(0.0, 1.0); 
+        final double verifiedOpacity = (1 - t * 2).clamp(0.0, 1.0);   
+        final double titleT = ((t - 0.8) / 0.2).clamp(0.0, 1.0);      
         return Stack(fit: StackFit.expand, children: <Widget>[
-          // Solid base — header is always opaque, no bleed-through.
           Container(color: Theme.of(context).cardColor),
 
-          // Cover layer: collapsing image + circular controls + verified chip.
           Opacity(
             opacity: coverOpacity,
             child: IgnorePointer(
               ignoring: t > 0.5,
               child: Stack(children: <Widget>[
-                // Show the store banners (auto-scrolling carousel) when available;
-                // otherwise fall back to the cover photo. Pass the flexibleSpace's
-                // actual height (constraints.maxHeight) — the carousel sizes and
-                // centers each item by this value, so anything smaller leaves a gap.
                 Positioned.fill(
                   child: (storeController.storeBanners != null && storeController.storeBanners!.isNotEmpty)
                       ? StoreHeaderBanner(banners: storeController.storeBanners!, height: constraints.maxHeight)
-                      : CustomImage(fit: BoxFit.cover, image: store.coverPhotoFullUrl ?? ''),
+                      : _StoreCoverImage(
+                          url: store.coverPhotoFullUrl,
+                          height: constraints.maxHeight,
+                        ),
                 ),
 
                 PositionedDirectional(
@@ -501,7 +562,6 @@ class _StoreScreenState extends State<StoreScreen> {
             ),
           ),
 
-          // Collapsed bar: back + (tail-revealed) store name + search.
           Align(
             alignment: Alignment.topCenter,
             child: Opacity(
@@ -510,8 +570,10 @@ class _StoreScreenState extends State<StoreScreen> {
                 ignoring: t < 0.5,
                 child: Padding(
                   padding: EdgeInsets.only(top: topPadding, left: Dimensions.paddingSizeDefault, right: Dimensions.paddingSizeDefault),
-                  child: SizedBox(
-                    height: 70,
+                  child: Container(
+                    height: 52,
+                    alignment: Alignment.bottomCenter,
+                    padding: const EdgeInsets.only(bottom: Dimensions.paddingSizeSmall),
                     child: Row(children: <Widget>[
                       _StoreSoftIconButton(icon: Icons.arrow_back, onTap: _handleBack),
                       const SizedBox(width: Dimensions.paddingSizeSmall),
@@ -543,8 +605,6 @@ class _StoreScreenState extends State<StoreScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Land a tab-jumped category header just below the pinned SliverAppBar (70)
-    // + status bar + pinned category tab bar (40). Read by scrollToIndex.
     _appBarBottom = 70 + MediaQuery.of(context).padding.top;
     _pinnedTopInset = _appBarBottom + 40;
     return PopScope(
@@ -573,7 +633,8 @@ class _StoreScreenState extends State<StoreScreen> {
             return GetBuilder<CategoryController>(
               builder: (categoryController) {
                 Store? store;
-                if (storeController.store != null && storeController.store!.name != null && storeController.storeCategoryItemsModel != null) {
+                final bool storeReady = storeController.store != null && storeController.store!.name != null;
+                if (storeReady) {
                   store = storeController.store;
                   storeController.setCategoryList();
                   if (!_initialCategorySet) {
@@ -584,8 +645,8 @@ class _StoreScreenState extends State<StoreScreen> {
                   }
                 }
 
-                return (storeController.store != null && storeController.store!.name != null && storeController.storeCategoryItemsModel != null)
-                  ? CustomScrollView(physics: const AlwaysScrollableScrollPhysics(), controller: scrollController, slivers: [
+                return storeReady
+                  ? GetBuilder<BundleController>(builder: (bundleController) => CustomScrollView(physics: const AlwaysScrollableScrollPhysics(), controller: scrollController, slivers: [
                     ResponsiveHelper.isDesktop(context)
                       ? SliverToBoxAdapter(
                         child: Container(
@@ -603,7 +664,9 @@ class _StoreScreenState extends State<StoreScreen> {
                                         borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
                                         child: Stack(children: [
                                           CustomImage(fit: BoxFit.fill, height: 240, width: 590,
-                                            image: store?.coverPhotoFullUrl ?? ''
+                                            image: store?.coverPhotoFullUrl ?? '',
+                                            cacheWidth: ImageCacheHelper.pixels(context, 590),
+                                            cacheHeight: ImageCacheHelper.pixels(context, 240),
                                           ),
                                           store?.discount != null
                                             ? Positioned(bottom: 0, left: 0, right: 0,
@@ -612,9 +675,7 @@ class _StoreScreenState extends State<StoreScreen> {
                                                 decoration: BoxDecoration(color: Theme.of(context).primaryColor),
                                                 padding: const EdgeInsets.all(Dimensions.paddingSizeExtraSmall),
                                                 child: Text(
-                                                  '${store?.discount!.discountType == 'percent' ? '${store?.discount!.discount}%' : PriceConverter.convertPrice(store?.discount!.discount)} '
-                                                  '${'discount_will_be_applicable_when_order_amount_exceeds_is_more_than'.tr} ${PriceConverter.convertPrice(store?.discount!.minPurchase)},'
-                                                  ' ${'Max'.tr}: ${PriceConverter.convertPrice(store?.discount!.maxDiscount)} ${'discount_is_applicable'.tr}',
+                                                  _storeDiscountBannerText(store!.discount!),
                                                   style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeSmall, color: Colors.white),
                                                   textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,
                                                 ),
@@ -632,6 +693,17 @@ class _StoreScreenState extends State<StoreScreen> {
                           ),
                         )
                       : _buildStoreSliverHeader(context, store!, storeController),
+
+                     
+                      (ResponsiveHelper.isDesktop(context) && (storeController.bogoOfferList?.isNotEmpty ?? false))
+                        ? SliverToBoxAdapter(child: BogoStoreSectionWidget(
+                            offers: storeController.bogoOfferList!, storeId: store?.id,
+                          ))
+                        : const SliverToBoxAdapter(child: SizedBox()),
+
+                      (ResponsiveHelper.isDesktop(context) && store?.id != null)
+                        ? SliverToBoxAdapter(child: BundleStoreSectionWidget(storeId: store!.id!))
+                        : const SliverToBoxAdapter(child: SizedBox()),
 
                       (ResponsiveHelper.isDesktop(context) && storeController.recommendedItemModel != null && storeController.recommendedItemModel!.items!.isNotEmpty)
                         ? SliverToBoxAdapter(child: Container(
@@ -885,7 +957,7 @@ class _StoreScreenState extends State<StoreScreen> {
                                     offset: storeController.isSearching ? storeController.storeSearchItemModel?.offset : storeController.storeItemModel?.offset,
                                     itemView: WebItemsView(isStore: false, stores: null, fromStore: true,
                                       items: storeController.isSearching ? storeController.storeSearchItemModel?.items
-                                          : (storeController.categoryList!.isNotEmpty && storeController.storeItemModel != null) ? storeController.storeItemModel!.items : null,
+                                          : ((storeController.categoryList?.isNotEmpty ?? false) && storeController.storeItemModel != null) ? storeController.storeItemModel!.items : null,
                                       inStorePage: true,
                                       padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeSmall, vertical: Dimensions.paddingSizeSmall),
                                     ),
@@ -898,6 +970,26 @@ class _StoreScreenState extends State<StoreScreen> {
 
                       ///mobile view..
                       ResponsiveHelper.isDesktop(context) ? const SliverToBoxAdapter(child: SizedBox()) : SliverToBoxAdapter(child: _MobileStoreOverview(store: store!)),
+
+                      GetBuilder<BogoOfferController>(builder: (bogoOfferController) {
+                        final List<StoreBogoOfferModel> storeOffers = storeController.bogoOfferList ?? const <StoreBogoOfferModel>[];
+                        // showHomeCard only reports that the module has a live offer. Whether
+                        // this store runs one is a separate question, and the sheet behind the
+                        // card opened empty on every store that does not.
+                        if(!bogoOfferController.showHomeCard || storeOffers.isEmpty) {
+                          return const SliverToBoxAdapter(child: SizedBox.shrink());
+                        }
+                        return SliverToBoxAdapter(
+                          child: Container(
+                            color: Theme.of(context).cardColor,
+                            padding: const EdgeInsets.only(top: Dimensions.paddingSizeExtraSmall),
+                            child: BogoOfferCardWidget(
+                              bordered: true,
+                              onTap: () => StoreBogoOfferListSheet.show(context, offers: storeOffers),
+                            ),
+                          ),
+                        );
+                      }),
 
                       !Get.find<SplashController>().proStaus || Get.find<ProfileController>().proStatus ? const SliverToBoxAdapter(child: SizedBox()) : SliverToBoxAdapter(
                         child: Container(
@@ -922,16 +1014,20 @@ class _StoreScreenState extends State<StoreScreen> {
                         ),
                       ])),
 
-                      ResponsiveHelper.isDesktop(context) ? const SliverToBoxAdapter(child: SizedBox()) : (storeController.categoryList!.isNotEmpty)
+                      ResponsiveHelper.isDesktop(context) ? const SliverToBoxAdapter(child: SizedBox())
+                        : ((storeController.categoryList?.isNotEmpty ?? false) || _hasBundlesFor(store?.id))
                         ? SliverPersistentHeader(pinned: true,
                             delegate: SliverDelegate(height: 40,
-                              child: _StoreCategoryTabs(key: _categoryTabsKey, storeController: storeController, onTabTap: _handleTabTap),
+                              child: _StoreCategoryTabs(key: _categoryTabsKey, storeController: storeController,
+                                activeIndexNotifier: _categoryScrollIndex, onTabTap: _handleTabTap,
+                                hasBundles: _hasBundlesFor(store?.id),
+                              ),
                             ),
                           ) : const SliverToBoxAdapter(child: SizedBox()),
 
                       ResponsiveHelper.isDesktop(context) ? const SliverToBoxAdapter(child: SizedBox())
                           : _buildMobileItemsSliver(store!, storeController),
-                    ]) : const StoreScreenShimmerWidget();
+                    ])) : const StoreScreenShimmerWidget();
               },
             );
           },
@@ -944,19 +1040,49 @@ class _StoreScreenState extends State<StoreScreen> {
             ),
           ),
 
-          // Sticky bottom cart widget
           Positioned(
             bottom: 0,
             left: 0,
             right: 0,
-            child: GetBuilder<CartController>(
+            child: SizedBox(
+              key: _cartBarKey,
+              // Built from the store controller, not a lookup inside it: the gate below
+              // needs the store, and without a builder the bar stayed hidden until some
+              // other setState — a scroll — happened to rebuild the screen.
+              child: GetBuilder<StoreController>(
+              builder: (storeController) {
+              return GetBuilder<CartController>(
               builder: (cartController) {
+                WidgetsBinding.instance.addPostFrameCallback((_) => _syncCartBarHeight());
                 if (ResponsiveHelper.isDesktop(context)) return const SizedBox();
-                final int? currentStoreId = widget.store?.id ?? Get.find<StoreController>().store?.id;
-                if (currentStoreId == null) return const SizedBox();
+                final Store? currentStore = storeController.store;
+                final int? currentStoreId = widget.store?.id ?? currentStore?.id;
+                if (currentStoreId == null || currentStore == null) return const SizedBox();
                 final AllCartsModel? existingCart = cartController.getCartsForStore(currentStoreId);
-                return existingCart != null && Get.find<StoreController>().store != null ? BottomAddToCartWidget(storeId: currentStoreId) : const SizedBox();
+                final bool? isHappyHourRunning = currentStore.isHappyHourRunning;
+                return GetBuilder<HappyHourController>(builder: (happyHourController) {
+            
+                  final bool bannerVisible = happyHourController.showStoreBanner(isHappyHourRunning);
+                  if (existingCart == null && !bannerVisible) return const SizedBox();
+
+                
+                  return Column(mainAxisSize: MainAxisSize.min, children: [
+                    HappyHourMilestoneBannerWidget(
+                      subtotal: existingCart != null
+                        ? cartController.calculateGCartSubTotal(cartController.localCartsOfGroup(existingCart)) : 0,
+                      isHappyHourRunning: isHappyHourRunning, storeId: currentStoreId,
+                      bottomInset: existingCart == null ? MediaQuery.of(context).padding.bottom : 0,
+                      tappable: false,
+                    ),
+                    if (existingCart != null) bannerVisible
+                      ? Container(color: Theme.of(context).cardColor, child: BottomAddToCartWidget(storeId: currentStoreId))
+                      : BottomAddToCartWidget(storeId: currentStoreId),
+                  ]);
+                });
               },
+              );
+              },
+              ),
             ),
           ),
         ]),
@@ -966,7 +1092,7 @@ class _StoreScreenState extends State<StoreScreen> {
             return Visibility(
               visible: storeController.showFavButton &&
                 Get.find<SplashController>().configModel!.moduleConfig!.module!.orderAttachment! &&
-                (storeController.store != null && storeController.store!.prescriptionOrder!) &&
+                (storeController.store?.prescriptionOrder ?? false) &&
                 Get.find<SplashController>().configModel!.prescriptionStatus!,
               child: Container(
                 decoration: BoxDecoration(
@@ -1039,12 +1165,21 @@ class _MobileStoreOverview extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: Dimensions.paddingSizeDefault, left: Dimensions.paddingSizeDefault, right: Dimensions.paddingSizeDefault),
             child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-              ClipRRect(borderRadius: BorderRadius.circular(14),
-                child: Stack(children: [
-                  CustomImage(image: store.logoFullUrl ?? '', height: 44, width: 44, fit: BoxFit.cover),
-                  Get.find<StoreController>().isStoreOpenNow(store.active!, store.schedules) ? const SizedBox()
-                    : const Positioned(left: 0, right: 0, bottom: 0, child: ClosedRibbonBadge()),
-                ]),
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Theme.of(context).disabledColor.withValues(alpha: 0.3), width: 2),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Stack(children: [
+                    CustomImage(image: store.logoFullUrl ?? '', height: 44, width: 44, fit: BoxFit.cover,
+                      cacheWidth: ImageCacheHelper.pixels(context, 44),
+                    ),
+                    Get.find<StoreController>().isStoreOpen(store) ? const SizedBox()
+                      : const Positioned(left: 0, right: 0, bottom: 0, child: ClosedRibbonBadge()),
+                  ]),
+                ),
               ),
               const SizedBox(width: Dimensions.paddingSizeDefault),
               Expanded(
@@ -1053,22 +1188,7 @@ class _MobileStoreOverview extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: robotoBold.copyWith(fontSize: Dimensions.fontSizeExtraLarge),
                   ),
-                  InkWell(
-                    onTap: () => Get.toNamed(RouteHelper.getMapRoute(
-                      AddressModel(id: store.id, address: store.address, latitude: store.latitude,
-                        longitude: store.longitude, contactPersonNumber: '', contactPersonName: '', addressType: '',
-                      ), 'store', Get.find<SplashController>().getModuleConfig(Get.find<SplashController>().module!.moduleType!).newVariation!,
-                      storeName: store.name, slug: store.slug ?? store.name!,
-                    )),
-                    child: Row(children: [
-                      Icon(Icons.location_on_outlined, color: Theme.of(context).colorScheme.tertiary, size: 14),
-                      Text(store.address ?? '', maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).colorScheme.tertiary,
-                        decoration: TextDecoration.underline, decorationColor: Theme.of(context).colorScheme.tertiary),
-                      ),
-                    ]),
-                  ),
+                  _StoreAddressRow(store: store),
                 ]),
               ),
             ]),
@@ -1083,6 +1203,73 @@ class _MobileStoreOverview extends StatelessWidget {
       ),
     );
   }
+}
+
+class _StoreAddressRow extends StatelessWidget {
+  final Store store;
+
+  const _StoreAddressRow({required this.store});
+
+  @override
+  Widget build(BuildContext context) {
+    final String address = store.address ?? '';
+    if (address.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final bool hasCoordinates = double.tryParse(store.latitude ?? '') != null
+        && double.tryParse(store.longitude ?? '') != null;
+
+    final Widget row = Row(children: [
+      Icon(Icons.location_on_outlined, color: Theme.of(context).colorScheme.tertiary, size: 14),
+      Flexible(
+        child: Text(address, maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).colorScheme.tertiary,
+            decoration: hasCoordinates ? TextDecoration.underline : null, decorationColor: Theme.of(context).colorScheme.tertiary),
+        ),
+      ),
+    ]);
+
+    if (!hasCoordinates) {
+      return row;
+    }
+    return InkWell(
+      onTap: () => Get.toNamed(RouteHelper.getMapRoute(
+        AddressModel(id: store.id, address: store.address, latitude: store.latitude,
+          longitude: store.longitude, contactPersonNumber: '', contactPersonName: '', addressType: '',
+        ), 'store', Get.find<SplashController>().getModuleConfig(Get.find<SplashController>().module!.moduleType!).newVariation!,
+        storeName: store.name, slug: store.slug ?? store.name!,
+      )),
+      child: row,
+    );
+  }
+}
+
+String _storeDiscountBannerText(Discount discount) {
+  final StringBuffer text = StringBuffer(
+    discount.discountType == 'percent'
+        ? '${discount.discount ?? 0}%'
+        : PriceConverter.convertPrice(discount.discount ?? 0),
+  );
+  if ((discount.minPurchase ?? 0) > 0) {
+    text.write(' ${'discount_will_be_applicable_when_order_amount_exceeds_is_more_than'.tr}'
+        ' ${PriceConverter.convertPrice(discount.minPurchase)},');
+  }
+  if ((discount.maxDiscount ?? 0) > 0) {
+    text.write(' ${'Max'.tr}: ${PriceConverter.convertPrice(discount.maxDiscount)}');
+  }
+  text.write(' ${'discount_is_applicable'.tr}');
+  return text.toString();
+}
+String _storeDiscountConditions(Discount discount) {
+  final List<String> parts = <String>[];
+  if ((discount.minPurchase ?? 0) > 0) {
+    parts.add('${'min_purchase'.tr} ${PriceConverter.convertPrice(discount.minPurchase)}');
+  }
+  if ((discount.maxDiscount ?? 0) > 0) {
+    parts.add('${'and_max_discount_is'.tr} ${PriceConverter.convertPrice(discount.maxDiscount)}');
+  }
+  return parts.isEmpty ? 'valid_for_all_items'.tr : parts.join(' ');
 }
 
 class _StoreStatsCard extends StatelessWidget {
@@ -1106,8 +1293,11 @@ class _StoreStatsCard extends StatelessWidget {
         ),
         const _StoreStatDivider(),
         Expanded(child: _StoreStatItem(value: store.deliveryTime ?? '', label: 'delivery_time'.tr)),
-        const _StoreStatDivider(),
-        Expanded(child: _StoreStatItem(value: PriceConverter.convertPrice(store.minimumOrder), label: 'min_order'.tr)),
+        
+        if ((store.minimumOrder ?? 0) > 0) ...[
+          const _StoreStatDivider(),
+          Expanded(child: _StoreStatItem(value: PriceConverter.convertPrice(store.minimumOrder), label: 'min_order'.tr)),
+        ],
       ]),
     );
   }
@@ -1156,16 +1346,12 @@ class _StoreAnnouncementScroller extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Wrapped in GetBuilder<ProController> so the pro card appears as soon as the
-    // active-offer data loads (mirrors ProPlanBannerWidget's reactivity).
     return GetBuilder<ProController>(builder: (proController) {
       final Widget? proCard = _buildProCard(proController);
       final List<_StoreOfferData> offers = _buildOffers(context);
       if (proCard == null && offers.isEmpty) {
         return const SizedBox(height: Dimensions.paddingSizeSmall);
       }
-
-      // Pro card first (when the user has Pro), then the regular offer cards.
       final List<Widget> cards = <Widget>[
         ?proCard,
         ...offers.map((_StoreOfferData offer) => _StoreOfferCard(data: offer)),
@@ -1193,9 +1379,6 @@ class _StoreAnnouncementScroller extends StatelessWidget {
     });
   }
 
-  // Pro benefit card — shown for Pro members whose active offer applies to this
-  // store's module. The headline + subtitle adapt per benefit type, mirroring
-  // ProBenefitBannerWidget (discount / delivery fee / coupon).
   Widget? _buildProCard(ProController proController) {
     if (!Get.find<SplashController>().proStaus || !Get.find<ProfileController>().proStatus) {
       return null;
@@ -1205,8 +1388,6 @@ class _StoreAnnouncementScroller extends StatelessWidget {
       return null;
     }
 
-    // Default subtitle: the "special saving" line, prefixed with a min-purchase
-    // note when the benefit enforces one (matches the card design in the spec).
     final bool hasMin = benefit.minOrderStatus == true && (benefit.minOrderAmount ?? 0) > 0;
     final String savingSubtitle = hasMin
         ? '${'min_purchase'.tr} ${PriceConverter.convertPrice(benefit.minOrderAmount)} ${'and_special_saving_for_mart_pro_members'.tr}'
@@ -1215,7 +1396,6 @@ class _StoreAnnouncementScroller extends StatelessWidget {
     String? headline;
     String subtitle = savingSubtitle;
 
-    // type is non-null here (isBenefitAllowedForCurrentModule rejects a null type).
     switch (benefit.type!) {
       case ProBenefitType.discount:
         final double pct = benefit.percentage ?? 0;
@@ -1246,8 +1426,8 @@ class _StoreAnnouncementScroller extends StatelessWidget {
       offers.add(
         _StoreOfferData(
           title: _discountTitle(store),
-          message: '${'min_purchase'.tr} ${PriceConverter.convertPrice(store.discount!.minPurchase)} ${'and_max_discount_is'.tr} ${PriceConverter.convertPrice(store.discount!.maxDiscount)}',
-          imageUrl: Images.discountOfferIcon, color: const Color(0xFFFFF9EA),
+          message: _storeDiscountConditions(store.discount!),
+          imageUrl: Images.discountOfferIcon, color: const Color(0xFFFFF9EA), tint: const Color(0xFF039D55),
         ),
       );
     }
@@ -1263,6 +1443,7 @@ class _StoreAnnouncementScroller extends StatelessWidget {
             message: '${'min_order'.tr} ${coupon.minPurchase} ${'valid_for_all_items'.tr}',
             imageUrl: Images.couponRedIcon,
             color: const Color(0xFFFFF1F1),
+            tint: const Color(0xFFE84D4F),
             isCoupon: true,
             coupon: coupon,
           ),
@@ -1286,12 +1467,28 @@ class _StoreAnnouncementScroller extends StatelessWidget {
   }
 }
 
+class _AnnouncementPalette {
+  const _AnnouncementPalette._();
+
+  static bool _isDark(BuildContext context) => Theme.of(context).brightness == Brightness.dark;
+
+  static Color card(BuildContext context, Color light, {Color? tint}) => _isDark(context)
+      ? Color.alphaBlend((tint ?? light).withValues(alpha: 0.20), Theme.of(context).cardColor) : light;
+
+  static Color title(BuildContext context) => _isDark(context)
+      ? (Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white) : const Color(0xFF1F2A44);
+
+  static Color body(BuildContext context) => _isDark(context)
+      ? Theme.of(context).hintColor : const Color(0xFF777777);
+}
+
 class _StoreOfferData {
   final String title;
   final String? subTitle;
   final String message;
   final String imageUrl;
   final Color color;
+  final Color? tint;
   final bool isCoupon;
   final CouponModel? coupon;
 
@@ -1300,6 +1497,7 @@ class _StoreOfferData {
     required this.message,
     required this.imageUrl,
     required this.color,
+    this.tint,
     this.isCoupon = false,
     this.subTitle,
     this.coupon,
@@ -1316,7 +1514,7 @@ class _StoreOfferCard extends StatelessWidget {
     final cardContent = Container(
       width: 200,
       padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault, vertical: Dimensions.paddingSizeSmall,),
-      decoration: BoxDecoration(color: data.color, borderRadius: data.isCoupon ? null : BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: _AnnouncementPalette.card(context, data.color, tint: data.tint), borderRadius: data.isCoupon ? null : BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Container(
@@ -1325,7 +1523,7 @@ class _StoreOfferCard extends StatelessWidget {
               Image.asset(data.imageUrl, height: 14, width: 14),
               const SizedBox(width: 4),
               Text(data.title, maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: robotoBold.copyWith(fontSize: Dimensions.fontSizeLarge, color: const Color(0xFF1F2A44)),
+                style: robotoBold.copyWith(fontSize: Dimensions.fontSizeLarge, color: _AnnouncementPalette.title(context)),
               ),
             ]),
           ),
@@ -1333,13 +1531,13 @@ class _StoreOfferCard extends StatelessWidget {
         data.subTitle == null ? const SizedBox.shrink() : Padding(
           padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeExtraSmall),
           child: Text(data.subTitle ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: robotoBold.copyWith(fontSize: Dimensions.fontSizeDefault, color: const Color(0xFF1F2A44)),
+            style: robotoBold.copyWith(fontSize: Dimensions.fontSizeDefault, color: _AnnouncementPalette.title(context)),
           ),
         ),
         data.subTitle == null ? const SizedBox.shrink() : const SizedBox(height: 4),
         Text(
           data.message,
-          style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: const Color(0xFF777777)),
+          style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: _AnnouncementPalette.body(context)),
         ),
       ]),
     );
@@ -1366,7 +1564,6 @@ class _StoreOfferCard extends StatelessWidget {
   }
 }
 
-// Pro membership discount card shown in the store offer scroller for Pro members.
 class _StoreProCard extends StatelessWidget {
   final String discountText;
   final String subtitle;
@@ -1387,7 +1584,7 @@ class _StoreProCard extends StatelessWidget {
       child: Container(
       width: 200,
       padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault, vertical: Dimensions.paddingSizeSmall),
-      decoration: BoxDecoration(color: const Color(0xFFE9F0FF), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: _AnnouncementPalette.card(context, const Color(0xFFE9F0FF)), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
         Row(children: [
           Container(
@@ -1402,13 +1599,13 @@ class _StoreProCard extends StatelessWidget {
           const SizedBox(width: Dimensions.paddingSizeSmall),
           Flexible(
             child: Text(discountText, maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: robotoBold.copyWith(fontSize: Dimensions.fontSizeLarge, color: const Color(0xFF1F2A44)),
+              style: robotoBold.copyWith(fontSize: Dimensions.fontSizeLarge, color: _AnnouncementPalette.title(context)),
             ),
           ),
         ]),
         const SizedBox(height: Dimensions.paddingSizeSmall),
         Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis,
-          style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: const Color(0xFF777777)),
+          style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: _AnnouncementPalette.body(context)),
         ),
       ]),
       ),
@@ -1425,8 +1622,6 @@ void _showStoreOfferSheet(BuildContext context, Widget sheet) {
   );
 }
 
-// Detail bottom sheet for a tapped store offer card (discount / free delivery /
-// coupon / announcement / pro). Coupons additionally show a copyable code box.
 class _OfferDetailSheet extends StatelessWidget {
   final String title;
   final String? subTitle;
@@ -1485,7 +1680,6 @@ class _OfferDetailSheet extends StatelessWidget {
                     Text(subTitle!, style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeSmall, color: hint)),
                   ],
                 ])),
-                // Space reserved for the close button pinned to the top-right corner.
                 const SizedBox(width: 30),
               ]),
 
@@ -1506,7 +1700,6 @@ class _OfferDetailSheet extends StatelessWidget {
           ),
         ),
 
-        // Close button — pinned to the sheet's top-right corner.
         Positioned(
           top: Dimensions.paddingSizeDefault,
           right: Dimensions.paddingSizeDefault,
@@ -1537,7 +1730,6 @@ class _OfferDetailSheet extends StatelessWidget {
   }
 }
 
-// Coupon code with a copy-to-clipboard action.
 class _CouponCodeBox extends StatelessWidget {
   final String code;
   final Color accent;
@@ -1583,9 +1775,13 @@ class _CouponCodeBox extends StatelessWidget {
 
 class _StoreCategoryTabs extends StatefulWidget {
   final StoreController storeController;
+  final ValueNotifier<int> activeIndexNotifier;
   final void Function(int index) onTabTap;
+  final bool hasBundles;
 
-  const _StoreCategoryTabs({super.key, required this.storeController, required this.onTabTap});
+  const _StoreCategoryTabs({super.key,
+    required this.storeController, required this.activeIndexNotifier, required this.onTabTap, required this.hasBundles,
+  });
 
   @override
   State<_StoreCategoryTabs> createState() => _StoreCategoryTabsState();
@@ -1595,19 +1791,37 @@ class _StoreCategoryTabsState extends State<_StoreCategoryTabs> {
   final ScrollController _tabScrollController = ScrollController();
   final Map<int, GlobalKey> _tabKeys = {};
   final GlobalKey _containerKey = GlobalKey();
-  int _lastActiveIndex = -1;
 
   GlobalKey _getTabKey(int index) => _tabKeys.putIfAbsent(index, () => GlobalKey());
 
   @override
+  void initState() {
+    super.initState();
+    widget.activeIndexNotifier.addListener(_onActiveIndexChanged);
+  }
+
+  @override
+  void didUpdateWidget(_StoreCategoryTabs oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.activeIndexNotifier != widget.activeIndexNotifier) {
+      oldWidget.activeIndexNotifier.removeListener(_onActiveIndexChanged);
+      widget.activeIndexNotifier.addListener(_onActiveIndexChanged);
+    }
+  }
+
+  @override
   void dispose() {
+    widget.activeIndexNotifier.removeListener(_onActiveIndexChanged);
     _tabScrollController.dispose();
     super.dispose();
   }
 
-  // Drive the horizontal tab list directly — do NOT use Scrollable.ensureVisible
-  // because it walks ALL ancestor scrollables and would also scroll the outer
-  // CustomScrollView back to offset 0 (the pinned header's content position).
+  void _onActiveIndexChanged() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _scrollToActiveTab(widget.activeIndexNotifier.value);
+    });
+  }
+
   void _scrollToActiveTab(int index) {
     if (!_tabScrollController.hasClients) return;
     final key = _tabKeys[index];
@@ -1623,9 +1837,7 @@ class _StoreCategoryTabsState extends State<_StoreCategoryTabs> {
     final double currentOffset = _tabScrollController.offset;
     final double viewportWidth = _tabScrollController.position.viewportDimension;
 
-    // Tab's left edge in content space = scrolled amount + its screen offset from the container.
     final double tabContentLeft = currentOffset + (tabScreenLeft - containerScreenLeft);
-    // Center the tab in the viewport.
     final double targetOffset = (tabContentLeft + tabWidth / 2 - viewportWidth / 2)
         .clamp(0.0, _tabScrollController.position.maxScrollExtent);
 
@@ -1638,51 +1850,51 @@ class _StoreCategoryTabsState extends State<_StoreCategoryTabs> {
     final StoreController storeController = widget.storeController;
     final bool hasMostPopular = storeController.recommendedItemModel?.items?.isNotEmpty == true;
     final List<StoreItemCategory> cats = storeController.storeCategoryItemsModel?.categories ?? [];
-    final int tabCount = hasMostPopular ? cats.length + 1 : cats.length;
-    final int activeIndex = storeController.categoryScrollIndex;
 
-    // Only schedule a scroll when the active index actually changes.
-    if (_lastActiveIndex != activeIndex) {
-      _lastActiveIndex = activeIndex;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _scrollToActiveTab(activeIndex);
-      });
-    }
+    final List<int> visibleTabs = <int>[
+      if (hasMostPopular) 0,
+      if (widget.hasBundles) 1,
+      for (int ci = 0; ci < cats.length; ci++) ci + 2,
+    ];
+    final int tabCount = visibleTabs.length;
 
-    return Center(
-      child: Container(
-        key: _containerKey,
-        width: Dimensions.webMaxWidth,
-        height: 44,
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          boxShadow: const [BoxShadow(color: Color(0x12000000), blurRadius: 8, offset: Offset(0, 2))],
-        ),
-        child: tabCount == 0 ? const SizedBox() : ListView.builder(
-          controller: _tabScrollController,
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          itemCount: tabCount,
-          padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault),
-          itemBuilder: (context, i) {
-            final int index = hasMostPopular ? i : i + 1;
-            final bool selected = index == activeIndex;
-            final String label = index == 0 ? 'most_popular'.tr : (cats[index - 1].name ?? '');
-            return InkWell(
-              key: _getTabKey(index),
-              onTap: () => widget.onTabTap(index),
-              child: Container(height: 52,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(border: Border(bottom: BorderSide(width: 3,
-                  color: selected ? Theme.of(context).primaryColor : Colors.transparent))),
-                child: Text('  $label  ', maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: (selected ? robotoBold : robotoBold).copyWith(fontSize: Dimensions.fontSizeDefault,
-                    color: selected ? Theme.of(context).primaryColor : Theme.of(context).textTheme.bodyLarge!.color!.withValues(alpha: 0.5),
+    return ValueListenableBuilder<int>(
+      valueListenable: widget.activeIndexNotifier,
+      builder: (context, activeIndex, _) => Center(
+        child: Container(
+          key: _containerKey,
+          width: Dimensions.webMaxWidth,
+          height: 44,
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            boxShadow: const [BoxShadow(color: Color(0x12000000), blurRadius: 8, offset: Offset(0, 2))],
+          ),
+          child: tabCount == 0 ? const SizedBox() : ListView.builder(
+            controller: _tabScrollController,
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: tabCount,
+            padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault),
+            itemBuilder: (context, i) {
+              final int index = visibleTabs[i];
+              final bool selected = index == activeIndex;
+              final String label = index == 0 ? 'most_popular'.tr : index == 1 ? 'bundle_offer'.tr : (cats[index - 2].name ?? '');
+              return InkWell(
+                key: _getTabKey(index),
+                onTap: () => widget.onTabTap(index),
+                child: Container(height: 52,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(border: Border(bottom: BorderSide(width: 3,
+                    color: selected ? Theme.of(context).primaryColor : Colors.transparent))),
+                  child: Text('  $label  ', maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: (selected ? robotoBold : robotoBold).copyWith(fontSize: Dimensions.fontSizeDefault,
+                      color: selected ? Theme.of(context).primaryColor : Theme.of(context).textTheme.bodyLarge!.color!.withValues(alpha: 0.5),
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
@@ -1732,7 +1944,6 @@ class _MostPopularItemsSection extends StatelessWidget {
   }
 }
 
-// A row in the flat store item list: either a category header or a single item.
 sealed class _StoreRow {
   const _StoreRow();
 }
@@ -1759,9 +1970,6 @@ class _StoreCompactItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Bridge the slim card model to a minimal Item for the shared card widgets
-    // (CartCountView, CustomFavouriteWidget) and item navigation — each re-fetches
-    // full details by id, so the minimal Item is sufficient.
     final Item item = data.toItem();
     final double discount = item.discount ?? 0;
     final bool hasDiscount = discount > 0;
@@ -1813,7 +2021,9 @@ class _StoreCompactItemCard extends StatelessWidget {
             child: ClipRRect(borderRadius: BorderRadius.circular(12),
               child: Stack(children: [
                 Positioned.fill(
-                  child: CustomImage(image: item.imageFullUrl ?? '', fit: BoxFit.cover, placeholder: Images.placeholder),
+                  child: CustomImage(image: item.imageFullUrl ?? '', fit: BoxFit.cover, placeholder: Images.placeholder,
+                    cacheWidth: ImageCacheHelper.pixels(context, 132),
+                  ),
                 ),
                 Positioned(top: 8, left: 8,
                   child: Row(children: [
@@ -1900,6 +2110,33 @@ class _LoadingBar extends StatelessWidget {
   }
 }
 
+class _StoreCoverImage extends StatelessWidget {
+  final String? url;
+
+  final double height;
+
+  const _StoreCoverImage({required this.url, required this.height});
+
+  @override
+  Widget build(BuildContext context) {
+    final String source = url?.trim() ?? '';
+
+    if (source.isEmpty) {
+      return _placeholder();
+    }
+
+    return Image.network(
+      source,
+      fit: BoxFit.cover,
+      errorBuilder: (BuildContext context, Object error, StackTrace? stackTrace) => _placeholder(),
+      loadingBuilder: (BuildContext context, Widget child, ImageChunkEvent? progress) =>
+          progress == null ? child : _placeholder(),
+    );
+  }
+
+  Widget _placeholder() => Image.asset(Images.placeholder, fit: BoxFit.cover);
+}
+
 class _StoreCircleIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
@@ -1979,7 +2216,6 @@ class _VerifiedChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: const Color(0xFF4285F4), borderRadius: BorderRadius.circular(Dimensions.radiusExtraLarge),
-        boxShadow: const [BoxShadow(color: Color(0x26000000), blurRadius: 6, offset: Offset(0, 2))]
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         const Icon(Icons.verified, color: Colors.white, size: 16),

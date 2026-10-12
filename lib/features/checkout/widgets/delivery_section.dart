@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:sixam_mart/common/widgets/custom_dropdown.dart';
 import 'package:sixam_mart/features/address/domain/models/address_model.dart';
 import 'package:sixam_mart/features/checkout/controllers/checkout_controller.dart';
+import 'package:sixam_mart/features/checkout/domain/models/coverage_list_model.dart';
+import 'package:sixam_mart/features/checkout/widgets/delivery_address_coverage_sheet.dart';
 import 'package:sixam_mart/features/checkout/widgets/delivery_instraction_bottom_sheet_widget.dart';
 import 'package:sixam_mart/features/checkout/widgets_new/address_info_bottom_sheet.dart';
 import 'package:sixam_mart/features/checkout/widgets_new/custom_card_checkout.dart';
-import 'package:sixam_mart/features/location/screens/pick_location_screen.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/util/app_constants.dart';
@@ -60,7 +60,9 @@ class DeliverySection extends StatelessWidget {
           if (!takeAway) ...[
             _LocationRow(
               addressText: _resolveAddressText(controller, isGuest),
-              onEdit: () => _openPickLocationScreen(isGuest),
+              showCoverage: controller.needCoverageAreaSelection,
+              selectedCoverage: controller.selectedCoverageOption,
+              onEdit: () => _onEditAddress(controller, isGuest),
             ),
             const SizedBox(height: Dimensions.paddingSizeDefault),
           ],
@@ -95,34 +97,19 @@ class DeliverySection extends StatelessWidget {
     );
   }
 
-  void _openPickLocationScreen(bool isGuest) {
-    Get.to(
-      () => PickLocationScreen(
-        mode: PickLocationMode.checkout,
-        initialSearchText: _resolveAddressText(checkoutController, isGuest),
-        onAddressPicked: (address) async {
-          if (isGuest) {
-            checkoutController.setGuestAddress(address);
-          } else {
-            await checkoutController.insertAddresses(address, notify: true);
-          }
-          // Recalculate distance for the newly picked address.
-          // Without this call the distance stays stale (calculated on init with
-          // the SharedPref address), so delivery charge and the order body are wrong.
-          final store = checkoutController.store;
-          if (store != null &&
-              address.latitude != null && address.latitude!.isNotEmpty &&
-              address.longitude != null && address.longitude!.isNotEmpty &&
-              store.latitude != null && store.longitude != null) {
-            checkoutController.getDistanceInKM(
-              LatLng(double.parse(address.latitude!), double.parse(address.longitude!)),
-              LatLng(double.parse(store.latitude!), double.parse(store.longitude!)),
-            );
-          }
-        },
-      ),
-      preventDuplicates: false,
-    );
+  /// Where the edit button goes.
+  ///
+  /// Zones whose rule needs an area or ZIP get the combined sheet — the address
+  /// and the pick together price the same fee, so editing one without seeing the
+  /// other invites a quote the customer did not expect. Every other zone keeps
+  /// the original behaviour of opening the map directly, because there is
+  /// nothing extra to ask them.
+  void _onEditAddress(CheckoutController controller, bool isGuest) {
+    if (controller.needCoverageAreaSelection) {
+      showDeliveryAddressCoverageSheet();
+      return;
+    }
+    openCheckoutLocationPicker(controller, initialSearchText: _resolveAddressText(controller, isGuest));
   }
 
   String _resolveAddressText(CheckoutController controller, bool isGuest) {
@@ -152,11 +139,20 @@ class _LocationRow extends StatelessWidget {
   final String addressText;
   final VoidCallback onEdit;
 
-  const _LocationRow({required this.addressText, required this.onEdit});
+  /// Whether this zone asks for an area or ZIP at all. False for distance- and
+  /// fixed-priced zones (most of them) and for take-away, which has no fee to
+  /// price — the Area/ZIP line is not rendered then.
+  final bool showCoverage;
+  final CoverageOption? selectedCoverage;
+
+  const _LocationRow({required this.addressText, required this.onEdit, this.showCoverage = false,
+    this.selectedCoverage,
+  });
 
   @override
   Widget build(BuildContext context) {
     final bool isEmpty = addressText.trim().isEmpty;
+
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const _IconBadge(icon: Icons.location_on_outlined),
       const SizedBox(width: Dimensions.paddingSizeSmall),
@@ -172,11 +168,50 @@ class _LocationRow extends StatelessWidget {
               height: 1.4,
             ),
           ),
+
+          if (showCoverage) ...[
+            const SizedBox(height: Dimensions.paddingSizeExtraSmall),
+            _CoverageLine(selectedCoverage: selectedCoverage),
+          ],
         ]),
       ),
       const SizedBox(width: Dimensions.paddingSizeSmall),
       _EditIconButton(onTap: onEdit),
     ]);
+  }
+}
+
+/// `Area/ZIP Code: <name>`, or an unmissable "Not set yet" until one is picked.
+///
+/// Prompting rather than blocking is deliberate: the quote charges the rule's own
+/// minimum when no pick is made, so an unset value is a worse price rather than a
+/// broken order.
+class _CoverageLine extends StatelessWidget {
+  final CoverageOption? selectedCoverage;
+
+  const _CoverageLine({required this.selectedCoverage});
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isSet = selectedCoverage != null;
+    return Text.rich(
+      TextSpan(children: <InlineSpan>[
+        TextSpan(
+          text: '${'area_zip_code'.tr}:  ',
+          style: robotoRegular.copyWith(
+            fontSize: Dimensions.fontSizeSmall,
+            color: isSet ? Theme.of(context).disabledColor : Theme.of(context).colorScheme.error,
+          ),
+        ),
+        TextSpan(
+          text: isSet ? selectedCoverage!.name ?? '' : 'not_set_yet'.tr,
+          style: robotoMedium.copyWith(
+            fontSize: Dimensions.fontSizeSmall,
+            color: isSet ? Theme.of(context).textTheme.bodyLarge?.color : Theme.of(context).colorScheme.error,
+          ),
+        ),
+      ]),
+    );
   }
 }
 

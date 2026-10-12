@@ -1,3 +1,4 @@
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sixam_mart/common/models/module_model.dart';
@@ -45,6 +46,17 @@ class WebItemWidget extends StatelessWidget {
     String? discountType;
     bool isAvailable;
     String genericName = '';
+
+    // Resolved once so the decode hint below cannot drift from the painted box.
+    final double thumbWidth = desktop ? isStore ? 275 : double.infinity : 80;
+    final double thumbHeight = desktop ? 140 : length == null ? 100 : 65;
+    // Exactly one axis is hinted, so ResizeImage derives the other from the source
+    // and keeps its aspect ratio for `BoxFit.cover` to crop. Two axes would make it
+    // decode to exactly those numbers ([ResizeImagePolicy.exact]) and stretch the
+    // photo. Width is preferred; where the thumbnail fills its parent
+    // (`double.infinity`) there is no width to hint, so the height axis carries it.
+    final int? thumbDecodeWidth = ImageCacheHelper.pixels(context, thumbWidth);
+    final int? thumbDecodeHeight = thumbDecodeWidth == null ? ImageCacheHelper.pixels(context, thumbHeight) : null;
 
     if(!isStore && item!.genericName != null && item!.genericName!.isNotEmpty) {
       for (String name in item!.genericName!) {
@@ -114,7 +126,8 @@ class WebItemWidget extends StatelessWidget {
                           child: CustomImage(
                             isHovered: hovered,
                             image: '${isStore ? store != null ? store!.logoFullUrl : '' : item!.imageFullUrl}',
-                            height: desktop ? 140 : length == null ? 100 : 65, width: desktop ? isStore ? 275 : double.infinity : 80, fit: BoxFit.cover,
+                            height: thumbHeight, width: thumbWidth, fit: BoxFit.cover,
+                            cacheWidth: thumbDecodeWidth, cacheHeight: thumbDecodeHeight,
                           ),
                         ),
 

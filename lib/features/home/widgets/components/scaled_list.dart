@@ -76,6 +76,12 @@ class ScaledListState extends State<ScaledList> {
   }
 
   @override
+  void dispose() {
+    _scrollController?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
       parentWidth = constraints.maxWidth;

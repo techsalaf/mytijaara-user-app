@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sixam_mart/common/widgets/custom_tool_tip_widget.dart';
 import 'package:sixam_mart/features/order/domain/models/order_model.dart';
-import 'package:sixam_mart/features/pro/domain/models/pro_active_offer_model.dart';
 import 'package:sixam_mart/features/order/model/billing_value.dart';
 import 'package:sixam_mart/features/order/widgets/collapsible_header.dart';
+import 'package:sixam_mart/features/pro/domain/models/pro_active_offer_model.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
+import 'package:sixam_mart/helper/module_helper.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
 import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/dimensions.dart';
@@ -78,7 +79,11 @@ class _BillingSummarySectionState extends State<BillingSummarySection> {
                 Divider(thickness: 1, color: Theme.of(context).hintColor.withValues(alpha: 0.5)),
                 _BillingRow(label: 'subtotal'.tr, value: PriceConverter.convertPrice(billing.subTotal), isSubTotal: true),
               ],
-              _BillingRow(label: 'discount'.tr, value: '(-) ${PriceConverter.convertPrice(billing.discount)}'),
+              _BillingRow(
+                label: 'discount'.tr,
+                value: '(-) ${PriceConverter.convertPrice(billing.discount)}',
+                tooltipMessage: _discountTooltip(order),
+              ),
               if (isProDiscount)
                 _BillingRow(label: 'discount_pro'.tr, value: '(-) ${PriceConverter.convertPrice(order.proDiscount)}'),
               if (isProCoupon)
@@ -136,6 +141,23 @@ class _BillingSummarySectionState extends State<BillingSummarySection> {
         duration: const Duration(milliseconds: 200),
       ),
     ]);
+  }
+
+  String? _discountTooltip(OrderModel order) {
+    if(widget.billing.isHappyHour) {
+      return  'happy_hour_discount_applied'.tr;
+    }
+    if(!widget.billing.isStoreDiscount) {
+      return null;
+    }
+
+    final double storeDiscount = order.storeDiscountAmount ?? 0;
+    final double flashSaleDiscount = (order.flashAdminDiscountAmount ?? 0) + (order.flashStoreDiscountAmount ?? 0);
+    if(storeDiscount > 0 && flashSaleDiscount > 0) {
+      return '${'store'.tr} ${'discount'.tr} : ${PriceConverter.convertPrice(storeDiscount)}'
+          '\n${'flash_sale'.tr} ${'discount'.tr} : ${PriceConverter.convertPrice(flashSaleDiscount)}';
+    }
+    return ModuleHelper.storeDiscountAppliedLabel(moduleType: order.moduleType);
   }
 
   String _deliveryDiscountTooltip(OrderModel order, BillingValues billing) {
@@ -367,3 +389,9 @@ class _ReturnFeeBlock extends StatelessWidget {
     ]);
   }
 }
+
+// SUMMARY
+// Collapsible billing summary of an order. Lists the item price, add-ons, discounts,
+// coupon, referral, charges, tips, packaging and delivery fee with tooltips explaining
+// where a discount came from, then the total, the partial-payment split and any
+// parcel return fee.

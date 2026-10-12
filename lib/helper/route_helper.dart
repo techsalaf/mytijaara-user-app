@@ -18,6 +18,8 @@ import 'package:sixam_mart/features/address/screens/address_screen.dart';
 import 'package:sixam_mart/features/ai_chat_bot/screens/ai_chat_bot_screen.dart';
 import 'package:sixam_mart/features/ai_chat_bot/screens/ai_chat_details_screen.dart';
 import 'package:sixam_mart/features/auth/controllers/auth_controller.dart';
+import 'package:sixam_mart/features/bogo_offer/screen/bogo_offer_details_screen.dart';
+import 'package:sixam_mart/features/bogo_offer/screen/bogo_offer_screen.dart';
 import 'package:sixam_mart/features/auth/screens/delivery_man_registration_screen.dart';
 import 'package:sixam_mart/features/auth/screens/new_user_setup_screen.dart';
 import 'package:sixam_mart/features/auth/screens/rider_registration_screen.dart';
@@ -48,6 +50,7 @@ import 'package:sixam_mart/features/interest/screens/interest_screen.dart';
 import 'package:sixam_mart/features/home/screens/preference_screen.dart';
 import 'package:sixam_mart/features/item/domain/models/basic_campaign_model.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
+import 'package:sixam_mart/features/item/domain/models/item_selection_preview.dart';
 import 'package:sixam_mart/features/item/screens/item_campaign_screen.dart';
 import 'package:sixam_mart/features/item/screens/item_view_all_screen.dart';
 import 'package:sixam_mart/features/item/screens/popular_item_screen.dart';
@@ -231,6 +234,8 @@ class RouteHelper {
 
   static const String offlinePaymentScreen = '/offline-payment-screen';
   static const String flashSaleDetailsScreen = '/flash-sale-details-screen';
+  static const String bogoOfferScreen = '/bogo-offer';
+  static const String bogoOfferDetailsScreen = '/bogo-offer-details';
   static const String guestTrackOrderScreen = '/guest-track-order-screen';
   static const String favourite = '/favourite';
   static const String brands = '/brands';
@@ -372,6 +377,22 @@ class RouteHelper {
   static String getReviewRoute() => rateReview;
   static String getUpdateRoute(bool isUpdate) => '$update?update=${isUpdate.toString()}';
   static String getCartRoute({int? storeId}) => '$cart?module=${ModuleHelper.getModule()?.slug ?? ModuleHelper.getModule()?.id}${storeId != null ? '&store_id=$storeId' : ''}';
+  static void openCart({int? storeId}) {
+    // Already on the cart — opening it again would stack a second one.
+    if(Get.currentRoute.startsWith(cart)) {
+      return;
+    }
+    Get.toNamed(getCartRoute(storeId: storeId));
+  }
+  static void openSignInFromSignUp() {
+    // Sign-up opened from sign-in — pushing another sign-in would stack a duplicate.
+    if(Get.previousRoute.startsWith(signIn)) {
+      Get.back();
+      return;
+    }
+    Get.toNamed(getSignInRoute(signUp));
+  }
+
   static String getGlobalCartRoute({bool fromNav = false, int? initialModuleId}) => '$globalCart?from_nav=$fromNav${initialModuleId != null ? '&module_id=$initialModuleId' : ''}';
   static String getAddAddressRoute(bool fromCheckout, bool fromRide, int? zoneId, {bool isNavbar = false}) => '$addAddress?page=${fromCheckout ? 'checkout' : 'address'}&ride=$fromRide&zone_id=$zoneId&navbar=$isNavbar';
   static String getEditAddressRoute(AddressModel? address, {bool fromGuest = false}) {
@@ -416,7 +437,7 @@ class RouteHelper {
   }
   static String getSearchStoreItemRoute(int? storeID) => '$searchStoreItem?id=$storeID';
   static String getOrderRoute() => order;
-  static String getItemDetailsRoute(int? itemID, bool isRestaurant, String name, {String? moduleId, required String slug, bool fromDeeplink = false, bool isCampaign = false}) {
+  static String getItemDetailsRoute(int? itemID, bool isRestaurant, String name, {String? moduleId, required String slug, bool fromDeeplink = false, bool isCampaign = false, ItemSelectionPreview? preview}) {
     String itemSlug = '';
     if(slug.isEmpty) {
       itemSlug = name.toLowerCase()
@@ -427,7 +448,11 @@ class RouteHelper {
     } else {
       itemSlug = slug;
     }
-    return '$itemDetails/$itemSlug?id=$itemID&page=${isRestaurant ? 'restaurant' : 'item'}&module=${moduleId ?? ModuleHelper.getModule()?.slug ?? ModuleHelper.getModule()?.id}${fromDeeplink ? '&from_deeplink=true' : ''}&is_campaign=$isCampaign';
+    // `arguments:` on Get.toNamed never reaches this route's GetPage — it rebuilds
+    // the screen purely from these query parameters — so a preview (a bundle
+    // locking the item's variations/add-ons) has to ride along as one too.
+    final String previewParam = preview != null ? '&preview=${base64Url.encode(utf8.encode(jsonEncode(preview.toJson())))}' : '';
+    return '$itemDetails/$itemSlug?id=$itemID&page=${isRestaurant ? 'restaurant' : 'item'}&module=${moduleId ?? ModuleHelper.getModule()?.slug ?? ModuleHelper.getModule()?.id}${fromDeeplink ? '&from_deeplink=true' : ''}&is_campaign=$isCampaign$previewParam';
   }
   static String getWalletRoute({String? fundStatus, String? token, bool fromNotification = false}) => '$wallet?payment_status=$fundStatus&token=$token&from_notification=$fromNotification';
   static String getLoyaltyRoute({bool fromNotification = false}) => '$loyalty?from_notification=$fromNotification';
@@ -460,6 +485,12 @@ class RouteHelper {
   }) {
     return '$offlinePaymentScreen?zone_id=$zoneId&total=$total&max_cod_amount=$maxCodOrderAmount&from_cart=$fromCart&cod_active=$isCodActive&for_parcel=$forParcel&order_id=$orderId&contact_number=$contactNumber';
   }
+  /// [moduleId] preselects that module's tab, and — on the details route — is the
+  /// module the offer is asked for. Without it the request goes out under whichever
+  /// module the app happens to be in, which 404s for an offer from another one.
+  static String getBogoOfferRoute({int? moduleId}) => moduleId != null ? '$bogoOfferScreen?module_id=$moduleId' : bogoOfferScreen;
+  static String getBogoOfferDetailsRoute(String idOrSlug, {int? moduleId}) =>
+      '$bogoOfferDetailsScreen?id=$idOrSlug${moduleId != null ? '&module_id=$moduleId' : ''}';
   static String getFlashSaleDetailsScreen(int id) => '$flashSaleDetailsScreen?id=$id&module=${ModuleHelper.getModule()?.slug ?? ModuleHelper.getModule()?.id}';
   static String getGuestTrackOrderScreen(String orderId, String number) => '$guestTrackOrderScreen?order_id=$orderId&number=$number';
   static String getFavouriteScreen() => favourite;
@@ -960,11 +991,15 @@ class RouteHelper {
     GetPage(name: searchStoreItem, page: () => getRoute(StoreItemSearchScreen(storeID: Get.parameters['id']))),
     GetPage(name: order, page: () => getRoute(byPuss: true, const OrderScreen())),
     GetPage(name: '$itemDetails/:slug', page: () {
+      ItemSelectionPreview? preview;
+      if(Get.parameters['preview'] != null && Get.parameters['preview']!.isNotEmpty) {
+        preview = ItemSelectionPreview.fromJson(jsonDecode(utf8.decode(base64Url.decode(Get.parameters['preview']!))));
+      }
       return getRoute(
         byPuss: (Get.parameters['module'] != null && Get.parameters['module']!.isNotEmpty && Get.parameters['module'] != 'null'),
         _waitForModule(
           Get.parameters['module'], fromDeeplink: Get.parameters['from_deeplink'] == 'true',
-          ItemDetailsNewScreen(itemId: int.parse(Get.parameters['id']!), inStorePage: Get.parameters['page'] == 'restaurant', isCampaign: Get.parameters['is_campaign'] == 'true'),
+          ItemDetailsNewScreen(itemId: int.parse(Get.parameters['id']!), inStorePage: Get.parameters['page'] == 'restaurant', isCampaign: Get.parameters['is_campaign'] == 'true', preview: preview),
         ),
       );
     }),
@@ -1019,6 +1054,10 @@ class RouteHelper {
       );
     },
     ),
+    GetPage(name: bogoOfferScreen, page: () => getRoute(BogoOfferScreen(moduleId: int.tryParse(Get.parameters['module_id'] ?? '')))),
+    GetPage(name: bogoOfferDetailsScreen, page: () => getRoute(BogoOfferDetailsScreen(
+      offerIdOrSlug: Get.parameters['id'], moduleId: int.tryParse(Get.parameters['module_id'] ?? ''),
+    ))),
     GetPage(name: flashSaleDetailsScreen, page: () {
       return _waitForModule(
         Get.parameters['module'], FlashSaleDetailsScreen(id: int.parse(Get.parameters['id']!)),
@@ -1389,3 +1428,7 @@ Future<void> _moduleCheck(String moduleSlug, ApiClient apiClient, SharedPreferen
   }
 
 }
+
+// SUMMARY
+// Named routes, route builders and page definitions for the whole app, plus small navigation
+// helpers that avoid stacking duplicate cart or sign-in pages.

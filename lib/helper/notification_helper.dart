@@ -22,9 +22,12 @@ import 'package:sixam_mart/features/ride_share_module/ride_order/controllers/rid
 import 'package:sixam_mart/features/ride_share_module/ride_order/screens/ride_order_complete_screen.dart';
 import 'package:sixam_mart/features/ride_share_module/ride_payment/screens/ride_payment_screen.dart';
 import 'package:sixam_mart/features/ride_share_module/safety_alert/controllers/safety_alert_controller.dart';
+import 'package:sixam_mart/features/happy_hour/controllers/happy_hour_controller.dart';
+import 'package:sixam_mart/features/happy_hour/screens/happy_hour_screen.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:sixam_mart/util/app_constants.dart';
@@ -80,6 +83,8 @@ class NotificationHelper {
             NotificationType.custom_service_bid: () => customServiceBidRouteCheck(payload.orderId, payload.moduleId),
             NotificationType.custom_service_request_posted: () => customServiceBidRouteCheck(payload.orderId, payload.moduleId),
             NotificationType.custom_service_bid_withdrawn: () => customServiceBidRouteCheck(payload.orderId, payload.moduleId),
+            NotificationType.bogo_offer: () => routeToBogoOffer(payload.bogoOfferId, payload.moduleId),
+            NotificationType.happy_hour: () => routeToHappyHour(payload.moduleId),
           };
 
           notificationActions[payload.notificationType]?.call();
@@ -346,6 +351,8 @@ class NotificationHelper {
                 int.tryParse('${message.data['order_id']}'), int.tryParse('${message.data['module_id']}')),
             NotificationType.custom_service_bid_withdrawn: () => customServiceBidRouteCheck(
                 int.tryParse('${message.data['order_id']}'), int.tryParse('${message.data['module_id']}')),
+            NotificationType.bogo_offer: () => routeToBogoOffer(notificationBody.bogoOfferId, notificationBody.moduleId),
+            NotificationType.happy_hour: () => routeToHappyHour(notificationBody.moduleId),
           };
 
           notificationActions[notificationBody.notificationType]?.call();
@@ -355,7 +362,7 @@ class NotificationHelper {
   }
 
   static Future<void> showNotification(RemoteMessage message, FlutterLocalNotificationsPlugin fln) async {
-    if(!GetPlatform.isIOS) {
+    if(!GetPlatform.isIOS && message.data.isNotEmpty) {
       String? title;
       String? body;
       String? orderID;
@@ -430,8 +437,60 @@ class NotificationHelper {
     return filePath;
   }
 
+  static bool isBogoNotification(String? type) {
+    if(type == null || type.isEmpty) {
+      return false;
+    }
+    return type == 'bogo_offer' || type.startsWith('bogo_') || type.startsWith('store_bogo_');
+  }
+
+  /// The customer broadcast for a running Happy Hour. Exactly `happy_hour` — unlike
+  /// BOGO, there is no family of related types reaching the customer app.
+  static bool isHappyHourNotification(String? type) => type == 'happy_hour';
+
+  /// Happy Hour has no route of its own — it is a sheet shown over whatever is on
+  /// screen — so the module is switched first and the sheet opened on top.
+  static Future<void> routeToHappyHour(int? moduleId) async {
+    if(moduleId != null && Get.find<SplashController>().module?.id != moduleId) {
+      await Get.find<SplashController>().activateModuleById(moduleId);
+    }
+    // Refetch before opening: the offer may have ended between the push and the tap.
+    await Get.find<HappyHourController>().getRunningHappyHour();
+    final BuildContext? context = Get.context;
+    if(context != null) {
+      HappyHourScreen.show(context);
+    }
+  }
+
+  static void routeToBogoOffer(String? offerIdOrSlug, int? moduleId) {
+    if(offerIdOrSlug != null && offerIdOrSlug.isNotEmpty) {
+      Get.toNamed(RouteHelper.getBogoOfferDetailsRoute(offerIdOrSlug, moduleId: moduleId));
+    } else {
+      Get.toNamed(RouteHelper.getBogoOfferRoute(moduleId: moduleId));
+    }
+  }
+
   static NotificationBodyModel convertNotification(Map<String, dynamic> data) {
     final type = data['type'];
+
+    if(isHappyHourNotification(type)) {
+      return NotificationBodyModel(
+        type: type,
+        notificationType: NotificationType.happy_hour,
+        moduleId: int.tryParse('${data['module_id']}'),
+      );
+    }
+
+    if(isBogoNotification(type)) {
+      return NotificationBodyModel(
+        type: type,
+        notificationType: NotificationType.bogo_offer,
+        bogoOfferId: NotificationBodyModel.firstNonEmptyOf(
+          data, const ['data_id', 'bogo_offer_id', 'offer_slug', 'offer_id'],
+        ),
+        moduleId: int.tryParse('${data['module_id']}'),
+      );
+    }
 
     final rideRequestId = data['ride_request_id'];
     final action = data['action'];
@@ -595,7 +654,9 @@ class NotificationHelper {
       notificationType: NotificationType.message,
       deliverymanId: senderType == 'delivery_man' ? 0 : null,
       adminId: senderType == 'admin' ? 0 : null,
-      restaurantId: senderType == 'vendor1' ? 0 : null,
+      // `vendor1` never matched: the payload's sender_type for a store is `vendor`,
+      // so a vendor message notification opened the chat without its store id.
+      restaurantId: senderType == UserType.vendor.name ? 0 : null,
       conversationId: int.parse(conversationId.toString()),
     );
   }
@@ -926,10 +987,51 @@ class NotificationHelper {
 
 
 
+/// Runs in its own isolate when a message arrives with the app backgrounded or killed —
+/// nothing from `main()` is initialised here, so Firebase and the notifications plugin are
+/// set up again before use.
+///
+/// Only draws a notification when the message carries **no** `notification` block: FCM and
+/// the OS render that one themselves, and building a second here would show the customer
+/// two. A data-only message renders nothing without this, which is why a killed app stayed
+/// silent.
 @pragma('vm:entry-point')
 Future<dynamic> myBackgroundMessageHandler(RemoteMessage message) async {
   if (kDebugMode) {
     print("onBackground: ${message.data}");
+  }
+
+  if (message.notification != null || message.data.isEmpty) {
+    return;
+  }
+
+  try {
+    if (Firebase.apps.isEmpty) {
+      if (GetPlatform.isAndroid) {
+        await Firebase.initializeApp(
+          options: const FirebaseOptions(
+            apiKey: "AIzaSyCc3OCd5I2xSlnftZ4bFAbuCzMhgQHLivA",
+            appId: "1:491987943015:android:a6fb4303cc4bf3d18f1ec2",
+            messagingSenderId: "491987943015",
+            projectId: "stackmart-500c7",
+          ),
+        );
+      } else {
+        await Firebase.initializeApp();
+      }
+    }
+
+    final FlutterLocalNotificationsPlugin backgroundPlugin = FlutterLocalNotificationsPlugin();
+    await backgroundPlugin.initialize(const InitializationSettings(
+      android: AndroidInitializationSettings('notification_icon'),
+      iOS: DarwinInitializationSettings(),
+    ));
+
+    await NotificationHelper.showNotification(message, backgroundPlugin);
+  } catch (e) {
+    if (kDebugMode) {
+      print("onBackground notification failed: $e");
+    }
   }
 }
 

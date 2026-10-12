@@ -30,8 +30,10 @@ class _DeliveryOptionButtonWidgetState extends State<DeliveryOptionButtonWidget>
     super.initState();
 
     Future.delayed(const Duration(milliseconds: 200), (){
+      // `delivery` is absent from the store payload now, so it reads null.
+      // Unknown means delivery, the same fallback getStoreDetails uses.
       Get.find<CheckoutController>().setOrderType(Get.find<SplashController>().configModel!.homeDeliveryStatus == 1
-          && Get.find<CheckoutController>().store!.delivery! ? 'delivery' : 'take_away', notify: true);
+          && (Get.find<CheckoutController>().store!.delivery ?? true) ? 'delivery' : 'take_away', notify: true);
     });
   }
   @override

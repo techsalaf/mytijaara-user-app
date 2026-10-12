@@ -9,6 +9,7 @@ import 'package:sixam_mart/common/widgets/not_available_widget.dart';
 import 'package:sixam_mart/features/category/controllers/category_controller.dart';
 import 'package:sixam_mart/common/widgets/offer_card_widget.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/images.dart';
 import 'package:sixam_mart/util/styles.dart';
@@ -75,16 +76,14 @@ class FeaturedStoreCard extends StatelessWidget {
                       const SizedBox(width: Dimensions.paddingSizeExtraSmall),
                       _TopPickRating(
                         rating: data.avgRating ?? 0,
-                        // Different store-list endpoints populate one or the other
-                        // (rating_count vs reviews_count) — fall back between them.
                         reviewCount: data.ratingCount ?? data.reviewsCount ?? 0,
                       ),
                     ],
                   ),
 
-                  if (!isFeatured! && data.categoryIds != null && data.categoryIds!.isNotEmpty) ...[
+                  if (!isFeatured! && ((data.categoryIds?.isNotEmpty ?? false) || (data.categoryNames?.isNotEmpty ?? false))) ...[
                     const SizedBox(height: Dimensions.paddingSizeExtraSmall),
-                    _CategoryTagsRow(categoryIds: data.categoryIds!),
+                    _CategoryTagsRow(categoryIds: data.categoryIds ?? const <int>[], categoryNames: data.categoryNames),
                   ],
 
                   const SizedBox(height: Dimensions.paddingSizeExtraSmall - 1),
@@ -122,11 +121,7 @@ class _TopPickImageHeader extends StatelessWidget {
   final bool isQuick;
 
   const _TopPickImageHeader({
-    required this.data,
-    required this.imageHeight,
-    required this.favoriteButtonSize,
-    required this.favoriteIconSize,
-    required this.isQuick,
+    required this.data, required this.imageHeight, required this.favoriteButtonSize, required this.favoriteIconSize, required this.isQuick,
   });
 
   @override
@@ -138,10 +133,15 @@ class _TopPickImageHeader extends StatelessWidget {
       child: Stack(
         children: [
           Positioned.fill(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
-              child: CustomImage(image: data.coverPhotoFullUrl ?? '', fit: BoxFit.cover),
-            ),
+            child: LayoutBuilder(builder: (BuildContext context, BoxConstraints constraints) {
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+                child: CustomImage(image: data.coverPhotoFullUrl ?? '', fit: BoxFit.cover,
+                  cacheWidth: ImageCacheHelper.pixels(context, constraints.maxWidth),
+                  cacheHeight: ImageCacheHelper.pixels(context, constraints.maxHeight),
+                ),
+              );
+            }),
           ),
 
           isAvailable
@@ -261,7 +261,9 @@ class _TopPickMetaRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String timeText = data.deliveryTime ?? '';
-    final String distText = data.distance != null ? ' (${formatDistance(data.distance! / 1000)})' : '';
+    final double? meters = data.distance ?? (data.distanceKm != null ? data.distanceKm! * 1000 : null);
+    final String? distLabel = data.distanceLabel ?? (meters != null ? formatDistance(meters) : null);
+    final String distText = distLabel != null ? ' ($distLabel)' : '';
     final String label = '$timeText$distText'.trim();
     if (label.isEmpty) return const SizedBox.shrink();
 
@@ -281,16 +283,20 @@ class _TopPickMetaRow extends StatelessWidget {
 
 class _CategoryTagsRow extends StatelessWidget {
   final List<int> categoryIds;
-  const _CategoryTagsRow({required this.categoryIds});
+  final List<String>? categoryNames;
+  const _CategoryTagsRow({required this.categoryIds, this.categoryNames});
 
   @override
   Widget build(BuildContext context) {
-    if (!Get.isRegistered<CategoryController>()) return const SizedBox.shrink();
-    final CategoryController cc = Get.find<CategoryController>();
-    final List<String> names = categoryIds
-        .map((id) => cc.getCategoryNameById(id) ?? '')
-        .where((n) => n.isNotEmpty)
-        .toList();
+    List<String> names = categoryNames?.where((n) => n.isNotEmpty).toList() ?? const <String>[];
+    if (names.isEmpty) {
+      if (!Get.isRegistered<CategoryController>()) return const SizedBox.shrink();
+      final CategoryController cc = Get.find<CategoryController>();
+      names = categoryIds
+          .map((id) => cc.getCategoryNameById(id) ?? '')
+          .where((n) => n.isNotEmpty)
+          .toList();
+    }
     if (names.isEmpty) return const SizedBox.shrink();
     return Text(
       names.join(', '),

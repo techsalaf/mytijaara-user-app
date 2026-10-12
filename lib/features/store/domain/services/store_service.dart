@@ -8,6 +8,7 @@ import 'package:sixam_mart/common/models/module_model.dart';
 import 'package:sixam_mart/features/store/domain/models/recommended_product_model.dart';
 import 'package:sixam_mart/features/store/domain/models/store_banner_model.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
+import 'package:sixam_mart/features/bogo_offer/domain/models/bogo_offer_model.dart';
 import 'package:sixam_mart/features/location/domain/models/zone_response_model.dart';
 import 'package:sixam_mart/features/store/domain/repositories/store_repository_interface.dart';
 import 'package:sixam_mart/features/store/domain/services/store_service_interface.dart';
@@ -128,4 +129,9 @@ class StoreService implements StoreServiceInterface {
     return replace;
   }
 
+
+  @override
+  Future<StoreBogoOfferListModel?> getStoreBogoOffers(int? storeId, {int offset = 1, int limit = 10, Store? store}) async {
+    return await storeRepositoryInterface.getStoreBogoOffers(storeId, offset: offset, limit: limit, store: store);
+  }
 }

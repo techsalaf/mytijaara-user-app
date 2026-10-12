@@ -15,6 +15,9 @@ class BillingValues {
   final double deliveryCharge;
   final double deliveryTypeCharge;
   final double total;
+  final bool isHappyHour;
+  final double happyHourPercentage;
+  final bool isStoreDiscount;
 
   const BillingValues({
     required this.parcel,
@@ -33,5 +36,13 @@ class BillingValues {
     required this.deliveryCharge,
     required this.deliveryTypeCharge,
     required this.total,
+    this.isHappyHour = false,
+    this.happyHourPercentage = 0,
+    this.isStoreDiscount = false,
   });
 }
+
+// SUMMARY
+// The figures one order's bill is drawn from: item price, add-ons, subtotal, every
+// discount and charge, the delivery fee and the total, plus whether a Happy Hour or a
+// store discount is what produced the discount and at what rate.

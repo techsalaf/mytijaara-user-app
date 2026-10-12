@@ -66,9 +66,9 @@ class _LoyaltyScreenState extends State<LoyaltyScreen> {
   }
   @override
   void dispose() {
-    super.dispose();
 
     scrollController.dispose();
+    super.dispose();
   }
 
   @override

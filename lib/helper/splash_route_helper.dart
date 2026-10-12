@@ -60,6 +60,8 @@ import 'package:sixam_mart/util/app_constants.dart';
       NotificationType.custom_service_bid: () async => await NotificationHelper.customServiceBidRouteCheck(notificationBody!.orderId, notificationBody.moduleId),
       NotificationType.custom_service_request_posted: () async => await NotificationHelper.customServiceBidRouteCheck(notificationBody!.orderId, notificationBody.moduleId),
       NotificationType.custom_service_bid_withdrawn: () async => await NotificationHelper.customServiceBidRouteCheck(notificationBody!.orderId, notificationBody.moduleId),
+      NotificationType.bogo_offer: () => NotificationHelper.routeToBogoOffer(
+          notificationBody?.bogoOfferId, notificationBody?.moduleId),
       NotificationType.ride_request: () async {
         if(notificationBody != null) {
           // Convert NotificationBodyModel to Map for notificationRouteCheck

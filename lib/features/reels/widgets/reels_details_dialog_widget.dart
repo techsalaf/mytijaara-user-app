@@ -21,6 +21,7 @@ import 'package:sixam_mart/features/rental_module/vendor/screens/provider_detail
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/helper/date_converter.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/util/app_constants.dart';
@@ -795,7 +796,11 @@ class _ReelDetailsPageState extends State<_ReelDetailsPage> {
                                   border: Border.all(color: Colors.white.withValues(alpha: 0.65), width: 1),
                                 ),
                                 child: ClipOval(
-                                  child: CustomImage(image: widget.reel.resolvedLogoUrl, fit: BoxFit.cover),
+                                  child: CustomImage(
+                                    image: widget.reel.resolvedLogoUrl, fit: BoxFit.cover,
+                                    cacheWidth: ImageCacheHelper.pixels(context, 28),
+                                    cacheHeight: ImageCacheHelper.pixels(context, 28),
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: Dimensions.paddingSizeSmall),

@@ -34,6 +34,10 @@ enum NotificationType{
   custom_service_request_posted,
   //ignore: constant_identifier_names
   custom_service_bid_withdrawn,
+  //ignore: constant_identifier_names
+  bogo_offer,
+  //ignore: constant_identifier_names
+  happy_hour,
 }
 
 class NotificationBodyModel {
@@ -61,6 +65,11 @@ class NotificationBodyModel {
   String? postId;
   int? moduleId;
 
+  /// The offer a BOGO notification points at — an id or a slug, either of which the
+  /// details endpoint accepts. Empty on the enrolment pushes the platform sends today,
+  /// so the tap falls back to the offer list.
+  String? bogoOfferId;
+
 
   NotificationBodyModel({
     this.notificationType,
@@ -85,7 +94,8 @@ class NotificationBodyModel {
     this.bookingType,
     this.postId,
     this.repeatBookingType,
-    this.moduleId
+    this.moduleId,
+    this.bogoOfferId,
   });
 
   NotificationBodyModel.fromJson(Map<String, dynamic> json) {
@@ -112,6 +122,20 @@ class NotificationBodyModel {
     bookingType = json['booking_type'];
     postId = json['post_id'];
     moduleId = int.tryParse('${json['module_id']}');
+    bogoOfferId = firstNonEmptyOf(json, const ['data_id', 'bogo_offer_id', 'offer_slug', 'offer_id']);
+  }
+
+  /// `data_id` is the platform's shared id slot and comes first; the rest cover a payload
+  /// that names the offer directly. Every key in the block can arrive as an empty string
+  /// rather than absent, so emptiness is what disqualifies a value, not null alone.
+  static String? firstNonEmptyOf(Map<String, dynamic> json, List<String> keys) {
+    for(final String key in keys) {
+      final String value = '${json[key] ?? ''}'.trim();
+      if(value.isNotEmpty && value != 'null') {
+        return value;
+      }
+    }
+    return null;
   }
 
   Map<String, dynamic> toJson() {
@@ -139,6 +163,7 @@ class NotificationBodyModel {
     data['booking_type'] = bookingType;
     data['post_id'] = postId;
     data['module_id'] = moduleId;
+    data['data_id'] = bogoOfferId;
     return data;
   }
 
@@ -165,6 +190,7 @@ class NotificationBodyModel {
       NotificationType.custom_service_bid.toString(): NotificationType.custom_service_bid,
       NotificationType.custom_service_request_posted.toString(): NotificationType.custom_service_request_posted,
       NotificationType.custom_service_bid_withdrawn.toString(): NotificationType.custom_service_bid_withdrawn,
+      NotificationType.bogo_offer.toString(): NotificationType.bogo_offer,
     };
 
     return enumMap[enumString] ?? NotificationType.general;

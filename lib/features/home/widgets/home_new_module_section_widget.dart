@@ -6,6 +6,7 @@ import 'package:sixam_mart/common/models/module_model.dart';
 import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/common/widgets/custom_ink_well.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/styles.dart';
@@ -492,7 +493,7 @@ class _ModuleVisual extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool hasUrl = iconUrl != null && iconUrl!.isNotEmpty;
     if (hasUrl) {
-      return CustomImage(image: iconUrl!, height: size, width: size);
+      return CustomImage(image: iconUrl!, height: size, width: size, cacheWidth: ImageCacheHelper.pixels(context, size));
     }
     return Text(emojiFallback, style: TextStyle(fontSize: size - 5));
   }

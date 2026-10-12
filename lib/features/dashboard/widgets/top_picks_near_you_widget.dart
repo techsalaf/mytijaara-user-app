@@ -36,9 +36,6 @@ class TopPicksNearYouWidget extends StatelessWidget {
 
     final double cardWidth = MediaQuery.sizeOf(context).width * 0.80;
     final double imageHeight = cardWidth * 0.46;
-    // Content area below the image. Non-featured cards also render a category-tags
-    // row, so they need extra room; scale with the text scaler so larger fonts
-    // don't clip the card content (which caused the list overflow).
     final double textScale = MediaQuery.textScalerOf(context).scale(1.0);
     final double sectionHeight = imageHeight + ((height ?? 90) + (isFeatured! ? 0 : 22)) * textScale;
 

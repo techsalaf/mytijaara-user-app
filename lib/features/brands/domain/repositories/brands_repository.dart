@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:get/get.dart';
 import 'package:sixam_mart/api/api_client.dart';
+import 'package:sixam_mart/api/response_parser.dart';
 import 'package:sixam_mart/api/local_client.dart';
 import 'package:sixam_mart/common/enums/data_source_enum.dart';
 import 'package:sixam_mart/features/brands/domain/models/brands_model.dart';
@@ -23,16 +24,24 @@ class BrandsRepository implements BrandsRepositoryInterface{
       case DataSourceEnum.client:
         Response response = await apiClient.getData(AppConstants.brandListUri);
         if (response.statusCode == 200) {
+          final List<dynamic> brandsJson = ResponseParser.listOrEmpty(response.body);
           brandList = [];
-          response.body.forEach((brand) => brandList!.add(BrandModel.fromJson(brand)));
-          LocalClient.organize(source, cacheId, jsonEncode(response.body), apiClient.getHeader());
+          for (final dynamic brand in brandsJson) {
+            brandList.add(BrandModel.fromJson(brand));
+          }
+          // Cache the extracted list, not the raw body. The body is
+          // `{data, pagination}`, and the local branch below decodes whatever was
+          // stored — handing it the wrapper made it iterate a Map and throw.
+          LocalClient.organize(source, cacheId, jsonEncode(brandsJson), apiClient.getHeader());
         }
 
       case DataSourceEnum.local:
         String? cacheResponseData = await LocalClient.organize(source, cacheId, null, null);
         if(cacheResponseData != null) {
           brandList = [];
-          jsonDecode(cacheResponseData).forEach((brand) => brandList!.add(BrandModel.fromJson(brand)));
+          for (final dynamic brand in ResponseParser.listOrEmpty(jsonDecode(cacheResponseData))) {
+            brandList.add(BrandModel.fromJson(brand));
+          }
         }
     }
 

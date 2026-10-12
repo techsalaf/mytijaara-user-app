@@ -6,6 +6,7 @@ import 'package:sixam_mart/features/parcel/controllers/parcel_controller.dart';
 import 'package:sixam_mart/features/parcel/widgets/get_service_video_widget.dart';
 import 'package:sixam_mart/features/parcel/widgets/bottom_sheet_header_widget.dart';
 import 'package:sixam_mart/features/parcel/screens/parcel_category_new_screen.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/styles.dart';
@@ -63,10 +64,25 @@ class _MediaContentWidget extends StatelessWidget {
     final details = parcelController.videoContentDetails!;
 
     if (details.bannerType == 'image') {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
-        child: CustomImage(image: '${details.bannerImageFullUrl}'),
-      );
+      // The banner is painted at whatever width the sheet gives it — the sheet caps at
+      // 550 but is narrower on a phone — so the decode target has to be measured, not
+      // assumed. With no size and no hint at all, CustomImage falls back to its 100
+      // logical default on *both* axes, and two axes make ResizeImage decode to exactly
+      // those numbers ([ResizeImagePolicy.exact]): the banner came out as a ~300px
+      // square, stretched out of shape and blurry across a ~500px-wide slot.
+      //
+      // Hinting the width axis only lets the decoder derive the height from the source,
+      // so the banner keeps its proportions and is decoded at the size it is shown at.
+      return LayoutBuilder(builder: (BuildContext context, BoxConstraints constraints) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+          child: CustomImage(
+            image: details.bannerImageFullUrl ?? '',
+            width: constraints.maxWidth,
+            cacheWidth: ImageCacheHelper.pixels(context, constraints.maxWidth),
+          ),
+        );
+      });
     }
     if (details.bannerType == 'video') {
       return GetServiceVideoWidget(youtubeVideoUrl: details.bannerVideo ?? '', fileVideoUrl: '');

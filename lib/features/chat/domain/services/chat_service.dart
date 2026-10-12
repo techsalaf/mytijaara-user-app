@@ -31,13 +31,43 @@ class ChatService implements ChatServiceInterface {
   }
 
   @override
+  /// The conversations whose counterpart is [type] — `vendor`, `delivery_man` or
+  /// `admin`.
+  ///
+  /// `message/list?type=` filters server-side, but not every call supplies a type: a
+  /// message notification refreshes with none, and `message/search-list` has no type
+  /// parameter at all. Both answer with every type at once, which is how an admin or a
+  /// delivery man ended up listed under the vendor tab. Filtering at the point of
+  /// display keeps each tab to its own kind whatever the response contained.
+  @override
+  List<Conversation?> conversationsOfType(List<Conversation?>? conversations, String type) {
+    if(conversations == null) {
+      return <Conversation?>[];
+    }
+    return conversations.where((Conversation? conversation) {
+      if(conversation == null) {
+        return false;
+      }
+      return _counterpartTypeOf(conversation) == type;
+    }).toList();
+  }
+
+  /// The party the customer is talking to. The customer can be on either side of a
+  /// conversation, so the counterpart is whichever side is not them.
+  static String? _counterpartTypeOf(Conversation conversation) {
+    final bool customerIsSender = conversation.senderType == UserType.user.name
+        || conversation.senderType == UserType.customer.name;
+    return customerIsSender ? conversation.receiverType : conversation.senderType;
+  }
+
+  @override
   int setIndex(List<Conversation?>? conversations) {
     int index0 = -1;
     for(int index = 0; index<conversations!.length; index++) {
-      if(conversations[index]!.receiverType == UserType.admin.name) {
-        index0 = index;
-        break;
-      }else if(conversations[index]!.receiverType == UserType.admin.name) {
+      // The second branch used to repeat the `receiverType` test verbatim, so an
+      // admin conversation the customer did not open was never found.
+      if(conversations[index]!.receiverType == UserType.admin.name
+          || conversations[index]!.senderType == UserType.admin.name) {
         index0 = index;
         break;
       }

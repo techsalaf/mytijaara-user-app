@@ -52,9 +52,6 @@ class _HomeNewScreenState extends State<HomeNewScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_){
       Get.find<OrderController>().getLastOrders(isHome: false);
-      // Reload the global (home) featured stores. A module screen may have
-      // overwritten the shared featured list with module-scoped data, so always
-      // refresh it on Home entry with the home/global header.
       Get.find<StoreController>().getFeaturedStoreList(fromHome: true);
       if(Get.find<ProfileController>().userInfoModel?.proStatus ?? false) {
         Get.find<ProController>().getProActiveOffer(moduleType: 'grocery');

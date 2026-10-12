@@ -1,4 +1,36 @@
+import 'package:sixam_mart/api/response_parser.dart';
+import 'package:sixam_mart/common/models/pagination_model.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
+
+/// `GET /api/v1/stores/reviews` — `{data: [...], pagination: {...}}`.
+///
+/// The pagination block was being discarded: the request sent no `offset`/`limit`
+/// and the repository returned a bare list, so a store with more than the default
+/// 25 reviews only ever showed the first 25 with no way to reach the rest. The
+/// endpoint does honour `offset`/`limit` (1-based pages, verified live) even though
+/// the docs list only `store_id`.
+class StoreReviewModel {
+  int? totalSize;
+  int? limit;
+  int? offset;
+  List<ReviewModel>? reviews;
+
+  StoreReviewModel({this.totalSize, this.limit, this.offset, this.reviews});
+
+  StoreReviewModel.fromJson(Map<String, dynamic> json) {
+    final PaginationModel pagination = PaginationModel.fromJson(json);
+    totalSize = pagination.totalSize;
+    limit = pagination.limit;
+    offset = pagination.offset;
+    final List<dynamic>? entries = ResponseParser.listOf(json, legacyKey: 'reviews');
+    if (entries != null) {
+      reviews = <ReviewModel>[];
+      for (final dynamic v in entries) {
+        reviews!.add(ReviewModel.fromJson(v));
+      }
+    }
+  }
+}
 
 class ReviewModel {
   int? id;

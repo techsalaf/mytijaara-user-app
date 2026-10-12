@@ -11,21 +11,26 @@ class ReviewRepository implements ReviewRepositoryInterface {
   ReviewRepository({required this.apiClient});
 
   @override
-  Future<List<ReviewModel>?> getList({int? offset, String? storeID}) async {
-    List<ReviewModel>? storeReviewList;
-    Response response = await apiClient.getData('${AppConstants.storeReviewUri}?store_id=$storeID');
-    if (response.statusCode == 200) {
-      storeReviewList = [];
-      response.body.forEach((review) => storeReviewList!.add(ReviewModel.fromJson(review)));
+  Future<StoreReviewModel?> getList({int? offset, String? storeID}) async {
+    StoreReviewModel? storeReviewModel;
+    // `offset` is a 1-based page number here, as everywhere else in this API. Sending it
+    // with an explicit `limit` is what makes the pages beyond the default 25 reachable.
+    Response response = await apiClient.getData(
+      '${AppConstants.storeReviewUri}?store_id=$storeID&offset=${offset ?? 1}&limit=10',
+    );
+    if (ApiClient.isSuccessCode(response.statusCode) && response.body is Map<String, dynamic>) {
+      storeReviewModel = StoreReviewModel.fromJson(response.body);
     }
-    return storeReviewList;
+    return storeReviewModel;
   }
 
   @override
   Future<ResponseModel> submitReview(ReviewBodyModel reviewBody) async {
     ResponseModel responseModel;
     Response response = await apiClient.postData(AppConstants.reviewUri, reviewBody.toJson(), handleError: false);
-    if (response.statusCode == 200) {
+    // This endpoint answers `201 Created`; a plain `== 200` check read every accepted
+    // review as a failure and put a red snackbar over a review the server had stored.
+    if (ApiClient.isSuccessCode(response.statusCode)) {
       responseModel = ResponseModel(true, 'review_submitted_successfully'.tr);
     } else {
       responseModel = ResponseModel(false, response.statusText);
@@ -37,7 +42,8 @@ class ReviewRepository implements ReviewRepositoryInterface {
   Future<ResponseModel> submitDeliveryManReview(ReviewBodyModel reviewBody) async {
     ResponseModel responseModel;
     Response response = await apiClient.postData(AppConstants.deliveryManReviewUri, reviewBody.toJson(), handleError: false);
-    if (response.statusCode == 200) {
+    // Same endpoint family, same `201` — and the same screen submits it.
+    if (ApiClient.isSuccessCode(response.statusCode)) {
       responseModel = ResponseModel(true, 'review_submitted_successfully'.tr);
     } else {
       responseModel = ResponseModel(false, response.statusText);

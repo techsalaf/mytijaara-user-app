@@ -10,6 +10,7 @@ import 'package:sixam_mart/features/store/controllers/store_controller.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 import 'package:sixam_mart/features/store/screens/store_screen.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/styles.dart';
@@ -71,7 +72,10 @@ class _LastVisitedStoreCard extends StatelessWidget {
 
   String _deliveryInfo() {
     final double? km = store.distanceKm ?? (store.distance != null ? store.distance! / 1000 : null);
-    final String distanceText = km != null ? '(${km.toStringAsFixed(1)} km)' : '';
+    // Prefer the API's pre-formatted label — it carries the platform's configured
+    // distance unit, which the hardcoded "km" fallback cannot.
+    final String? label = store.distanceLabel ?? (km != null ? '${km.toStringAsFixed(1)} km' : null);
+    final String distanceText = label != null ? '($label)' : '';
     return <String>[
       if ((store.deliveryTime ?? '').isNotEmpty) store.deliveryTime!,
       if (distanceText.isNotEmpty) distanceText,
@@ -81,7 +85,7 @@ class _LastVisitedStoreCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String deliveryInfo = _deliveryInfo();
-
+    final int? decodeSize = ImageCacheHelper.pixels(context, width);
     return Container(
       width: width,
       decoration: BoxDecoration(
@@ -97,7 +101,7 @@ class _LastVisitedStoreCard extends StatelessWidget {
         ),
         child: Row(children: [
           ClipOval(
-            child: CustomImage(image: store.logoFullUrl ?? '', height: 56, width: 56, fit: BoxFit.cover),
+            child: CustomImage(image: store.logoFullUrl ?? '', height: 56, width: 56, fit: BoxFit.cover, cacheWidth: decodeSize),
           ),
           const SizedBox(width: Dimensions.paddingSizeSmall),
 

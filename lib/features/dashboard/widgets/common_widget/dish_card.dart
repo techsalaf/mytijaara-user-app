@@ -10,6 +10,7 @@ import 'package:sixam_mart/features/item/controllers/item_controller.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 import 'package:sixam_mart/common/widgets/offer_card_widget.dart';
 import 'package:sixam_mart/helper/date_converter.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/images.dart';
@@ -99,6 +100,8 @@ class DishCard extends StatelessWidget {
 }
 
 class _TrendingDishPreview extends StatelessWidget {
+  static const double _previewWidth = 120;
+
   final String imageUrl;
   final bool showHalal;
   final Item item;
@@ -110,7 +113,7 @@ class _TrendingDishPreview extends StatelessWidget {
     final bool isAvailable = DateConverter.isAvailable(item.availableTimeStarts, item.availableTimeEnds);
 
     return Container(
-      width: 120,
+      width: _previewWidth,
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
@@ -121,9 +124,20 @@ class _TrendingDishPreview extends StatelessWidget {
         children: [
           // image
           Positioned.fill(
+            // Only the width axis is hinted: `BoxFit.cover` needs the source aspect
+            // ratio preserved, and hinting both axes makes ResizeImage decode to
+            // exactly those numbers ([ResizeImagePolicy.exact]), stretching the dish
+            // photo into the tall preview box. The decoder derives the height from
+            // the source instead, and `cover` crops whatever overflows.
+            //
+            // `_previewWidth` is fixed and Positioned.fill is tight, so it is the
+            // exact painted width — the LayoutBuilder only existed to measure the
+            // height, which is no longer used.
             child: ClipRRect(
               borderRadius: BorderRadius.circular(Dimensions.radiusMedium),
-              child: CustomImage(image: imageUrl, fit: BoxFit.cover),
+              child: CustomImage(image: imageUrl, fit: BoxFit.cover,
+                cacheWidth: ImageCacheHelper.pixels(context, _previewWidth),
+              ),
             ),
           ),
 

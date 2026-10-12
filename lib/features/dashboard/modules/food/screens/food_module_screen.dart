@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:sixam_mart/common/widgets/lazy_sliver.dart';
 import 'package:sixam_mart/common/widgets/title_widget.dart';
 import 'package:sixam_mart/features/banner/controllers/banner_controller.dart';
+import 'package:sixam_mart/features/bogo_offer/controllers/bogo_offer_controller.dart';
+import 'package:sixam_mart/features/bundle/controllers/bundle_controller.dart';
+import 'package:sixam_mart/features/bundle/widgets/bundle_section_widget.dart';
 import 'package:sixam_mart/features/category/controllers/category_controller.dart';
 import 'package:sixam_mart/features/dashboard/modules/shop/widgets/shop_upto_offer.dart';
 import 'package:sixam_mart/features/dashboard/widgets/banner_slider.dart';
+import 'package:sixam_mart/features/dashboard/widgets/bogo_offer_card_widget.dart';
 import 'package:sixam_mart/features/dashboard/widgets/category_section.dart';
 import 'package:sixam_mart/features/dashboard/widgets/explore_restaurant_section.dart';
 import 'package:sixam_mart/features/dashboard/widgets/featured_restaurant.dart';
@@ -18,14 +23,18 @@ import 'package:sixam_mart/features/dashboard/widgets/top_picks_near_you_widget.
 import 'package:sixam_mart/features/dashboard/widgets/trending_dishes_section.dart';
 import 'package:sixam_mart/features/home/controllers/advertisement_controller.dart';
 import 'package:sixam_mart/features/home/controllers/home_controller.dart';
+import 'package:sixam_mart/features/home/widgets/views/promotional_banner_view.dart';
+import 'package:sixam_mart/features/item/controllers/campaign_controller.dart';
 import 'package:sixam_mart/features/item/controllers/item_controller.dart';
 import 'package:sixam_mart/features/order/controllers/order_controller.dart';
 import 'package:sixam_mart/features/reels/controllers/reels_controller.dart';
 import 'package:sixam_mart/features/reels/widgets/reels_section_widget.dart';
+import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/store/controllers/store_controller.dart';
+import 'package:sixam_mart/helper/auth_helper.dart';
+import 'package:sixam_mart/helper/module_helper.dart';
 import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/dimensions.dart';
-import 'package:sixam_mart/features/home/widgets/views/promotional_banner_view.dart';
 import 'package:sliver_tools/sliver_tools.dart';
 
 class FoodModuleScreen extends StatefulWidget {
@@ -40,15 +49,6 @@ class FoodModuleScreen extends StatefulWidget {
 }
 
 class _FoodModuleScreenState extends State<FoodModuleScreen> {
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_){
-      Get.find<OrderController>().getLastOrders(isHome: false);
-      Get.find<HomeController>().getTopOffer(notify: false);
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -94,95 +94,160 @@ class _FoodModuleScreenState extends State<FoodModuleScreen> {
       }),
 
       // Section: featured stores list
-      GetBuilder<AdvertisementController>(builder: (controller) {
-        final visible = controller.advertisementList == null || controller.advertisementList!.isNotEmpty;
-        return _conditionalSection(visible: visible, slivers: [
-          sliverPadX(child: const FeaturedRestaurant()),
-          sliverGepY(value: Dimensions.paddingSizeDefault),
-        ]);
-      }),
+      LazySliver(
+        onReveal: () => Get.find<AdvertisementController>().getAdvertisementList(),
+        sliver: GetBuilder<AdvertisementController>(builder: (controller) {
+          final visible = controller.advertisementList == null || controller.advertisementList!.isNotEmpty;
+          return _conditionalSection(visible: visible, slivers: [
+            sliverPadX(child: const FeaturedRestaurant()),
+            sliverGepY(value: Dimensions.paddingSizeDefault),
+          ]);
+        }),
+      ),
 
       // reels
-      GetBuilder<ReelsController>(builder: (controller) {
-        final visible = (controller.reelsList == null && controller.isLoading)
-            || (controller.reelsList != null && controller.reelsList!.isNotEmpty);
-        return _conditionalSection(visible: visible, slivers: [
-          const SliverToBoxAdapter(child: ReelsSectionWidget()),
-          sliverGepY(value: Dimensions.paddingSizeDefault),
-        ]);
-      }),
+      LazySliver(
+        onReveal: () => Get.find<ReelsController>().getReelsList(offset: 1),
+        sliver: GetBuilder<ReelsController>(builder: (controller) {
+          final visible = (controller.reelsList == null && controller.isLoading)
+              || (controller.reelsList != null && controller.reelsList!.isNotEmpty);
+          return _conditionalSection(visible: visible, slivers: [
+            const SliverToBoxAdapter(child: ReelsSectionWidget()),
+            sliverGepY(value: Dimensions.paddingSizeDefault),
+          ]);
+        }),
+      ),
+
+      // Section: BOGO offers — the whole block hides itself when no offer is live
+      LazySliver(
+        onReveal: () => Get.find<BogoOfferController>().getBogoHomeData(),
+        sliver: GetBuilder<BogoOfferController>(builder: (controller) {
+          return _conditionalSection(visible: controller.showHomeCard, slivers: [
+            const SliverToBoxAdapter(child: BogoOfferCardWidget()),
+            sliverGepY(value: Dimensions.paddingSizeDefault),
+          ]);
+        }),
+      ),
 
       // Section: Recommended For You
-      GetBuilder<StoreController>(builder: (controller) {
-        final visible = controller.recommendedStoreList == null || controller.recommendedStoreList!.isNotEmpty;
-        return _conditionalSection(visible: visible, slivers: [
-          SliverToBoxAdapter(
-            child: TopPicksNearYouWidget(title: "recommended_for_you".tr, isRecommended: true,),
-          ),
-        ]);
-      }),
+      LazySliver(
+        onReveal: () => Get.find<StoreController>().getRecommendedStoreList(),
+        sliver: GetBuilder<StoreController>(builder: (controller) {
+          final visible = controller.recommendedStoreList == null || controller.recommendedStoreList!.isNotEmpty;
+          return _conditionalSection(visible: visible, slivers: [
+            SliverToBoxAdapter(
+              child: TopPicksNearYouWidget(title: "recommended_for_you".tr, isRecommended: true,),
+            ),
+          ]);
+        }),
+      ),
 
       // Section: just for you (self-collapses when there are no campaigns)
-      const SliverToBoxAdapter(child: JustForYouSection()),
-      sliverGepY(value: Dimensions.paddingSizeDefault),
+      LazySliver(
+        onReveal: () {
+          Get.find<CampaignController>().getBasicCampaignList(true);
+          Get.find<CampaignController>().getItemCampaignList(true);
+        },
+        sliver: const SliverToBoxAdapter(child: JustForYouSection()),
+      ),
+      sliverGepY(value: Dimensions.paddingSizeLarge),
+
+      // Section: bundle items — the block hides itself when the module has no
+      // bundles, which is also what the endpoint returns when the feature is off.
+      LazySliver(
+        onReveal: () {
+          if(ModuleHelper.isBundleEnabled(moduleType: AppConstants.food)) {
+            Get.find<BundleController>().getBundleHome();
+          }
+        },
+        sliver: GetBuilder<BundleController>(builder: (controller) {
+          return _conditionalSection(visible: controller.homeBundles?.isNotEmpty ?? false, slivers: [
+            const SliverToBoxAdapter(child: BundleSectionWidget()),
+          ]);
+        }),
+      ),
 
       // Section: quick Delivery
-      GetBuilder<StoreController>(builder: (controller) {
-        final visible = controller.latestStoreList == null || controller.latestStoreList!.isNotEmpty;
-        return _conditionalSection(visible: visible, slivers: [
-          SliverToBoxAdapter(
-            child: TopPicksNearYouWidget(isQuick: true, height: 85, title: "quick_delivery".tr, subTitle: 'get_fastest_order_from_your_nearby_restaurant'.tr,),
-          ),
-          // sliverGepY(value: Dimensions.paddingSizeDefault),
-        ]);
-      }),
+      LazySliver(
+        onReveal: () => Get.find<StoreController>().getLatestStoreList(true, 'all', false),
+        sliver: GetBuilder<StoreController>(builder: (controller) {
+          final visible = controller.latestStoreList == null || controller.latestStoreList!.isNotEmpty;
+          return _conditionalSection(visible: visible, slivers: [
+            SliverToBoxAdapter(
+              child: TopPicksNearYouWidget(isQuick: true, height: 85, title: "quick_delivery".tr, subTitle: 'get_fastest_order_from_your_nearby_restaurant'.tr,),
+            ),
+            // sliverGepY(value: Dimensions.paddingSizeDefault),
+          ]);
+        }),
+      ),
 
       // Section: last orders (self-collapses; no trailing gap)
-      const SliverToBoxAdapter(child: LastOrdersSectionWidget(moduleType: AppConstants.food, showTitleFirst : true)),
+      LazySliver(
+        onReveal: () {
+          if(AuthHelper.isLoggedIn() && Get.find<SplashController>().configModel?.repeatOrderOption == 1) {
+            Get.find<OrderController>().getLastOrders(isHome: false);
+          }
+        },
+        sliver: const SliverToBoxAdapter(child: LastOrdersSectionWidget(moduleType: AppConstants.food, showTitleFirst : true)),
+      ),
 
       // Section: last visited store (self-collapses when there is nothing to show)
-      const SliverToBoxAdapter(child: LastVisitedStoreSection()),
+      LazySliver(
+        onReveal: () {
+          if(AuthHelper.isLoggedIn() && Get.find<SplashController>().configModel?.repeatOrderOption == 1) {
+            Get.find<StoreController>().getVisitAgainStoreList(fromModule: true);
+          }
+        },
+        sliver: const SliverToBoxAdapter(child: LastVisitedStoreSection()),
+      ),
       sliverGepY(value: Dimensions.paddingSizeDefault),
 
       // Section: top picks carousel — divider + gap collapse with it
-      GetBuilder<StoreController>(builder: (controller) {
-        final visible = controller.topOfferStoreList == null || controller.topOfferStoreList!.isNotEmpty;
-        return _conditionalSection(visible: visible, slivers: [
-          SliverToBoxAdapter(
-            child: TopPicksNearYouWidget(title: "top_picks_near_you".tr, isNearYou: true),
-          ),
-          SliverToBoxAdapter(child: Container(
-            height: 5, width: double.infinity, color: Theme.of(context).disabledColor.withValues(alpha: 0.2),
-          )),
-          sliverGepY(value: Dimensions.paddingSizeDefault),
-        ]);
-      }),
-
-      // Section: Recommended For You (self-collapses; no trailing gap)
-      SliverToBoxAdapter(
-        child: TopPicksNearYouWidget(title: "recommended_for_you".tr, isRecommended: true),
+      LazySliver(
+        onReveal: () => Get.find<StoreController>().getTopOfferStoreList(true, false),
+        sliver: GetBuilder<StoreController>(builder: (controller) {
+          final visible = controller.topOfferStoreList == null || controller.topOfferStoreList!.isNotEmpty;
+          return _conditionalSection(visible: visible, slivers: [
+            SliverToBoxAdapter(
+              child: TopPicksNearYouWidget(title: "top_picks_near_you".tr, isNearYou: true),
+            ),
+            SliverToBoxAdapter(child: Container(
+              height: 5, width: double.infinity, color: Theme.of(context).disabledColor.withValues(alpha: 0.2),
+            )),
+            sliverGepY(value: Dimensions.paddingSizeDefault),
+          ]);
+        }),
       ),
 
       // Section: trending dishes
-      GetBuilder<ItemController>(builder: (controller) {
-        final visible = controller.discountedItemList == null || controller.discountedItemList!.isNotEmpty;
-        return _conditionalSection(visible: visible, slivers: [
-          SliverToBoxAdapter(child: TrendingDishesSectionWidget(title: "trending_dishes".tr)),
-          sliverGepY(value: Dimensions.paddingSizeDefault),
-        ]);
-      }),
+      LazySliver(
+        onReveal: () => Get.find<ItemController>().getDiscountedItemList(offset: '1', firstTimeCategoryLoad: true),
+        sliver: GetBuilder<ItemController>(builder: (controller) {
+          final visible = controller.discountedItemList == null || controller.discountedItemList!.isNotEmpty;
+          return _conditionalSection(visible: visible, slivers: [
+            SliverToBoxAdapter(child: TrendingDishesSectionWidget(title: "trending_dishes".tr)),
+            sliverGepY(value: Dimensions.paddingSizeDefault),
+          ]);
+        }),
+      ),
 
       // Section: items you will love
-      GetBuilder<ItemController>(builder: (controller) {
-        final visible = controller.popularItemList == null || controller.popularItemList!.isNotEmpty;
-        return _conditionalSection(visible: visible, slivers: [
-          SliverToBoxAdapter(child: ItemsYouWillLoveSectionWidget(title: 'items_you_will_love'.tr,)),
-          sliverGepY(value: Dimensions.paddingSizeSmall),
-        ]);
-      }),
+      LazySliver(
+        onReveal: () => Get.find<ItemController>().getPopularItemList(offset: '1', firstTimeCategoryLoad: true),
+        sliver: GetBuilder<ItemController>(builder: (controller) {
+          final visible = controller.popularItemList == null || controller.popularItemList!.isNotEmpty;
+          return _conditionalSection(visible: visible, slivers: [
+            SliverToBoxAdapter(child: ItemsYouWillLoveSectionWidget(title: 'items_you_will_love'.tr,)),
+            sliverGepY(value: Dimensions.paddingSizeSmall),
+          ]);
+        }),
+      ),
 
       // Section: promotional banner
-      const PromotionalBannerSliver(),
+      LazySliver(
+        onReveal: () => Get.find<BannerController>().getPromotionalBannerList(true),
+        sliver: const PromotionalBannerSliver(),
+      ),
       sliverGepY(value: Dimensions.paddingSizeDefault),
 
       SliverToBoxAdapter(child: Container(
@@ -191,16 +256,16 @@ class _FoodModuleScreenState extends State<FoodModuleScreen> {
       sliverGepY(value: Dimensions.paddingSizeDefault),
 
       // Section: explore restaurants
-      ExploreRestaurantSection(exploreRestaurantKey: widget.exploreRestaurantKey, scrollController: widget.scrollController,),
+      LazySliver(
+        onReveal: () => Get.find<StoreController>().getStoreList(1, true),
+        sliver: ExploreRestaurantSection(exploreRestaurantKey: widget.exploreRestaurantKey, scrollController: widget.scrollController,),
+      ),
 
     ]
     );
   }
 }
 
-// Renders a section together with its trailing spacing (gap / divider), or
-// nothing at all — dropping the gap — when the section has loaded but is empty.
-// Always returns exactly one sliver so it stays valid inside the parent MultiSliver.
 Widget _conditionalSection({required bool visible, required List<Widget> slivers}) {
   return visible
       ? MultiSliver(children: slivers)

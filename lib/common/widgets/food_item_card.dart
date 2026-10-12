@@ -7,12 +7,13 @@ import 'package:sixam_mart/common/widgets/custom_asset_image_widget.dart';
 import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/common/widgets/custom_ink_well.dart';
 import 'package:sixam_mart/common/widgets/not_available_widget.dart';
+import 'package:sixam_mart/common/widgets/offer_card_widget.dart';
 import 'package:sixam_mart/common/widgets/store_verified_avatar.dart';
 import 'package:sixam_mart/features/item/controllers/item_controller.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
-import 'package:sixam_mart/common/widgets/offer_card_widget.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/helper/date_converter.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/images.dart';
@@ -26,10 +27,11 @@ class FoodItemCard extends StatelessWidget {
   final bool isFeatured;
   final int? index;
   final VoidCallback? onBeforeTap;
+  final int? availableStock;
 
   const FoodItemCard({super.key,
     required this.data, required this.width, this.inStore = false, this.isCampaign = false, this.isFeatured = false, required this.index,
-    this.onBeforeTap,
+    this.onBeforeTap, this.availableStock,
   });
 
   void _handleTap(BuildContext context) {
@@ -42,7 +44,7 @@ class FoodItemCard extends StatelessWidget {
         }
       }
     }
-    Get.find<ItemController>().navigateToItemPage(data, context, inStore: inStore, isCampaign: isCampaign, );
+    Get.find<ItemController>().navigateToItemPage(data, context, inStore: inStore, isCampaign: isCampaign, availableStock: availableStock);
   }
 
   Widget _tagWidget(BuildContext context, String image) {
@@ -68,6 +70,8 @@ class FoodItemCard extends StatelessWidget {
     // final bool showNonVeg = Get.find<SplashController>().configModel!.moduleConfig!.module!.vegNonVeg! && Get.find<SplashController>().configModel!.toggleVegNonVeg! && data.veg == 0;
     final bool isAvailable = DateConverter.isAvailable(data.availableTimeStarts, data.availableTimeEnds);
 
+    final int? decodeWidth = ImageCacheHelper.pixels(context, width);
+
     return CustomInkWell(
       onTap: () => _handleTap(context),
       radius: 22,
@@ -89,7 +93,7 @@ class FoodItemCard extends StatelessWidget {
                 Positioned.fill(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(Dimensions.radiusLarge-2),
-                    child: CustomImage(image: data.imageFullUrl ?? ''),
+                    child: CustomImage(image: data.imageFullUrl ?? '', fit: BoxFit.cover, cacheWidth: decodeWidth),
                   ),
                 ),
 
@@ -109,7 +113,7 @@ class FoodItemCard extends StatelessWidget {
                   right: Dimensions.paddingSizeSmall,
                   bottom: Dimensions.paddingSizeSmall,
                   child: CartCountView(
-                    item: data, index: index, onBeforeAdd: onBeforeTap,
+                    item: data, index: index, onBeforeAdd: onBeforeTap, availableStock: availableStock,
                     child: Container(
                       width: 32, height: 32,
                       decoration: BoxDecoration(
@@ -230,3 +234,8 @@ class FoodItemCard extends StatelessWidget {
     );
   }
 }
+
+// SUMMARY
+// Product card used across the home strips. Holds the item's image, diet tags,
+// favourite toggle, store, rating, name, price and offer labels, adds it to the cart
+// from the card, and opens the item on tap, honouring any stock cap it is given.

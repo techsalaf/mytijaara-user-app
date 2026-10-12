@@ -116,7 +116,10 @@ class SearchResultSectionState extends State<SearchResultSection> {
         final int itemCount = isServiceModule
             ? (sc.searchServiceTotalSize ?? services.length)
             : (sc.searchItemTotalSize ?? items.length);
-        final int storeCount = sc.searchStoreList?.length ?? 0;
+        // `pagination.total` (searchStoreTotalSize) is the real match count — the
+        // loaded list only holds the pages fetched so far, so counting it capped
+        // the tab at the page size (10) no matter how many stores matched.
+        final int storeCount = sc.searchStoreTotalSize ?? sc.searchStoreList?.length ?? 0;
         final int count = _filter == _SearchFilter.items
             ? itemCount
             : _filter == _SearchFilter.stores
@@ -941,11 +944,16 @@ class _SearchStoreGroup extends StatelessWidget {
 
   static const int _maxInlineItems = 4;
 
+  /// `stores/search` sends `store_discount: null` and carries the store-level
+  /// discount in `avg_item_discount_percentage`, so reading only `discount` left
+  /// every result without its discount chip. Same fallback the offer screen uses
+  /// (`StoreOfferGroupData.fromStore`), so both screens label a store identically.
   List<RestaurantOfferChipData> _buildOffers() {
+    final double? discountPercent = store.discount?.discount ?? store.avgItemDiscountPercentage;
     return <RestaurantOfferChipData>[
-      if ((store.discount?.discount ?? 0) > 0)
+      if ((discountPercent ?? 0) > 0)
         RestaurantOfferChipData(
-          label: '-${store.discount!.discount!.toStringAsFixed(0)}%',
+          label: '-${discountPercent!.toStringAsFixed(0)}%',
           labelDirection: TextDirection.ltr,
         ),
       if (store.freeDelivery == true)
@@ -953,18 +961,28 @@ class _SearchStoreGroup extends StatelessWidget {
           label: 'free_delivery'.tr,
           icon: Icons.local_shipping_outlined,
         ),
-      if (store.offerLabel != null && store.offerLabel!.isNotEmpty)
-        RestaurantOfferChipData(
-          label: store.offerLabel!,
-          icon: Icons.discount_outlined,
-        ),
+      ..._runningOfferChips(),
     ];
   }
 
+  Iterable<RestaurantOfferChipData> _runningOfferChips() sync* {
+    if (store.offerLabel != null && store.offerLabel!.isNotEmpty) {
+      yield RestaurantOfferChipData(label: store.offerLabel!, icon: Icons.discount_outlined);
+      return;
+    }
+    final Set<String> seen = <String>{};
+    for (final StoreOffer offer in store.offers ?? const <StoreOffer>[]) {
+      final String label = offer.type == 'flash_sale' ? 'flash_sale'.tr : 'campaign'.tr;
+      if (seen.add(label)) {
+        yield RestaurantOfferChipData(label: label, icon: Icons.discount_outlined);
+      }
+    }
+  }
+
   String _deliveryInfo() {
-    final String dist = store.distance != null
-        ? ' (${formatDistance(store.distance! / 1000)})'
-        : '';
+    final double? km = store.distanceKm ?? (store.distance != null ? store.distance! / 1000 : null);
+    final String? label = store.distanceLabel ?? (km != null ? '${km.toStringAsFixed(1)} km' : null);
+    final String dist = label != null ? ' ($label)' : '';
     return '${store.deliveryTime ?? ''}$dist'.trim();
   }
 

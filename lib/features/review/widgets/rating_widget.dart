@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:sixam_mart/common/widgets/rating_bar.dart';
 import 'package:sixam_mart/features/review/widgets/rating_progress_widget.dart';
 import 'package:sixam_mart/features/review/widgets/total_rating_review_view_widget.dart';
@@ -13,14 +14,37 @@ class RatingWidget extends StatelessWidget {
   final List<int>? ratings;
   const RatingWidget({super.key, this.averageRating, this.ratingCount, this.reviewCommentCount, this.ratings});
 
+  /// Star-count distribution as five percentages, highest star first.
+  ///
+  /// `ratings` is absent from every store payload the app receives —
+  /// `stores/details`, `stores/search` and `stores/get-stores` all omit it — so this
+  /// used to be null and `percentages[0]` threw while building, taking the whole
+  /// review screen down. A total of zero (a store with no ratings yet) also has to be
+  /// handled, or the division yields NaN bars.
+  ///
+  /// Always returns exactly five values so the fixed set of progress rows below can
+  /// index it safely.
+  @visibleForTesting
+  static List<double> percentagesOf(List<int>? ratings) {
+    const int buckets = 5;
+    if (ratings == null || ratings.isEmpty) {
+      return List<double>.filled(buckets, 0);
+    }
+    final int total = ratings.fold<int>(0, (int sum, int count) => sum + count);
+    if (total <= 0) {
+      return List<double>.filled(buckets, 0);
+    }
+    return List<double>.generate(buckets, (int index) {
+      final int count = index < ratings.length ? ratings[index] : 0;
+      return (count / total) * 100;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
 
-    List<double>? percentages = ratings?.map((rating) {
-      return (rating / ratings!.reduce((value, element) => value + element)) * 100;
-    }).toList();
-
-    List<double> progressForEach = calculateProgressForEach(percentages);
+    final List<double> percentages = percentagesOf(ratings);
+    final List<double> progressForEach = calculateProgressForEach(percentages);
 
     return Container(
       padding: const EdgeInsets.all(Dimensions.paddingSizeDefault),
@@ -33,7 +57,7 @@ class RatingWidget extends StatelessWidget {
 
         Row(mainAxisAlignment:MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
 
-          Text(averageRating!.toStringAsFixed(1), style: robotoBold.copyWith(fontSize: 30)),
+          Text((averageRating ?? 0).toStringAsFixed(1), style: robotoBold.copyWith(fontSize: 30)),
 
           Text('/5', style: robotoBold.copyWith(fontSize: Dimensions.fontSizeOverLarge)),
 
@@ -52,7 +76,7 @@ class RatingWidget extends StatelessWidget {
         ]),
         const SizedBox(height: 35),
 
-        RatingProgressWidget(ratingNumber: '5', ratingPercent: percentages![0], progressValue: progressForEach[0]),
+        RatingProgressWidget(ratingNumber: '5', ratingPercent: percentages[0], progressValue: progressForEach[0]),
         const SizedBox(height: Dimensions.paddingSizeSmall),
 
         RatingProgressWidget(ratingNumber: '4', ratingPercent: percentages[1], progressValue: progressForEach[1]),
@@ -74,7 +98,7 @@ class RatingWidget extends StatelessWidget {
 
             Row(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
 
-              Text(averageRating!.toStringAsFixed(1), style: robotoBold.copyWith(fontSize: 30)),
+              Text((averageRating ?? 0).toStringAsFixed(1), style: robotoBold.copyWith(fontSize: 30)),
 
               Text('/5', style: robotoBold.copyWith(fontSize: Dimensions.fontSizeOverLarge)),
 
@@ -107,7 +131,7 @@ class RatingWidget extends StatelessWidget {
           flex: 3,
           child: Column(children: [
 
-            RatingProgressWidget(ratingNumber: '5', ratingPercent: percentages![0], progressValue: progressForEach[0]),
+            RatingProgressWidget(ratingNumber: '5', ratingPercent: percentages[0], progressValue: progressForEach[0]),
             const SizedBox(height: Dimensions.paddingSizeExtraSmall),
 
             RatingProgressWidget(ratingNumber: '4', ratingPercent: percentages[1], progressValue: progressForEach[1]),
@@ -130,7 +154,9 @@ class RatingWidget extends StatelessWidget {
   }
 
   List<double> calculateProgressForEach(List<double>? percentages) {
-    if (percentages == null) return [];
+    // Kept null-tolerant for any other caller, but [percentagesOf] now guarantees a
+    // five-element list, so the rows below can index it without a length check.
+    if (percentages == null) return List<double>.filled(5, 0);
 
     List<double> progressList = [];
     for (double percent in percentages) {

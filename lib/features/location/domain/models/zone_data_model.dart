@@ -1,3 +1,4 @@
+import 'package:sixam_mart/api/json_reader.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class ZoneDataModel {
@@ -39,8 +40,8 @@ class ZoneDataModel {
     restaurantWiseTopic = json['restaurant_wise_topic'];
     customerWiseTopic = json['customer_wise_topic'];
     deliverymanWiseTopic = json['deliveryman_wise_topic'];
-    minimumShippingCharge = json['minimum_shipping_charge'] != null ? json['minimum_shipping_charge'].toDouble() : 0;
-    perKmShippingCharge = json['per_km_shipping_charge'] != null ? json['per_km_shipping_charge'].toDouble() : 0;
+    minimumShippingCharge = JsonReader.toDouble(json['minimum_shipping_charge']) ?? 0;
+    perKmShippingCharge = JsonReader.toDouble(json['per_km_shipping_charge']) ?? 0;
     if (json['formated_coordinates'] != null) {
       formatedCoordinates = <FormatedCoordinates>[];
       json['formated_coordinates'].forEach((v) { formatedCoordinates!.add(FormatedCoordinates.fromJson(v)); });

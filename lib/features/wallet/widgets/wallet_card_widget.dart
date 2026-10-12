@@ -17,7 +17,6 @@ class WalletCardWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool isDesktop = ResponsiveHelper.isDesktop(context);
-    final ScrollController cardScrollController = ScrollController();
 
     return GetBuilder<ProfileController>(
       builder: (profileController) {
@@ -72,8 +71,8 @@ class WalletCardWidget extends StatelessWidget {
                 child: InkWell(
                   onTap: () {
                     Get.dialog(
-                      Dialog(backgroundColor: Colors.transparent, surfaceTintColor: Colors.transparent, child: SizedBox(
-                        width: 500, child: SingleChildScrollView(controller: cardScrollController, child: AddFundDialogueWidget(cardScrollController: cardScrollController)),
+                      const Dialog(backgroundColor: Colors.transparent, surfaceTintColor: Colors.transparent, child: SizedBox(
+                        width: 500, child: SingleChildScrollView(child: AddFundDialogueWidget()),
                       )),
                     );
                   },
@@ -193,3 +192,8 @@ class WalletStepper extends StatelessWidget {
   }
 }
 
+
+// SUMMARY
+// Wallet balance card. Shows the customer's balance with a how-to-use tooltip, and opens
+// the add-fund dialog when the platform has funding and digital payment switched on.
+// Also holds the desktop-only stepper explaining how the wallet is used.

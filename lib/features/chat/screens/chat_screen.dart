@@ -1,31 +1,33 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:sixam_mart/common/widgets/custom_snackbar.dart';
 import 'package:sixam_mart/common/widgets/footer_view.dart';
 import 'package:sixam_mart/common/widgets/hover/text_hover.dart';
+import 'package:sixam_mart/common/widgets/menu_drawer.dart';
+import 'package:sixam_mart/common/widgets/not_logged_in_screen.dart';
+import 'package:sixam_mart/common/widgets/web_menu_bar.dart';
 import 'package:sixam_mart/features/chat/controllers/chat_controller.dart';
+import 'package:sixam_mart/features/chat/domain/models/chat_model.dart';
+import 'package:sixam_mart/features/chat/domain/models/conversation_model.dart';
 import 'package:sixam_mart/features/chat/domain/models/order_chat_model.dart';
 import 'package:sixam_mart/features/chat/enums/user_type_enum.dart';
+import 'package:sixam_mart/features/chat/widgets/chat_avatar_widget.dart';
+import 'package:sixam_mart/features/chat/widgets/message_bubble_widget.dart';
 import 'package:sixam_mart/features/language/controllers/language_controller.dart';
+import 'package:sixam_mart/features/notification/domain/models/notification_body_model.dart';
 import 'package:sixam_mart/features/order/controllers/order_controller.dart';
 import 'package:sixam_mart/features/order/widgets/support_reason_bottom_sheet.dart';
 import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
-import 'package:sixam_mart/features/notification/domain/models/notification_body_model.dart';
-import 'package:sixam_mart/features/chat/domain/models/conversation_model.dart';
+import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/images.dart';
 import 'package:sixam_mart/util/styles.dart';
-import 'package:sixam_mart/common/widgets/custom_image.dart';
-import 'package:sixam_mart/common/widgets/custom_snackbar.dart';
-import 'package:sixam_mart/common/widgets/menu_drawer.dart';
-import 'package:sixam_mart/common/widgets/not_logged_in_screen.dart';
-import 'package:sixam_mart/common/widgets/paginated_list_view.dart';
-import 'package:sixam_mart/common/widgets/web_menu_bar.dart';
-import 'package:sixam_mart/features/chat/widgets/message_bubble_widget.dart';
 
 class ChatScreen extends StatefulWidget {
   final NotificationBodyModel? notificationBody;
@@ -41,9 +43,12 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final ScrollController _scrollController = ScrollController();
   final TextEditingController _inputMessageController = TextEditingController();
   StreamSubscription? _stream;
+
+  String get _userType => widget.notificationBody!.adminId != null
+      ? UserType.admin.name
+      : widget.notificationBody!.deliverymanId != null ? UserType.delivery_man.name : UserType.vendor.name;
 
   @override
   void initState() {
@@ -80,8 +85,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
-    super.dispose();
+    _inputMessageController.dispose();
     _stream?.cancel();
+    super.dispose();
   }
 
   @override
@@ -129,10 +135,10 @@ class _ChatScreenState extends State<ChatScreen> {
                     border: Border.all(width: 1, color: Theme.of(context).primaryColor),
                     color: Theme.of(context).cardColor,
                   ),
-                  child: ClipOval(child: CustomImage(
-                    image: chatController.messageModel?.conversation?.receiver?.imageFullUrl ?? '',
-                    fit: BoxFit.cover, height: 40, width: 40,
-                  )),
+                  child: ChatAvatarWidget(
+                    isAdmin: _userType == UserType.admin.name,
+                    imageUrl: chatController.messageModel?.conversation?.receiver?.imageFullUrl,
+                  ),
                 ),
               )
             ],
@@ -171,10 +177,11 @@ class _ChatScreenState extends State<ChatScreen> {
                                   padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeSmall, vertical: Dimensions.paddingSizeExtraSmall),
                                   child: Row(children: [
 
-                                    ClipOval(child: CustomImage(
-                                      image: chatController.messageModel?.conversation?.receiver?.imageFullUrl ?? '',
-                                      fit: BoxFit.cover, height: 35, width: 35,
-                                    )),
+                                    ChatAvatarWidget(
+                                      isAdmin: _userType == UserType.admin.name,
+                                      imageUrl: chatController.messageModel?.conversation?.receiver?.imageFullUrl,
+                                      size: 35,
+                                    ),
                                     const SizedBox(width: Dimensions.paddingSizeSmall),
 
                                     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -182,9 +189,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                       chatController.messageModel?.conversation?.receiver != null ? Text(
                                         '${chatController.messageModel!.conversation!.receiver!.fName} ${chatController.messageModel!.conversation!.receiver!.lName}',
                                         style: robotoRegular,
-                                      ) : Container(
-                                        height: 20, width: 100, color: Theme.of(context).disabledColor,
-                                      ),
+                                      ) : _receiverFallbackName(context, chatController),
 
                                       (chatController.messageModel?.conversation?.receiver?.phone != null) ? Text(
                                         '${chatController.messageModel!.conversation!.receiver!.phone}',
@@ -200,37 +205,17 @@ class _ChatScreenState extends State<ChatScreen> {
                                 GetBuilder<ChatController>(builder: (chatController) {
                                   return SizedBox(
                                     height: 500,
-                                    child: chatController.messageModel != null ? chatController.messageModel!.messages!.isNotEmpty ? SingleChildScrollView(
-                                      controller: _scrollController,
-                                      reverse: true,
-                                      child: PaginatedListView(
-                                        scrollController: _scrollController,
-                                        reverse: true,
-                                        totalSize: chatController.messageModel?.totalSize,
-                                        offset: chatController.messageModel?.offset,
-                                        onPaginate: (int? offset) async => await chatController.getMessages(
-                                          offset!, widget.notificationBody, widget.user, widget.conversationID,
-                                        ),
-                                        itemView: ListView.builder(
-                                          physics: const NeverScrollableScrollPhysics(),
-                                          shrinkWrap: true,
-                                          reverse: true,
-                                          itemCount: chatController.messageModel!.messages!.length,
-                                          itemBuilder: (context, index) {
-                                            return MessageBubbleWidget(
-                                              message: chatController.messageModel!.messages![index],
-                                              user: chatController.messageModel?.conversation?.receiver,
-                                              userType: widget.notificationBody!.adminId != null ? UserType.admin.name
-                                                  : widget.notificationBody!.deliverymanId != null ? UserType.delivery_man.name : UserType.vendor.name,
-                                            );
-                                          },
-                                        ),
-                                      ),
+                                    child: chatController.messageModel != null ? (chatController.messageModel!.messages?.isNotEmpty ?? false) ? _ChatMessageList(
+                                      chatController: chatController,
+                                      notificationBody: widget.notificationBody,
+                                      user: widget.user,
+                                      conversationID: widget.conversationID,
+                                      userType: _userType,
                                     ) : Center(child: Text('no_message_found'.tr)) : const Center(child: CircularProgressIndicator()),
                                   );
                                 }),
 
-                                (chatController.messageModel != null && (chatController.messageModel!.status! || chatController.messageModel!.messages!.isEmpty)) ? Container(
+                                (chatController.messageModel != null && ((chatController.messageModel!.status ?? false) || (chatController.messageModel!.messages?.isEmpty ?? true))) ? Container(
                                   padding: const EdgeInsets.symmetric(vertical: Dimensions.paddingSizeSmall),
                                   decoration: BoxDecoration(
                                     borderRadius: const BorderRadius.all(Radius.circular(Dimensions.radiusDefault)),
@@ -256,7 +241,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                                   child: ClipRRect(
                                                     borderRadius: const BorderRadius.all(Radius.circular(Dimensions.paddingSizeSmall)),
                                                     child: Image.memory(
-                                                      chatController.chatRawImage[index], width: 70, height: 90, fit: BoxFit.cover,
+                                                      chatController.chatRawImage[index], width: 70, height: 90, fit: BoxFit.fill,
                                                     ),
                                                   ),
                                                 ),
@@ -407,10 +392,11 @@ class _ChatScreenState extends State<ChatScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeSmall, vertical: Dimensions.paddingSizeExtraSmall),
                     child: Row(children: [
 
-                      ClipOval(child: CustomImage(
-                        image: chatController.messageModel?.conversation?.receiver?.imageFullUrl ?? '',
-                        fit: BoxFit.cover, height: 35, width: 35,
-                      )),
+                      ChatAvatarWidget(
+                        isAdmin: _userType == UserType.admin.name,
+                        imageUrl: chatController.messageModel?.conversation?.receiver?.imageFullUrl,
+                        size: 35,
+                      ),
                       const SizedBox(width: Dimensions.paddingSizeSmall),
 
                       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -418,9 +404,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         chatController.messageModel?.conversation?.receiver != null ? Text(
                           '${chatController.messageModel!.conversation!.receiver!.fName} ${chatController.messageModel!.conversation!.receiver!.lName}',
                           style: robotoRegular,
-                        ) : Container(
-                          height: 20, width: 100, color: Theme.of(context).disabledColor,
-                        ),
+                        ) : _receiverFallbackName(context, chatController),
 
                         (chatController.messageModel?.conversation?.receiver?.phone != null) ? Text(
                           '${chatController.messageModel!.conversation!.receiver!.phone}',
@@ -433,36 +417,16 @@ class _ChatScreenState extends State<ChatScreen> {
                   ) : const SizedBox(),
 
                   GetBuilder<ChatController>(builder: (chatController) {
-                    return Expanded(child: chatController.messageModel != null ? chatController.messageModel!.messages!.isNotEmpty ? SingleChildScrollView(
-                      controller: _scrollController,
-                      reverse: true,
-                      child: PaginatedListView(
-                        scrollController: _scrollController,
-                        reverse: true,
-                        totalSize: chatController.messageModel?.totalSize,
-                        offset: chatController.messageModel?.offset,
-                        onPaginate: (int? offset) async => await chatController.getMessages(
-                          offset!, widget.notificationBody, widget.user, widget.conversationID,
-                        ),
-                        itemView: ListView.builder(
-                          physics: const NeverScrollableScrollPhysics(),
-                          shrinkWrap: true,
-                          reverse: true,
-                          itemCount: chatController.messageModel!.messages!.length,
-                          itemBuilder: (context, index) {
-                            return MessageBubbleWidget(
-                              message: chatController.messageModel!.messages![index],
-                              user: chatController.messageModel?.conversation?.receiver,
-                              userType: widget.notificationBody!.adminId != null ? UserType.admin.name
-                                  : widget.notificationBody!.deliverymanId != null ? UserType.delivery_man.name : UserType.vendor.name,
-                            );
-                          },
-                        ),
-                      ),
+                    return Expanded(child: chatController.messageModel != null ? (chatController.messageModel!.messages?.isNotEmpty ?? false) ? _ChatMessageList(
+                      chatController: chatController,
+                      notificationBody: widget.notificationBody,
+                      user: widget.user,
+                      conversationID: widget.conversationID,
+                      userType: _userType,
                     ) : Center(child: Text('no_message_found'.tr)) : const Center(child: CircularProgressIndicator()));
                   }),
 
-                  (chatController.messageModel != null && (chatController.messageModel!.status! || chatController.messageModel!.messages!.isEmpty)) ? Container(
+                  (chatController.messageModel != null && ((chatController.messageModel!.status ?? false) || (chatController.messageModel!.messages?.isEmpty ?? true))) ? Container(
                     padding: const EdgeInsets.symmetric(vertical: Dimensions.paddingSizeSmall),
                     decoration: BoxDecoration(
                       color: Theme.of(context).cardColor,
@@ -487,7 +451,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                     child: ClipRRect(
                                       borderRadius: const BorderRadius.all(Radius.circular(Dimensions.paddingSizeSmall)),
                                       child: Image.memory(
-                                        chatController.chatRawImage[index], width: 70, height: 90, fit: BoxFit.cover,
+                                        chatController.chatRawImage[index], width: 70, height: 90, fit: BoxFit.fill,
                                       ),
                                     ),
                                   ),
@@ -628,6 +592,104 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
+/// Virtualizing, paginated message list.
+///
+/// Replaces `SingleChildScrollView > PaginatedListView > ListView(shrinkWrap: true,
+/// physics: NeverScrollable)`. That arrangement has no virtualization at all — the
+/// shrink-wrapped list builds and lays out *every* loaded message, and chat history
+/// paginates, so the count only grows. `GetBuilder<ChatController>` then rebuilt the
+/// whole thing on each controller update: every message sent, received, or image
+/// attached rebuilt all bubbles.
+///
+/// Here `ListView.builder` scrolls itself, so only the viewport plus cache extent is
+/// built, and pagination hangs off this list's own scroll position.
+class _ChatMessageList extends StatefulWidget {
+  final ChatController chatController;
+  final NotificationBodyModel? notificationBody;
+  final User? user;
+  final int? conversationID;
+  final String userType;
+
+  const _ChatMessageList({required this.chatController, required this.notificationBody, required this.user,
+    required this.conversationID, required this.userType,
+  });
+
+  @override
+  State<_ChatMessageList> createState() => _ChatMessageListState();
+}
+
+class _ChatMessageListState extends State<_ChatMessageList> {
+  // Its own controller rather than one shared with an outer scrollable: sharing is
+  // what forced PaginatedListView to iterate `positions` instead of reading
+  // `.position`, because a shared controller attached twice throws.
+  final ScrollController _controller = ScrollController();
+  final Set<int> _requestedOffsets = <int>{1};
+  bool _isLoadingMore = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_onScroll);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_isLoadingMore || !_controller.hasClients) return;
+    // reverse: true, so maxScrollExtent is the far end of the list — the oldest
+    // messages, which is where the next page belongs.
+    if (_controller.position.pixels < _controller.position.maxScrollExtent - 50) return;
+    _loadMore();
+  }
+
+  Future<void> _loadMore() async {
+    final int? totalSize = widget.chatController.messageModel?.totalSize;
+    final int? offset = widget.chatController.messageModel?.offset;
+    if (totalSize == null || offset == null) return;
+
+    final int next = offset + 1;
+    if (next > (totalSize / 10).ceil() || _requestedOffsets.contains(next)) return;
+
+    _requestedOffsets.add(next);
+    setState(() => _isLoadingMore = true);
+    await widget.chatController.getMessages(
+      next, widget.notificationBody, widget.user, widget.conversationID,
+    );
+    if (mounted) setState(() => _isLoadingMore = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final List<Message> messages = widget.chatController.messageModel?.messages ?? const <Message>[];
+
+    return ListView.builder(
+      controller: _controller,
+      reverse: true,
+      padding: EdgeInsets.zero,
+      // One extra slot past the oldest message for the pagination spinner.
+      itemCount: messages.length + (_isLoadingMore ? 1 : 0),
+      itemBuilder: (BuildContext context, int index) {
+        if (index >= messages.length) {
+          return const Padding(
+            padding: EdgeInsets.all(Dimensions.paddingSizeSmall),
+            child: Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))),
+          );
+        }
+        return MessageBubbleWidget(
+          message: messages[index],
+          user: widget.chatController.messageModel?.conversation?.receiver,
+          userType: widget.userType,
+        );
+      },
+    );
+  }
+}
+
 class MessageSuggestionWidget extends StatelessWidget {
   const MessageSuggestionWidget({super.key});
 
@@ -711,4 +773,21 @@ class MessageSuggestionWidget extends StatelessWidget {
       );
     });
   }
+}
+
+/// Name shown in the chat header when the conversation carries no receiver record.
+///
+/// `message/details` returns `receiver: null` for the customer-to-admin conversation
+/// (the admin is not a user), which previously rendered a grey placeholder box where
+/// the name belongs. Fall back to the business identity, matching what
+/// ChatController builds for the admin receiver.
+Widget _receiverFallbackName(BuildContext context, ChatController chatController) {
+  final Conversation? conversation = chatController.messageModel?.conversation;
+  final bool isAdmin = conversation?.senderType == UserType.admin.name
+      || conversation?.receiverType == UserType.admin.name;
+  final String? businessName = Get.find<SplashController>().configModel?.businessName;
+  if (isAdmin && businessName != null && businessName.isNotEmpty) {
+    return Text(businessName, style: robotoRegular);
+  }
+  return Container(height: 20, width: 100, color: Theme.of(context).disabledColor);
 }

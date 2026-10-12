@@ -1,3 +1,4 @@
+import 'package:sixam_mart/api/json_reader.dart';
 import 'package:sixam_mart/features/chat/domain/models/conversation_model.dart';
 
 class UserInfoModel {
@@ -64,7 +65,7 @@ class UserInfoModel {
     password = json['password'];
     orderCount = json['order_count'];
     memberSinceDays = json['member_since_days'];
-    walletBalance = json['wallet_balance'].toDouble();
+    walletBalance = JsonReader.toDouble(json['wallet_balance']);
     loyaltyPoint = json['loyalty_point'];
     refCode = json['ref_code'];
     socialId = json['social_id'];

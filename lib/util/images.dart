@@ -127,6 +127,7 @@ class Images {
   static const String locationConfirm = 'assets/image/location_confirm.png';
   static const String cutlery = 'assets/image/cutlery.png';
   static const String percentTag = 'assets/image/percent_tag.png';
+  static const String happyHours = 'assets/image/happy_hours.png';
   static const String percentCouponOffer = 'assets/image/percent_offer.png';
   static const String freeDelivery = 'assets/image/free_delivery.png';
   static const String money = 'assets/image/money.png';
@@ -394,4 +395,8 @@ class Images {
   static const String dropdownIcon = 'assets/image/service/drop_down_icon.svg';
   static const String nearByIcon = 'assets/image/service/near_by_icon.png';
 
+
+  static const String bogoOfferIcon = 'assets/image/bogo_offer.png';
+  static const String bogoOffers = 'assets/image/bogo_offers.png';
+  static const String giftIcons = 'assets/image/gifts.png';
 }

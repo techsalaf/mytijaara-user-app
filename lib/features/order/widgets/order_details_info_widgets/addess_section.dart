@@ -19,8 +19,6 @@ class StoreUserAddressBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // For a parcel there is no store: the top row is the sender (the order's
-    // delivery_address) and the bottom row is the receiver (receiver_details).
     final bool isParcel = order.orderType == 'parcel';
 
     final String topName = isParcel ? (order.deliveryAddress?.contactPersonName ?? '') : (order.store?.name ?? '');
@@ -32,15 +30,6 @@ class StoreUserAddressBlock extends StatelessWidget {
     final String bottomAddress = bottom?.address ?? '';
     final String? bottomPhone = bottom?.contactPersonNumber;
 
-    // DEBUG: Log address values
-    print('🔍 DEBUG AddressSection - isParcel: $isParcel');
-    print('🔍 DEBUG AddressSection - topName: "$topName" (isEmpty: ${topName.isEmpty})');
-    print('🔍 DEBUG AddressSection - topAddress: "$topAddress" (isEmpty: ${topAddress.isEmpty})');
-    print('🔍 DEBUG AddressSection - store?.name: "${order.store?.name}" (null: ${order.store?.name == null})');
-    print('🔍 DEBUG AddressSection - deliveryAddress?.contactPersonName: "${order.deliveryAddress?.contactPersonName}"');
-    print('🔍 DEBUG AddressSection - bottomName: "$bottomName" (isEmpty: ${bottomName.isEmpty})');
-    print('🔍 DEBUG AddressSection - bottomAddress: "$bottomAddress" (isEmpty: ${bottomAddress.isEmpty})');
-    print('🔍 DEBUG AddressSection - receiverDetails?.contactPersonName: "${order.receiverDetails?.contactPersonName}"');
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -220,7 +209,7 @@ class _AddressActionSlot extends StatelessWidget {
     final status = order.orderStatus;
     final bool refundActive = Get.find<SplashController>().configModel?.refundActiveStatus ?? false;
 
-    if (status == 'delivered' && refundActive && order.orderType != 'parcel' && !AuthHelper.isLoggedIn() && !AuthHelper.isGuestLoggedIn()) {
+    if (status == 'delivered' && refundActive && order.orderType != 'parcel' && AuthHelper.isLoggedIn() && !AuthHelper.isGuestLoggedIn()) {
       return _RefundOrderPill(orderId: order.id);
     }
 

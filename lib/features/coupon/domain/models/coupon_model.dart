@@ -1,3 +1,4 @@
+import 'package:sixam_mart/api/json_reader.dart';
 import 'package:just_the_tooltip/just_the_tooltip.dart';
 
 class CouponModel {
@@ -45,9 +46,9 @@ class CouponModel {
     code = json['code'];
     startDate = json['start_date'];
     expireDate = json['expire_date'];
-    minPurchase = json['min_purchase'].toDouble();
-    maxDiscount = json['max_discount'].toDouble();
-    discount = json['discount'].toDouble();
+    minPurchase = JsonReader.toDouble(json['min_purchase']);
+    maxDiscount = JsonReader.toDouble(json['max_discount']);
+    discount = JsonReader.toDouble(json['discount']);
     discountType = json['discount_type'];
     couponType = json['coupon_type'];
     limit = json['limit'];

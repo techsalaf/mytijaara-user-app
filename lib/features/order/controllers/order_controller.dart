@@ -143,6 +143,13 @@ class OrderController extends GetxController implements GetxService {
       return;
     }
 
+    // A BOGO order cannot be repeated — its bundles are priced by the offer, not the cart,
+    // and the offer may no longer be running. The UI hides the button; this is the backstop.
+    if(order.isBogo ?? false) {
+      showCustomSnackBar('reorder_failed'.tr);
+      return;
+    }
+
     if(_reorderingOrderId != null) return;
 
     _reorderingOrderId = orderId;
@@ -202,10 +209,10 @@ class OrderController extends GetxController implements GetxService {
     update();
 
     if(response != null) {
-      String statusMessage = _buildReorderStatusMessage(response);
-      showCustomSnackBar(statusMessage, isError: response.unavailableItems?.isNotEmpty ?? false ? true : false);
-
       final bool hasAdded = response.addedCount != null && response.addedCount! > 0;
+      final bool hasUnavailable = response.unavailableItems?.isNotEmpty ?? false;
+      showCustomSnackBar(_buildReorderStatusMessage(response), isError: hasUnavailable || !hasAdded);
+
       if(hasAdded) {
         await Get.find<CartController>().getAllCarts();
         Get.toNamed(RouteHelper.getGlobalCartRoute(initialModuleId: Get.find<SplashController>().getCacheModule()?.id));
@@ -236,7 +243,8 @@ class OrderController extends GetxController implements GetxService {
       return unavailableLabel;
     }
 
-    return 'reorder_completed'.tr;
+    // Nothing added and nothing named: the server's own reason is all there is to show.
+    return (response.message ?? '').isNotEmpty ? response.message! : 'reorder_completed'.tr;
   }
 
 
@@ -304,12 +312,13 @@ class OrderController extends GetxController implements GetxService {
     update();
   }
 
-  Future<void> submitRefundRequest(String note, String? orderId)async {
+  Future<bool> submitRefundRequest(String note, String? orderId)async {
     _isLoading = true;
     update();
-    await orderServiceInterface.submitRefundRequest(_selectedReasonIndex, _refundReasons, note, orderId, _refundImage);
+    final bool success = await orderServiceInterface.submitRefundRequest(_selectedReasonIndex, _refundReasons, note, orderId, _refundImage);
     _isLoading = false;
     update();
+    return success;
   }
 
   Future<void> getSupportReasons() async {
@@ -352,6 +361,26 @@ class OrderController extends GetxController implements GetxService {
       }
       update();
     }
+  }
+
+  void syncOrderStatusInLists(int? orderId, String? orderStatus) {
+    if(orderId == null || orderStatus == null) {
+      return;
+    }
+    // The lists are fetched once and kept while the customer is away on the details
+    // screen, so a status changed there leaves the row behind it reading the old one.
+    for(final PaginatedOrderModel? model in <PaginatedOrderModel?>[_allOrderModel, _runningOrderModel, _historyOrderModel]) {
+      for(final OrderModel order in model?.orders ?? const <OrderModel>[]) {
+        if(order.id == orderId) {
+          order.orderStatus = orderStatus;
+        }
+      }
+    }
+    update();
+  }
+
+  void clearLastOrders() {
+    _lastOrders = null;
   }
 
   Future<void> getLastOrders({bool reload = true, required bool isHome}) async {

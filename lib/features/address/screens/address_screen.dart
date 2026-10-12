@@ -43,6 +43,12 @@ class _AddressScreenState extends State<AddressScreen> {
   }
 
   @override
+  void dispose() {
+    scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     bool isLoggedIn = AuthHelper.isLoggedIn();
     return GetBuilder<AddressController>(

@@ -34,6 +34,11 @@ class StoreCard extends StatelessWidget {
     double distance = Get.find<StoreController>().getRestaurantDistance(
       LatLng(double.parse(store.latitude!), double.parse(store.longitude!)),
     );
+    // The API's label is server-computed and already in the platform's configured
+    // unit; the client-side haversine above stays as the fallback for payloads
+    // without one.
+    final String distanceText = store.distanceLabel
+        ?? '${distance > 100 ? '100+' : distance.toStringAsFixed(2)} ${'km'.tr}';
     double discount = store.discount?.discount ?? 0;
     String discountType = store.discount?.discountType ?? '';
     bool isRightSide = Get.find<SplashController>().configModel!.currencySymbolDirection == 'right';
@@ -156,7 +161,7 @@ class StoreCard extends StatelessWidget {
                           Image.asset(Images.distanceLine, height: 15, width: 15, color: Theme.of(context).disabledColor,),
                           const SizedBox(width: Dimensions.paddingSizeExtraSmall),
 
-                          Text('${distance > 100 ? '100+' : distance.toStringAsFixed(2)} ${'km'.tr}', style: robotoBold.copyWith(color: Theme.of(context).disabledColor, fontSize: Dimensions.fontSizeSmall)),
+                          Text(distanceText, style: robotoBold.copyWith(color: Theme.of(context).disabledColor, fontSize: Dimensions.fontSizeSmall)),
                           const SizedBox(width: Dimensions.paddingSizeExtraSmall),
 
                           Text('from_you'.tr, style: robotoRegular.copyWith(color: Theme.of(context).disabledColor, fontSize: Dimensions.fontSizeSmall)),
@@ -191,7 +196,7 @@ class StoreCard extends StatelessWidget {
                           Image.asset(Images.distanceLine, height: 15, width: 15, color: Theme.of(context).textTheme.bodyLarge!.color,),
                           const SizedBox(width: Dimensions.paddingSizeExtraSmall),
 
-                          Text('${distance > 100 ? '100+' : distance.toStringAsFixed(2)} ${'km'.tr}', style: robotoBold.copyWith(color: Theme.of(context).textTheme.bodyLarge!.color, fontSize: Dimensions.fontSizeSmall)),
+                          Text(distanceText, style: robotoBold.copyWith(color: Theme.of(context).textTheme.bodyLarge!.color, fontSize: Dimensions.fontSizeSmall)),
                           const SizedBox(width: Dimensions.paddingSizeExtraSmall),
 
                           Text('from_you'.tr, style: robotoRegular.copyWith(color: Theme.of(context).textTheme.bodyLarge!.color, fontSize: Dimensions.fontSizeSmall)),

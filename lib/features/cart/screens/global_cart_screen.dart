@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sixam_mart/common/models/module_model.dart';
+import 'package:sixam_mart/common/widgets/bogo_item_group_widget.dart';
+import 'package:sixam_mart/common/widgets/confirmation_dialog.dart';
 import 'package:sixam_mart/common/widgets/custom_app_bar.dart';
 import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/common/widgets/no_data_screen.dart';
@@ -8,17 +10,18 @@ import 'package:sixam_mart/features/banner/controllers/banner_controller.dart';
 import 'package:sixam_mart/features/cart/controllers/cart_controller.dart';
 import 'package:sixam_mart/features/cart/domain/models/all_carts_model.dart';
 import 'package:sixam_mart/features/cart/domain/models/cart_model.dart';
+import 'package:sixam_mart/features/cart/domain/models/online_cart_model.dart';
 import 'package:sixam_mart/features/service_module/service_cart/controllers/service_cart_controller.dart';
 import 'package:sixam_mart/features/service_module/service_cart/widgets/service_cart_tab_view.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 import 'package:sixam_mart/features/store/screens/store_screen.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/images.dart';
-import 'package:sixam_mart/common/widgets/confirmation_dialog.dart';
 import 'package:sixam_mart/util/styles.dart';
 
 const Set<String> _excludedModuleTypes = <String>{
@@ -169,9 +172,6 @@ class _GlobalCartScreenState extends State<GlobalCartScreen> {
 
           Expanded(
             child: Builder(builder: (BuildContext context) {
-              // The service module's carts come from a different API + model
-              // (provider/service, not store/item), so render the addon's own
-              // provider-grouped view for that tab.
               if(_selectedModule()?.moduleType == AppConstants.service) {
                 return const ServiceCartTabView();
               }
@@ -221,8 +221,7 @@ class _GlobalCartScreenState extends State<GlobalCartScreen> {
     if(storeId == null) return;
     final String slug = group.store?.slug ?? '';
 
-    // Point the active module at the selected cart's module so the store details
-    // and cart resolve under the correct module header.
+
     final ModuleModel? module = _selectedModule();
     final SplashController splash = Get.find<SplashController>();
     if(module?.id != null && splash.module?.id != module!.id) {
@@ -327,10 +326,18 @@ class _StoreCartCard extends StatelessWidget {
     final List<CartModel> carts = Get.find<CartController>().localCartsOfGroup(group);
     final double subtotal = Get.find<CartController>().calculateGCartSubTotal(carts);
 
+    // With a bundle on screen there is no room for the plain rows; they collapse to a count.
+    final bool hasBogo = carts.any((CartModel cart) => cart.isBogoBundle);
+    final List<CartModel> visibleCarts = hasBogo
+        ? carts.where((CartModel cart) => cart.isBogoBundle).toList() : carts;
+    final int collapsedItemCount = carts.length - visibleCarts.length;
+    final String? bogoTitle = hasBogo ? visibleCarts.first.bogoDetails?.offerTitle : null;
+
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+        border: hasBogo ? Border.all(color: Theme.of(context).primaryColor.withValues(alpha: 0.4)) : null,
         boxShadow: <BoxShadow>[BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)],
       ),
       padding: const EdgeInsets.all(Dimensions.paddingSizeDefault),
@@ -342,6 +349,7 @@ class _StoreCartCard extends StatelessWidget {
             child: CustomImage(
               image: store?.logoFullUrl ?? '',
               height: 38, width: 38, fit: BoxFit.cover,
+              cacheWidth: ImageCacheHelper.pixels(context, 38),
             ),
           ),
           const SizedBox(width: Dimensions.paddingSizeSmall),
@@ -361,7 +369,9 @@ class _StoreCartCard extends StatelessWidget {
                   Image.asset(Images.biking, width: 14, height: 14),
                   const SizedBox(width: Dimensions.paddingSizeExtraSmall),
                   Text(
-                    '${store?.deliveryTime} (${store?.distanceKm} km)',
+                    // The API's label carries the platform's configured unit; the
+                    // raw `distance_km` + hardcoded "km" is only the fallback.
+                    '${store?.deliveryTime} (${store?.distanceLabel ?? '${store?.distanceKm} km'})',
                     style: robotoRegular.copyWith(
                       fontSize: Dimensions.fontSizeSmall,
                       color: Theme.of(context).disabledColor,
@@ -376,6 +386,18 @@ class _StoreCartCard extends StatelessWidget {
 
         const SizedBox(height: Dimensions.paddingSizeDefault),
 
+        if(hasBogo) ...<Widget>[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeExtraSmall),
+            child: Text(
+              (bogoTitle != null && bogoTitle.isNotEmpty) ? bogoTitle : 'bogo_offer'.tr,
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: robotoBold.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).primaryColor),
+            ),
+          ),
+          const SizedBox(height: Dimensions.paddingSizeSmall),
+        ],
+
         Container(
           margin: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeExtraSmall),
           padding: const EdgeInsets.symmetric(
@@ -387,7 +409,9 @@ class _StoreCartCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
           ),
           child: Row(children: <Widget>[
-            Expanded(child: _CartItemThumbStrip(carts: carts)),
+            Expanded(child: hasBogo
+                ? _BogoCartStrip(bundles: visibleCarts, collapsedItemCount: collapsedItemCount)
+                : _CartItemThumbStrip(carts: carts)),
             const SizedBox(width: Dimensions.paddingSizeSmall),
             Text(
               PriceConverter.convertPrice(subtotal),
@@ -452,62 +476,107 @@ class _CartItemThumbStrip extends StatelessWidget {
   final List<CartModel> carts;
   const _CartItemThumbStrip({required this.carts});
 
-  static const int _maxVisible = 3;
-  static const double _thumbSize = 36;
-  static const double _overlap = 22;
-
   @override
   Widget build(BuildContext context) {
     if(carts.isEmpty) return const SizedBox.shrink();
-    final int visible = carts.length > _maxVisible ? _maxVisible : carts.length;
-    final int extra = carts.length - visible;
-    final double stripWidth = _thumbSize + (visible - 1) * _overlap + (extra > 0 ? _overlap : 0);
+    return BogoThumbCluster(images: carts.expand((CartModel cart) => cart.thumbnails).toList());
+  }
+}
+
+class _BogoCartStrip extends StatelessWidget {
+  final List<CartModel> bundles;
+
+  final int collapsedItemCount;
+
+  const _BogoCartStrip({required this.bundles, required this.collapsedItemCount});
+
+  static const double _height = 68;
+
+  @override
+  Widget build(BuildContext context) {
+    if(bundles.isEmpty) return const SizedBox.shrink();
 
     return SizedBox(
-      height: _thumbSize,
-      child: Stack(children: <Widget>[
-        for(int i = 0; i < visible; i++)
-          Positioned(
-            left: i * _overlap,
-            child: _RoundThumb(imageUrl: carts[i].item?.imageFullUrl ?? ''),
-          ),
-        if(extra > 0)
-          Positioned(
-            left: visible * _overlap + Dimensions.paddingSizeExtraSmall,
-            child: Container(
-              height: _thumbSize, width: _thumbSize,
-              alignment: Alignment.center,
-              child: Text(
-                '+$extra',
-                style: robotoBold.copyWith(
-                  fontSize: Dimensions.fontSizeSmall,
-                  color: Theme.of(context).textTheme.bodyLarge?.color,
+      height: _height,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: bundles.length,
+        separatorBuilder: (BuildContext context, int index) => const SizedBox(width: Dimensions.paddingSizeDefault),
+        itemBuilder: (BuildContext context, int index) {
+          final BogoCartDetails details = bundles[index].bogoDetails!;
+          final bool isLast = index == bundles.length - 1;
+
+          return Row(crossAxisAlignment: CrossAxisAlignment.center, children: <Widget>[
+              _BogoItemGroup(label: 'buy_item'.tr, thumbnails: details.buyItemThumbnails),
+              const SizedBox(width: Dimensions.paddingSizeSmall),
+
+              Padding(
+                padding: const EdgeInsets.only(top: 20),
+                child: Icon(
+                  Directionality.of(context) == TextDirection.ltr ? Icons.arrow_forward : Icons.arrow_back,
+                  size: 16, color: Theme.of(context).hintColor,
                 ),
               ),
-            ),
-          ),
-        SizedBox(width: stripWidth),
-      ]),
+              const SizedBox(width: Dimensions.paddingSizeSmall),
+
+              _BogoItemGroup(label: 'get_item'.tr, thumbnails: details.freeItemThumbnails),
+
+              if(collapsedItemCount > 0 && isLast) ...<Widget>[
+                const SizedBox(width: Dimensions.paddingSizeDefault),
+                _MoreItemsBadge(count: collapsedItemCount),
+              ],
+          ]);
+        },
+      ),
     );
   }
 }
 
-class _RoundThumb extends StatelessWidget {
-  final String imageUrl;
-  const _RoundThumb({required this.imageUrl});
+class _BogoItemGroup extends StatelessWidget {
+  final String label;
+  final List<String> thumbnails;
+
+  const _BogoItemGroup({required this.label, required this.thumbnails});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 36, width: 36,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: Theme.of(context).cardColor, width: 2),
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: <Widget>[
+      Text(
+        label, maxLines: 1, overflow: TextOverflow.ellipsis,
+        style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeExtraSmall, color: Theme.of(context).disabledColor),
       ),
-      child: ClipOval(
-        child: CustomImage(image: imageUrl, height: 36, width: 36, fit: BoxFit.cover),
+      const SizedBox(height: Dimensions.paddingSizeExtraSmall),
+
+      BogoThumbCluster(images: thumbnails.isEmpty ? const <String>[''] : thumbnails, isGlobalCart: true),
+    ]);
+  }
+}
+
+/// The plain items a bundle pushed out of view.
+class _MoreItemsBadge extends StatelessWidget {
+  final int count;
+  const _MoreItemsBadge({required this.count});
+
+  static const double _size = 36;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: <Widget>[
+     
+      Text('', style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeExtraSmall)),
+      const SizedBox(height: Dimensions.paddingSizeExtraSmall),
+
+      Container(
+        height: _size, width: _size,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Theme.of(context).cardColor,
+          border: Border.all(color: Theme.of(context).primaryColor),
+        ),
+        child: Text('+$count', style: robotoBold.copyWith(fontSize: Dimensions.fontSizeSmall)),
       ),
-    );
+    ]);
   }
 }
 

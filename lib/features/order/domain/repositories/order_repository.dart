@@ -1,9 +1,8 @@
-import 'dart:developer';
-
 import 'package:get/get_connect/connect.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sixam_mart/api/api_client.dart';
+import 'package:sixam_mart/api/response_parser.dart';
 import 'package:sixam_mart/common/models/ongoing_order_model.dart';
 import 'package:sixam_mart/features/checkout/domain/models/payment_model.dart';
 import 'package:sixam_mart/features/order/domain/models/last_order_model.dart';
@@ -48,7 +47,20 @@ class OrderRepository implements OrderRepositoryInterface {
     Response response = await apiClient.getData('${AppConstants.paymentFailedDetailsUri}${orderID != null ? '?order_id=$orderID' : ''}${AuthHelper.isGuestLoggedIn() ? '&guest_id=${AuthHelper.getGuestId()}' : ''}');
     if (response.statusCode == 200) {
       try {
-        paymentModel = PaymentModel.fromJson(response.body);
+        final PaymentModel parsed = PaymentModel.fromJson(response.body);
+        // `content: null` is the API's "nothing outstanding". `unwrapEnvelope`
+        // only strips `content` when it is non-null, so in that case the whole
+        // envelope reaches `fromJson` and every field reads as null instead of
+        // the parse failing — a non-null model is therefore not proof that
+        // there is a payment to make.
+        //
+        // Every caller already treats a non-null model as "something is owed"
+        // (the dashboard opens the payment-incomplete sheet on it, the
+        // order-success screen swaps in PaymentIncompleteView), so normalising
+        // it to null here makes all of them correct without touching any of them.
+        if (parsed.orderID != null) {
+          paymentModel = parsed;
+        }
       } catch(_) {}
     }
     return paymentModel;
@@ -107,8 +119,8 @@ class OrderRepository implements OrderRepositoryInterface {
     Response response = await apiClient.getData('${AppConstants.orderDetailsUri}$orderID${guestId != null ? '&guest_id=$guestId' : ''}');
     if (response.statusCode == 200) {
       orderDetails = [];
-      if(response.body is List){
-        response.body.forEach((orderDetail) => orderDetails!.add(OrderDetailsModel.fromJson(orderDetail)));
+      for (final dynamic orderDetail in ResponseParser.listOrEmpty(response.body)) {
+        orderDetails.add(OrderDetailsModel.fromJson(orderDetail));
       }
     }
     return orderDetails;
@@ -135,9 +147,10 @@ class OrderRepository implements OrderRepositoryInterface {
 
     final String uri = storeId != null ? '${AppConstants.lastOrdersUri}?store_id=$storeId' : AppConstants.lastOrdersUri;
     final Response response = await apiClient.getData(uri, headers: header);
-    if(response.statusCode == 200 && response.body is List) {
-      log("---------+> ${header} ${response.body.map((e)=>e['module_id'])}");
-      return (response.body as List).whereType<Map<String, dynamic>>().map(LastOrderModel.fromJson).toList();
+    if(response.statusCode == 200) {
+      final List<dynamic>? ordersJson = ResponseParser.listOf(response.body);
+      if(ordersJson == null) return null;
+      return ordersJson.whereType<Map<String, dynamic>>().map(LastOrderModel.fromJson).toList();
     }
     return null;
   }
@@ -160,12 +173,15 @@ class OrderRepository implements OrderRepositoryInterface {
 
   @override
   Future<ReorderResponseModel?> reorder(int orderId) async {
-    ReorderResponseModel? reorderResponse;
     Response response = await apiClient.postData(AppConstants.reorderUri, {'order_id': orderId}, handleError: false);
-    // if (response.statusCode == 200) {
-      reorderResponse = ReorderResponseModel.fromJson(response.body);
-    // }
-    return reorderResponse;
+    // A refusal carries the same counts and per-item reasons as a success, but only a
+    // 2xx is unwrapped centrally — so the envelope is stripped here rather than read
+    // as the payload, which left every count null and every reason lost.
+    final dynamic payload = ResponseParser.payloadOf(response.body);
+    if (payload is! Map<String, dynamic>) {
+      return ReorderResponseModel(message: response.statusText);
+    }
+    return ReorderResponseModel.fromJson(payload)..message = response.statusText;
   }
 
   @override
@@ -187,7 +203,10 @@ class OrderRepository implements OrderRepositoryInterface {
     if (response.statusCode == 200) {
       OrderCancellationBody orderCancellationBody = OrderCancellationBody.fromJson(response.body);
       orderCancelReasons = [];
-      for (var element in orderCancellationBody.reasons!) {
+      // `reasons` is null when the body carries no recognisable list; dereferencing it
+      // threw instead of leaving the reason list empty, which would take the cancel
+      // sheet down rather than showing it with no options.
+      for (var element in orderCancellationBody.reasons ?? <CancellationData>[]) {
         orderCancelReasons.add(element);
       }
     }
@@ -200,7 +219,9 @@ class OrderRepository implements OrderRepositoryInterface {
     if (response.statusCode == 200) {
       RefundModel refundModel = RefundModel.fromJson(response.body);
       refundReasons = [];
-      for (var element in refundModel.refundReasons!) {
+      // `refundReasons` is null when the body carried no recognisable list, and
+      // dereferencing it with `!` threw instead of leaving the list empty.
+      for (var element in refundModel.refundReasons ?? <RefundReasons>[]) {
         refundReasons.add(element.reason);
       }
     }

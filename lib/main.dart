@@ -12,6 +12,8 @@ import 'package:sixam_mart/common/controllers/theme_controller.dart';
 import 'package:sixam_mart/features/notification/domain/models/notification_body_model.dart';
 import 'package:sixam_mart/helper/address_helper.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
+import 'package:sixam_mart/helper/keyboard_dismiss_route_observer.dart';
+import 'package:sixam_mart/helper/language_loader.dart';
 import 'package:sixam_mart/helper/link_converter_helper.dart';
 import 'package:sixam_mart/helper/notification_helper.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
@@ -52,16 +54,23 @@ Future<void> main() async {
 
   if(GetPlatform.isWeb){
     await Firebase.initializeApp(options: const FirebaseOptions(
-        apiKey: "AIzaSyB0xtfJMflFm_2pXdxo5sMPncPQgyE9AAM",
-        authDomain: "mytijaara-21638.firebaseapp.com",
-        projectId: "mytijaara-21638",
-        storageBucket: "mytijaara-21638.firebasestorage.app",
-        messagingSenderId: "1017926959065",
-        appId: "1:1017926959065:web:fee8e7af199a1d677e23c8",
-        measurementId: "G-6XF74RVXXW"
+        apiKey: "AIzaSyD0Z911mOoWCVkeGdjhIKwWFPRgvd6ZyAw",
+        authDomain: "stackmart-500c7.firebaseapp.com",
+        projectId: "stackmart-500c7",
+        storageBucket: "stackmart-500c7.appspot.com",
+        messagingSenderId: "491987943015",
+        appId: "1:491987943015:web:d8bc7ab8dbc9991c8f1ec2"
     ));
+  } else if(GetPlatform.isAndroid) {
+    await Firebase.initializeApp(
+      options: const FirebaseOptions(
+        apiKey: "AIzaSyCc3OCd5I2xSlnftZ4bFAbuCzMhgQHLivA",
+        appId: "1:491987943015:android:a6fb4303cc4bf3d18f1ec2",
+        messagingSenderId: "491987943015",
+        projectId: "stackmart-500c7",
+      ),
+    );
   } else {
-    // Use the platform configuration, including Android google-services.json.
     await Firebase.initializeApp();
   }
 
@@ -81,7 +90,7 @@ Future<void> main() async {
 
   if (ResponsiveHelper.isWeb()) {
     await FacebookAuth.instance.webAndDesktopInitialize(
-      appId: "1509100437592925",
+      appId: "380903914182154",
       cookie: true,
       xfbml: true,
       version: "v15.0",
@@ -114,9 +123,10 @@ class _MyAppState extends State<MyApp> {
     }
 
     _route();
-    
+
     _initialRoute = GetPlatform.isWeb ? RouteHelper.getInitialRoute() : RouteHelper.getSplashRoute(widget.body, deeplinkRoute);
 
+    WidgetsBinding.instance.addPostFrameCallback((_) => LanguageLoader.loadRemaining());
   }
 
   void _initAppLinks() async {
@@ -174,9 +184,8 @@ class _MyAppState extends State<MyApp> {
             fallbackLocale: Locale(AppConstants.languages[0].languageCode!, AppConstants.languages[0].countryCode),
             initialRoute: _initialRoute,
             getPages: RouteHelper.routes,
+            navigatorObservers: [KeyboardDismissRouteObserver()],
             routingCallback: (routing) {
-              // Keep the home status-bar tint overlay in sync with modal state so it
-              // doesn't paint a bright strip above a bottom sheet's / dialog's scrim.
               HomeStatusBarTint.modalOpen.value = routing != null && ((routing.isBottomSheet ?? false) || (routing.isDialog ?? false));
               if (routing == null || (routing.isBottomSheet ?? false) || (routing.isDialog ?? false)) return;
               if (Get.isRegistered<ProController>()) {
@@ -214,3 +223,4 @@ class _MyAppState extends State<MyApp> {
     });
   }
 }
+

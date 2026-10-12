@@ -17,6 +17,19 @@ class ReviewWidget extends StatelessWidget {
   final String? storeName;
   const ReviewWidget({super.key, required this.review, required this.hasDivider, this.storeName});
 
+  /// A date for display, or an empty string when the timestamp is absent.
+  ///
+  /// `created_at` / `updated_at` were force-unwrapped. They are present on every row
+  /// today, but a single null would have thrown while building — taking the whole
+  /// review list down rather than leaving one date blank. `updated_at` was only
+  /// guarded by `reply != null`, which says nothing about the timestamp.
+  static String _formatDate(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return '';
+    }
+    return DateConverter.stringToLocalDateOnly(raw);
+  }
+
   @override
   Widget build(BuildContext context) {
 
@@ -37,13 +50,13 @@ class ReviewWidget extends StatelessWidget {
               const SizedBox(width: Dimensions.paddingSizeExtraSmall),
               Padding(
                 padding: const EdgeInsets.fromLTRB(0, 1, 0, 0),
-                child: Text(review.rating!.toStringAsFixed(1), style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeSmall)),
+                child: Text((review.rating ?? 0).toStringAsFixed(1), style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeSmall)),
               ),
             ]),
 
             const SizedBox(height: Dimensions.paddingSizeExtraSmall),
 
-            isDesktop ? Text(DateConverter.stringToLocalDateOnly(review.createdAt!), style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).disabledColor)) : const SizedBox(),
+            isDesktop ? Text(_formatDate(review.createdAt), style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).disabledColor)) : const SizedBox(),
             SizedBox(height: isDesktop ?  Dimensions.paddingSizeExtraSmall : 0),
 
             isDesktop ? ReadMoreText(
@@ -56,7 +69,7 @@ class ReviewWidget extends StatelessWidget {
               trimCollapsedText: 'show_more'.tr,
               trimExpandedText: ' ${'show_less'.tr}',
               moreStyle: robotoBold.copyWith(color: Theme.of(context).primaryColor),
-            ) : Text(DateConverter.stringToLocalDateOnly(review.createdAt!), style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).disabledColor)),
+            ) : Text(_formatDate(review.createdAt), style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).disabledColor)),
 
           ]),
         ),
@@ -149,7 +162,7 @@ class ReviewWidget extends StatelessWidget {
 
             Text(storeName ?? '', style: robotoMedium),
 
-            Text(DateConverter.stringToLocalDateOnly(review.updatedAt!), style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).disabledColor)),
+            Text(_formatDate(review.updatedAt), style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).disabledColor)),
 
           ]),
           const SizedBox(height: Dimensions.paddingSizeDefault),

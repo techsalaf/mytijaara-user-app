@@ -87,9 +87,9 @@ class _WalletScreenState extends State<WalletScreen> {
   }
   @override
   void dispose() {
-    super.dispose();
 
     scrollController.dispose();
+    super.dispose();
   }
 
   @override

@@ -1,14 +1,20 @@
+import 'package:sixam_mart/api/response_parser.dart';
+import 'package:sixam_mart/api/json_reader.dart';
 class PackageModel {
   List<Packages>? packages;
 
   PackageModel({this.packages});
 
   PackageModel.fromJson(Map<String, dynamic> json) {
-    if (json['packages'] != null) {
+    // The list moved to `data` in the new API format. `listOf` checks the legacy
+    // key first, so a backend still answering with `packages` parses exactly as before
+    // and only the new shape is newly understood.
+    final List<dynamic>? packageEntries = ResponseParser.listOf(json, legacyKey: 'packages');
+    if (packageEntries != null) {
       packages = <Packages>[];
-      json['packages'].forEach((v) {
+      for (final dynamic v in packageEntries) {
         packages!.add(Packages.fromJson(v));
-      });
+      }
     }
   }
 
@@ -61,7 +67,7 @@ class Packages {
   Packages.fromJson(Map<String, dynamic> json) {
     id = json['id'];
     packageName = json['package_name'];
-    price = json['price'].toDouble();
+    price = JsonReader.toDouble(json['price']);
     validity = json['validity'];
     maxOrder = json['max_order'];
     maxProduct = json['max_product'];

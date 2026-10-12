@@ -60,14 +60,14 @@ class OrderInfoWidget extends StatelessWidget {
       ) : const SizedBox(),
 
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        !isDesktop && (orderController.orderDetails!.isNotEmpty && orderController.orderDetails![0].itemDetails!.moduleType == 'food')
+        !isDesktop && (orderController.orderDetails!.isNotEmpty && orderController.orderDetails![0].itemDetails?.moduleType == 'food')
             && order.orderStatus != 'pending' ? const SizedBox(height: Dimensions.paddingSizeExtraLarge) :const SizedBox.shrink(),
 
         !isDesktop ? SizedBox(height: DateConverter.isBeforeTime(order.scheduleAt) && Get.find<SplashController>().getModuleConfig(order.moduleType).newVariation!
           ? order.orderStatus == 'pending' ? 100 : 140 :
-          parcel || prescriptionOrder || (orderController.orderDetails!.isNotEmpty && orderController.orderDetails![0].itemDetails!.moduleType == 'grocery')
-          || (orderController.orderDetails!.isNotEmpty && orderController.orderDetails![0].itemDetails!.moduleType == 'ecommerce')
-          || (orderController.orderDetails!.isNotEmpty && orderController.orderDetails![0].itemDetails!.moduleType == 'pharmacy')
+          parcel || prescriptionOrder || (orderController.orderDetails!.isNotEmpty && orderController.orderDetails![0].itemDetails?.moduleType == 'grocery')
+          || (orderController.orderDetails!.isNotEmpty && orderController.orderDetails![0].itemDetails?.moduleType == 'ecommerce')
+          || (orderController.orderDetails!.isNotEmpty && orderController.orderDetails![0].itemDetails?.moduleType == 'pharmacy')
           ? 140 : 0) : const SizedBox(),
 
         CustomCard(
@@ -741,7 +741,7 @@ class OrderInfoWidget extends StatelessWidget {
           children: [
             Text('payment_method'.tr, style: robotoMedium),
             /*order.paymentMethod == 'offline_payment' ? Text(
-              orderController.trackModel!.offlinePayment != null ? orderController.trackModel!.offlinePayment!.data!.status!.tr : '',
+              (orderController.trackModel!.offlinePayment?.data?.status ?? '').tr,
               style: robotoMedium.copyWith(color: Theme.of(context).primaryColor),
             ) : */const SizedBox(),
           ],
@@ -760,14 +760,14 @@ class OrderInfoWidget extends StatelessWidget {
                 Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
-                    color: (orderController.trackModel!.offlinePayment != null ? orderController.trackModel!.offlinePayment!.data!.status.toString() == 'denied' : false)
+                    color: ((orderController.trackModel!.offlinePayment?.data?.status?.toString() ?? '') == 'denied')
                         ? Colors.red.withValues(alpha: 0.1)
                         : orderController.trackModel!.offlinePayment == null ? Colors.red.withValues(alpha: 0.1) : Theme.of(context).primaryColor.withValues(alpha: 0.1),
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeSmall, vertical: 2),
                   child: Text(
-                    orderController.trackModel!.offlinePayment != null ? orderController.trackModel!.offlinePayment!.data!.status!.tr : 'unpaid'.tr,
-                    style: robotoMedium.copyWith(color: (orderController.trackModel!.offlinePayment != null ? orderController.trackModel!.offlinePayment!.data!.status.toString() == 'denied' : false)
+                    (orderController.trackModel!.offlinePayment?.data?.status ?? 'unpaid').tr,
+                    style: robotoMedium.copyWith(color: ((orderController.trackModel!.offlinePayment?.data?.status?.toString() ?? '') == 'denied')
                         ? Colors.red
                         : orderController.trackModel!.offlinePayment == null ? Colors.red : Theme.of(context).primaryColor),
                   ),

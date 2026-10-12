@@ -1,14 +1,19 @@
+import 'package:sixam_mart/api/response_parser.dart';
 class RefundModel {
   List<RefundReasons>? refundReasons;
 
   RefundModel({this.refundReasons});
 
   RefundModel.fromJson(Map<String, dynamic> json) {
-    if (json['refund_reasons'] != null) {
+    // The list moved to `data` in the new API format. `listOf` checks the legacy
+    // key first, so a backend still answering with `refund_reasons` parses exactly
+    // as before and only the new shape is newly understood.
+    final List<dynamic>? reasonEntries = ResponseParser.listOf(json, legacyKey: 'refund_reasons');
+    if (reasonEntries != null) {
       refundReasons = <RefundReasons>[];
-      json['refund_reasons'].forEach((v) {
+      for (final dynamic v in reasonEntries) {
         refundReasons!.add(RefundReasons.fromJson(v));
-      });
+      }
     }
   }
 

@@ -1,5 +1,6 @@
 import 'package:sixam_mart/features/auth/widgets/auth_dialog_widget.dart';
 import 'package:sixam_mart/features/order/controllers/order_controller.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/util/images.dart';
@@ -24,6 +25,8 @@ class NotLoggedInScreen extends StatelessWidget {
               Images.guest,
               width: MediaQuery.of(context).size.height*0.25,
               height: MediaQuery.of(context).size.height*0.25,
+              cacheHeight: ImageCacheHelper.pixels(context, MediaQuery.of(context).size.height*0.25),
+              cacheWidth: ImageCacheHelper.pixels(context, MediaQuery.of(context).size.height*0.25),
             ),
             SizedBox(height: MediaQuery.of(context).size.height*0.01),
 

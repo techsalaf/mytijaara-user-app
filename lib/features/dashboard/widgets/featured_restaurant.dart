@@ -1,8 +1,8 @@
 import 'package:carousel_slider/carousel_slider.dart';
-import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer_animation/shimmer_animation.dart';
+import 'package:sixam_mart/common/widgets/ad_video_player_widget.dart';
 import 'package:sixam_mart/common/widgets/custom_favourite_widget.dart';
 import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/common/widgets/title_widget.dart';
@@ -13,12 +13,12 @@ import 'package:sixam_mart/features/home/widgets/highlight_widget.dart' show Adv
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 import 'package:sixam_mart/features/store/screens/store_screen.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/images.dart';
 import 'package:sixam_mart/util/styles.dart';
-import 'package:video_player/video_player.dart';
 
 class FeaturedRestaurant extends StatefulWidget {
   final bool isShop;
@@ -152,6 +152,12 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
+// Ad card media geometry, shared by the chrome that lays it out and the image that
+// decodes to it — the oversized-image check compares decoded bytes against painted
+// bytes, so these two must not drift apart.
+const double _kAdMediaHeight = 150;
+const double _kAdMediaBorderWidth = 3;
+
 void _openStore(int? storeId) {
   Get.toNamed(
     RouteHelper.getStoreRoute(id: storeId, page: 'store_new', slug: 'store_$storeId'),
@@ -169,7 +175,7 @@ class _AdCard extends StatelessWidget {
     return _AdCardChrome(
       onTap: () => _openStore(advertisement.storeId),
       media: isVideo
-          ? _AdVideoMedia(advertisement: advertisement)
+          ? AdVideoPlayerWidget(videoUrl: advertisement.videoAttachmentFullUrl ?? '')
           : _AdImageMedia(advertisement: advertisement),
       info: _AdCardInfo(advertisement: advertisement),
     );
@@ -195,7 +201,7 @@ class _AdCardChrome extends StatelessWidget {
           children: [
             Container(
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.white, width: 3),
+                border: Border.all(color: Colors.white, width: _kAdMediaBorderWidth),
                 boxShadow: [
                   BoxShadow(offset: const Offset(0, 5), blurRadius: 5, color: Colors.black.withAlpha(30)),
                 ],
@@ -204,7 +210,7 @@ class _AdCardChrome extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
                 child: SizedBox(
-                  height: 150,
+                  height: _kAdMediaHeight,
                   child: media,
                 ),
               ),
@@ -239,108 +245,15 @@ class _AdImageMedia extends StatelessWidget {
       children: [
         Opacity(
           opacity: 0.88,
-          child: CustomImage(image: advertisement.coverImageFullUrl ?? '', fit: BoxFit.cover),
+          child: LayoutBuilder(builder: (BuildContext context, BoxConstraints constraints) {
+            return CustomImage(image: advertisement.coverImageFullUrl ?? '', fit: BoxFit.cover,
+              cacheWidth: ImageCacheHelper.pixels(context, constraints.maxWidth),
+              cacheHeight: ImageCacheHelper.pixels(context, constraints.maxHeight),
+            );
+          }),
         ),
 
-        // if(advertisement.isRatingActive == 1 || advertisement.isReviewActive == 1) Positioned(
-        //   right: 10,
-        //   bottom: 10,
-        //   child: Container(
-        //     padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeSmall, vertical: 4),
-        //     decoration: BoxDecoration(
-        //       color: Theme.of(context).primaryColor,
-        //       borderRadius: BorderRadius.circular(50),
-        //       border: Border.all(color: Theme.of(context).cardColor, width: 2),
-        //       boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 5)],
-        //     ),
-        //     child: Row(mainAxisSize: MainAxisSize.min, children: [
-        //       if(advertisement.isRatingActive == 1) ...[
-        //         Icon(Icons.star, color: Theme.of(context).cardColor, size: 14),
-        //         const SizedBox(width: 4),
-        //         Text(
-        //           advertisement.averageRating?.toStringAsFixed(1) ?? '0.0',
-        //           style: robotoBold.copyWith(color: Theme.of(context).cardColor, fontSize: Dimensions.fontSizeSmall),
-        //         ),
-        //         if(advertisement.isReviewActive == 1) const SizedBox(width: 4),
-        //       ],
-        //       if(advertisement.isReviewActive == 1) Text(
-        //         '(${advertisement.reviewsCommentsCount ?? 0})',
-        //         style: robotoRegular.copyWith(color: Theme.of(context).cardColor, fontSize: Dimensions.fontSizeSmall),
-        //       ),
-        //     ]),
-        //   ),
-        // ),
       ],
-    );
-  }
-}
-
-class _AdVideoMedia extends StatefulWidget {
-  final AdvertisementModel advertisement;
-  const _AdVideoMedia({required this.advertisement});
-
-  @override
-  State<_AdVideoMedia> createState() => _AdVideoMediaState();
-}
-
-class _AdVideoMediaState extends State<_AdVideoMedia> {
-  late final VideoPlayerController _videoPlayerController;
-  ChewieController? _chewieController;
-
-  @override
-  void initState() {
-    super.initState();
-    _initializePlayer();
-  }
-
-  Future<void> _initializePlayer() async {
-    _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(
-      widget.advertisement.videoAttachmentFullUrl ?? '',
-    ));
-
-    _videoPlayerController.addListener(_onVideoTick);
-
-    await _videoPlayerController.initialize();
-
-    _chewieController = ChewieController(
-      videoPlayerController: _videoPlayerController,
-      autoPlay: true,
-      aspectRatio: _videoPlayerController.value.aspectRatio,
-    );
-    _chewieController?.setVolume(0);
-
-    if(mounted) setState(() {});
-  }
-
-  void _onVideoTick() {
-    if(_videoPlayerController.value.duration == _videoPlayerController.value.position
-        && _videoPlayerController.value.duration > Duration.zero) {
-      if(GetPlatform.isWeb) {
-        Future.delayed(const Duration(seconds: 4), () {
-          Get.find<AdvertisementController>().updateAutoPlayStatus(status: true, shouldUpdate: true);
-        });
-      } else {
-        Get.find<AdvertisementController>().updateAutoPlayStatus(status: true, shouldUpdate: true);
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _videoPlayerController.removeListener(_onVideoTick);
-    _chewieController?.dispose();
-    _videoPlayerController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: Colors.black,
-      alignment: Alignment.center,
-      child: _chewieController != null && _chewieController!.videoPlayerController.value.isInitialized
-          ? Chewie(controller: _chewieController!)
-          : const CircularProgressIndicator(),
     );
   }
 }
@@ -475,6 +388,9 @@ class _TopItemsStack extends StatelessWidget {
     final int visibleCount = items.length < _maxVisible ? items.length : _maxVisible;
     final int extraCount = (totalCount ?? items.length) - visibleCount;
     final double stackWidth = _avatarSize + (visibleCount - 1) * (_avatarSize - _avatarOverlap);
+    // A full item photo behind a 26pt circle is the worst offender in this card.
+    // Both axes at this size: the box is square and any aspect skew is invisible.
+    final int? avatarPx = ImageCacheHelper.pixels(context, _avatarSize);
 
     return Row(mainAxisSize: MainAxisSize.min, children: [
       SizedBox(
@@ -491,7 +407,7 @@ class _TopItemsStack extends StatelessWidget {
                   border: Border.all(color: Theme.of(context).disabledColor.withAlpha(100), width: 1),
                 ),
                 child: ClipOval(
-                  child: CustomImage(image: items[i].imageFullUrl ?? '', fit: BoxFit.cover),
+                  child: CustomImage(image: items[i].imageFullUrl ?? '', fit: BoxFit.cover, cacheWidth: avatarPx, cacheHeight: avatarPx),
                 ),
               ),
             );

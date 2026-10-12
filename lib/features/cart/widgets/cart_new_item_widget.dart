@@ -2,6 +2,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:sixam_mart/common/widgets/custom_ink_well.dart';
 import 'package:sixam_mart/features/cart/controllers/cart_controller.dart';
+import 'package:sixam_mart/features/cart/widgets/bogo_bundle_cart_tile.dart';
+import 'package:sixam_mart/features/cart/widgets/bundle_cart_tile.dart';
 import 'package:sixam_mart/features/cart/domain/models/cart_model.dart';
 import 'package:sixam_mart/features/language/controllers/language_controller.dart';
 import 'package:sixam_mart/common/widgets/item_new_bottom_sheet.dart';
@@ -34,6 +36,17 @@ class _CartNewItemWidgetState extends State<CartNewItemWidget> {
 
   @override
   Widget build(BuildContext context) {
+    // A BOGO bundle row has no item/variation/add-on of its own — it renders as one
+    // collapsed bundle tile instead.
+    if(widget.cart.isBogoBundle) {
+      return BogoBundleCartTile(cart: widget.cart, cartIndex: widget.cartIndex, isAvailable: widget.isAvailable);
+    }
+
+    // A product bundle is the same shape: one collapsed tile for the whole group,
+    // never its members as rows.
+    if(widget.cart.isBundle) {
+      return BundleCartTile(cart: widget.cart, cartIndex: widget.cartIndex, isAvailable: widget.isAvailable);
+    }
 
     double? startingPrice = _calculatePrice(item: widget.cart.item);
     String? variationText = _setupVariationText(cart: widget.cart).$1;
@@ -168,7 +181,7 @@ class _CartNewItemWidgetState extends State<CartNewItemWidget> {
 
                           IconButton(
                             onPressed: cartController.isLoading ? null : () {
-                              Get.find< CartController>().forcefullySetModule(Get.find< CartController>().cartList[0].item!.moduleId!);
+                              Get.find< CartController>().forcefullySetModule(Get.find< CartController>().cartModuleId!);
                               Get.find< CartController>().setQuantity(true, widget.cartIndex, widget.cart.stock, widget.cart.quantityLimit);
                             },
                             icon: const Icon(Icons.add),

@@ -8,6 +8,7 @@ abstract class ChatServiceInterface{
   Future<ConversationsModel?> searchConversationList(String name);
   Future<Response> getMessages(int offset, int? userID, String userType, int? conversationID);
   Future<Response> sendMessage(String message, String orderId, List<MultipartBody> images, int? userID, String userType, int? conversationID);
+  List<Conversation?> conversationsOfType(List<Conversation?>? conversations, String type);
   int setIndex(List<Conversation?>? conversations);
   bool checkSender(List<Conversation?>? conversations);
   int findOutConversationUnreadIndex(List<Conversation?>? conversations, int? conversationID);

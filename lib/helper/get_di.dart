@@ -1,9 +1,12 @@
-import 'dart:convert';
 
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sixam_mart/api/api_client.dart';
+import 'package:sixam_mart/features/happy_hour/controllers/happy_hour_controller.dart';
+import 'package:sixam_mart/features/happy_hour/domain/repositories/happy_hour_repository.dart';
+import 'package:sixam_mart/features/happy_hour/domain/repositories/happy_hour_repository_interface.dart';
+import 'package:sixam_mart/features/happy_hour/domain/services/happy_hour_service.dart';
+import 'package:sixam_mart/features/happy_hour/domain/services/happy_hour_service_interface.dart';
 import 'package:sixam_mart/common/controllers/theme_controller.dart';
 import 'package:sixam_mart/features/address/controllers/address_controller.dart';
 import 'package:sixam_mart/features/address/domain/repositories/address_repository.dart';
@@ -75,6 +78,17 @@ import 'package:sixam_mart/features/favourite/domain/repositories/favourite_repo
 import 'package:sixam_mart/features/favourite/domain/repositories/favourite_repository_interface.dart';
 import 'package:sixam_mart/features/favourite/domain/services/favourite_service.dart';
 import 'package:sixam_mart/features/favourite/domain/services/favourite_service_interface.dart';
+import 'package:sixam_mart/features/bundle/controllers/bundle_controller.dart';
+import 'package:sixam_mart/features/bundle/domain/repositories/bundle_repository.dart';
+import 'package:sixam_mart/features/bundle/domain/repositories/bundle_repository_interface.dart';
+import 'package:sixam_mart/features/bundle/domain/services/bundle_service.dart';
+import 'package:sixam_mart/features/bundle/domain/services/bundle_service_interface.dart';
+import 'package:sixam_mart/features/bogo_offer/controllers/bogo_offer_controller.dart';
+import 'package:sixam_mart/features/bogo_offer/controllers/bogo_offer_details_controller.dart';
+import 'package:sixam_mart/features/bogo_offer/domain/repositories/bogo_offer_repository.dart';
+import 'package:sixam_mart/features/bogo_offer/domain/repositories/bogo_offer_repository_interface.dart';
+import 'package:sixam_mart/features/bogo_offer/domain/services/bogo_offer_service.dart';
+import 'package:sixam_mart/features/bogo_offer/domain/services/bogo_offer_service_interface.dart';
 import 'package:sixam_mart/features/flash_sale/controllers/flash_sale_controller.dart';
 import 'package:sixam_mart/features/flash_sale/domain/repositories/flash_sale_repository.dart';
 import 'package:sixam_mart/features/flash_sale/domain/repositories/flash_sale_repository_interface.dart';
@@ -106,7 +120,7 @@ import 'package:sixam_mart/features/item/domain/services/campaign_service_interf
 import 'package:sixam_mart/features/item/domain/services/item_service.dart';
 import 'package:sixam_mart/features/item/domain/services/item_service_interface.dart';
 import 'package:sixam_mart/features/language/controllers/language_controller.dart';
-import 'package:sixam_mart/features/language/domain/models/language_model.dart';
+import 'package:sixam_mart/helper/language_loader.dart';
 import 'package:sixam_mart/features/language/domain/repository/language_repository.dart';
 import 'package:sixam_mart/features/language/domain/repository/language_repository_interface.dart';
 import 'package:sixam_mart/features/language/domain/service/language_service.dart';
@@ -374,6 +388,12 @@ Future<Map<String, Map<String, String>>> init() async {
   FavouriteRepositoryInterface favouriteRepositoryInterface = FavouriteRepository(apiClient: Get.find());
   Get.lazyPut(() => favouriteRepositoryInterface);
 
+  BogoOfferRepositoryInterface bogoOfferRepositoryInterface = BogoOfferRepository(apiClient: Get.find());
+  Get.lazyPut(() => bogoOfferRepositoryInterface, fenix: true);
+  BundleRepositoryInterface bundleRepositoryInterface = BundleRepository(apiClient: Get.find());
+  Get.lazyPut(() => bundleRepositoryInterface, fenix: true);
+  HappyHourRepositoryInterface happyHourRepositoryInterface = HappyHourRepository(apiClient: Get.find());
+  Get.lazyPut(() => happyHourRepositoryInterface, fenix: true);
   FlashSaleRepositoryInterface flashSaleRepositoryInterface = FlashSaleRepository(apiClient: Get.find());
   Get.lazyPut(() => flashSaleRepositoryInterface);
 
@@ -541,6 +561,12 @@ Future<Map<String, Map<String, String>>> init() async {
   Get.lazyPut(() => homeServiceInterface);
 
 
+  BogoOfferServiceInterface bogoOfferServiceInterface = BogoOfferService(bogoOfferRepositoryInterface: Get.find());
+  Get.lazyPut(() => bogoOfferServiceInterface, fenix: true);
+  BundleServiceInterface bundleServiceInterface = BundleService(bundleRepositoryInterface: Get.find());
+  Get.lazyPut(() => bundleServiceInterface, fenix: true);
+  HappyHourServiceInterface happyHourServiceInterface = HappyHourService(happyHourRepositoryInterface: Get.find());
+  Get.lazyPut(() => happyHourServiceInterface, fenix: true);
   FlashSaleServiceInterface flashSaleServiceInterface = FlashSaleService(flashSaleRepositoryInterface: Get.find());
   Get.lazyPut(() => flashSaleServiceInterface);
 
@@ -681,6 +707,10 @@ Future<Map<String, Map<String, String>>> init() async {
   Get.lazyPut(() => ParcelController(parcelServiceInterface: Get.find()));
   Get.lazyPut(() => WalletController(walletServiceInterface: Get.find()));
   Get.lazyPut(() => ChatController(chatServiceInterface: Get.find()));
+  Get.lazyPut(() => BogoOfferController(bogoOfferServiceInterface: Get.find()));
+  Get.lazyPut(() => BundleController(bundleServiceInterface: Get.find()));
+  Get.lazyPut(() => BogoOfferDetailsController(bogoOfferServiceInterface: Get.find()));
+  Get.lazyPut(() => HappyHourController(happyHourServiceInterface: Get.find()), fenix: true);
   Get.lazyPut(() => FlashSaleController(flashSaleServiceInterface: Get.find()));
   Get.lazyPut(() => CheckoutController(checkoutServiceInterface: Get.find()));
   Get.lazyPut(() => PaymentController(paymentServiceInterface: Get.find()));
@@ -785,16 +815,9 @@ Future<Map<String, Map<String, String>>> init() async {
   Get.lazyPut(() => serviceReviewServiceInterface, fenix: true);
   Get.lazyPut(() => ServiceReviewController(serviceReviewServiceInterface: Get.find()), fenix: true);
 
-  /// Retrieving localized data
-  Map<String, Map<String, String>> languages = {};
-  for(LanguageModel languageModel in AppConstants.languages) {
-    String jsonStringValues =  await rootBundle.loadString('assets/language/${languageModel.languageCode}.json');
-    Map<String, dynamic> mappedJson = jsonDecode(jsonStringValues);
-    Map<String, String> json = {};
-    mappedJson.forEach((key, value) {
-      json[key] = value.toString();
-    });
-    languages['${languageModel.languageCode}_${languageModel.countryCode}'] = json;
-  }
-  return languages;
+  /// Retrieving localized data — only the locales the first frame can render.
+  /// The other languages are appended after startup by
+  /// [LanguageLoader.loadRemaining], called from `MyApp`'s post-frame callback,
+  /// so ~650 KB of JSON no longer blocks `runApp`.
+  return LanguageLoader.loadInitial(sharedPreferences.getString(AppConstants.languageCode));
 }

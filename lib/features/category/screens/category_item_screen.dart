@@ -137,12 +137,13 @@ class CategoryItemScreenState extends State<CategoryItemScreen> {
     );
 
     return GetBuilder<CategoryController>(builder: (catController) {
-      final List<Item> items = catController.isSearching
-          ? List<Item>.from(catController.searchItemList ?? const <Item>[])
-          : List<Item>.from(catController.categoryItemList ?? const <Item>[]);
-      final List<Store> stores = catController.isSearching
-          ? List<Store>.from(catController.searchStoreList ?? const <Store>[])
-          : List<Store>.from(catController.categoryStoreList ?? const <Store>[]);
+      // Read-only here, so no defensive copy: List.from allocated a fresh list of
+      // every loaded item and store on each rebuild, and this list is paginated well
+      // past a hundred entries.
+      final List<Item> items = (catController.isSearching
+          ? catController.searchItemList : catController.categoryItemList) ?? const <Item>[];
+      final List<Store> stores = (catController.isSearching
+          ? catController.searchStoreList : catController.categoryStoreList) ?? const <Store>[];
 
       final bool itemsReady = catController.isSearching
           ? catController.searchItemList != null
@@ -253,20 +254,23 @@ class CategoryItemScreenState extends State<CategoryItemScreen> {
         ? _SubCategoryStrip(controller: controller, parentCategoryID: widget.categoryID)
         : const SizedBox.shrink();
 
-    final Widget body = _selectedFilter == _CatFilter.items
-        ? _buildItemsBody(context: context, controller: controller, items: items, itemsReady: itemsReady)
-        : _buildStoresBody(context: context, controller: controller, stores: stores, storesReady: storesReady);
-
     final Widget paginationLoader = controller.isLoading ? const Padding(
       padding: EdgeInsets.symmetric(vertical: Dimensions.paddingSizeDefault),
       child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
     ) : const SizedBox.shrink();
 
+    final bool showingItems = _selectedFilter == _CatFilter.items;
+
     if (!asSlivers) {
+      // Desktop sits inside a SingleChildScrollView + FooterView, which cannot host
+      // slivers — so this path keeps a Column. It shares the same tile widgets as the
+      // sliver path, so only the virtualization differs.
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
         if (controller.isSearching) searchBar else if (showSubCategoryBar) subCategoryBar,
         Container(color: tinted, height: 56, child: filterBar),
-        body,
+        showingItems
+            ? _buildItemsBox(context: context, items: items, itemsReady: itemsReady)
+            : _buildStoresBox(context: context, stores: stores, storesReady: storesReady),
         paginationLoader,
       ]);
     }
@@ -283,18 +287,69 @@ class CategoryItemScreenState extends State<CategoryItemScreen> {
           pinned: true,
           delegate: _PinnedHeaderDelegate(height: 56, child: filterBar),
         ),
-        SliverToBoxAdapter(child: body),
+        // A real sliver, not SliverToBoxAdapter(Column(...)): this list is paginated
+        // by _onScroll and grows past a hundred entries, and a Column inside a box
+        // adapter builds and lays out every one of them — images included — on every
+        // rebuild. SliverList.builder only builds the viewport plus cache extent.
+        showingItems
+            ? _buildItemsSliver(context: context, items: items, itemsReady: itemsReady)
+            : _buildStoresSliver(context: context, stores: stores, storesReady: storesReady),
         SliverToBoxAdapter(child: paginationLoader),
       ],
     );
   }
 
-  Widget _buildItemsBody({
-    required BuildContext context,
-    required CategoryController controller,
-    required List<Item> items,
-    required bool itemsReady,
-  }) {
+  static const EdgeInsets _listPadding = EdgeInsets.symmetric(
+    horizontal: Dimensions.paddingSizeDefault, vertical: Dimensions.paddingSizeDefault,
+  );
+
+  // Banner ratio ~0.4 of the available content width.
+  double _storeImageHeight(BuildContext context) {
+    final double contentWidth = MediaQuery.sizeOf(context).width.clamp(0, Dimensions.webMaxWidth).toDouble()
+        - (Dimensions.paddingSizeDefault * 2);
+    return contentWidth * 0.4;
+  }
+
+  Widget _buildItemsSliver({required BuildContext context, required List<Item> items, required bool itemsReady}) {
+    if (!itemsReady) {
+      return const SliverToBoxAdapter(child: _LoadingPlaceholder());
+    }
+    if (items.isEmpty) {
+      return SliverToBoxAdapter(child: _EmptyView(message: 'no_category_item_found'.tr));
+    }
+    return SliverPadding(
+      padding: _listPadding,
+      sliver: SliverList.builder(
+        itemCount: items.length,
+        itemBuilder: (BuildContext context, int index) => _ItemTile(
+          item: items[index], index: index, isLast: index == items.length - 1,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStoresSliver({required BuildContext context, required List<Store> stores, required bool storesReady}) {
+    if (!storesReady) {
+      return const SliverToBoxAdapter(child: _LoadingPlaceholder(isStore: true));
+    }
+    if (stores.isEmpty) {
+      return SliverToBoxAdapter(
+        child: _EmptyView(message: _showRestaurantText ? 'no_category_restaurant_found'.tr : 'no_category_store_found'.tr),
+      );
+    }
+    final double imageHeight = _storeImageHeight(context);
+    return SliverPadding(
+      padding: _listPadding,
+      sliver: SliverList.builder(
+        itemCount: stores.length,
+        itemBuilder: (BuildContext context, int index) => _StoreTile(
+          store: stores[index], imageHeight: imageHeight, isLast: index == stores.length - 1,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildItemsBox({required BuildContext context, required List<Item> items, required bool itemsReady}) {
     if (!itemsReady) {
       return const _LoadingPlaceholder();
     }
@@ -302,66 +357,75 @@ class CategoryItemScreenState extends State<CategoryItemScreen> {
       return _EmptyView(message: 'no_category_item_found'.tr);
     }
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Dimensions.paddingSizeDefault,
-        vertical: Dimensions.paddingSizeDefault,
-      ),
-      child: Column(
-        children: items.map((Item item) {
-          final bool isLast = identical(item, items.last);
-          final int index = items.indexOf(item);
-          return Container(
-            margin: EdgeInsets.only(bottom: isLast ? 0 : Dimensions.paddingSizeDefault),
-            padding: const EdgeInsets.only(bottom: Dimensions.paddingSizeDefault),
-            decoration: BoxDecoration(
-              border: isLast ? null : Border(
-                bottom: BorderSide(color: Theme.of(context).disabledColor.withValues(alpha: 0.18)),
-              ),
-            ),
-            child: ExclusiveDealCard(item: item, width: double.infinity, index: index),
-          );
-        }).toList(),
-      ),
+      padding: _listPadding,
+      child: Column(children: List<Widget>.generate(
+        items.length,
+        (int index) => _ItemTile(item: items[index], index: index, isLast: index == items.length - 1),
+      )),
     );
   }
 
-  Widget _buildStoresBody({
-    required BuildContext context,
-    required CategoryController controller,
-    required List<Store> stores,
-    required bool storesReady,
-  }) {
+  Widget _buildStoresBox({required BuildContext context, required List<Store> stores, required bool storesReady}) {
     if (!storesReady) {
       return const _LoadingPlaceholder(isStore: true);
     }
     if (stores.isEmpty) {
       return _EmptyView(message: _showRestaurantText ? 'no_category_restaurant_found'.tr : 'no_category_store_found'.tr);
     }
-    // Full-width store cards (banner ratio ~0.4 of the available content width).
-    final double contentWidth = MediaQuery.sizeOf(context).width.clamp(0, Dimensions.webMaxWidth).toDouble()
-        - (Dimensions.paddingSizeDefault * 2);
-    final double imageHeight = contentWidth * 0.4;
+    final double imageHeight = _storeImageHeight(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Dimensions.paddingSizeDefault,
-        vertical: Dimensions.paddingSizeDefault,
+      padding: _listPadding,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: List<Widget>.generate(
+        stores.length,
+        (int index) => _StoreTile(store: stores[index], imageHeight: imageHeight, isLast: index == stores.length - 1),
+      )),
+    );
+  }
+}
+
+class _ItemTile extends StatelessWidget {
+  final Item item;
+  final int index;
+  final bool isLast;
+
+  const _ItemTile({required this.item, required this.index, required this.isLast});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: EdgeInsets.only(bottom: isLast ? 0 : Dimensions.paddingSizeDefault),
+      padding: const EdgeInsets.only(bottom: Dimensions.paddingSizeDefault),
+      decoration: BoxDecoration(
+        border: isLast ? null : Border(
+          bottom: BorderSide(color: Theme.of(context).disabledColor.withValues(alpha: 0.18)),
+        ),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: stores.map((Store store) {
-        final bool isLast = identical(store, stores.last);
-        return Padding(
-          padding: EdgeInsets.only(bottom: isLast ? 0 : Dimensions.paddingSizeLarge),
-          child: FeaturedStoreCard(
-            data: store,
-            width: double.infinity,
-            imageHeight: imageHeight,
-            isQuick: false,
-            isFeatured: false,
-            onTap: () => Get.toNamed(RouteHelper.getStoreRoute(
-              id: store.id, page: 'item', slug: store.slug ?? '',
-            )),
-          ),
-        );
-      }).toList()),
+      child: ExclusiveDealCard(item: item, width: double.infinity, index: index),
+    );
+  }
+}
+
+class _StoreTile extends StatelessWidget {
+  final Store store;
+  final double imageHeight;
+  final bool isLast;
+
+  const _StoreTile({required this.store, required this.imageHeight, required this.isLast});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : Dimensions.paddingSizeLarge),
+      child: FeaturedStoreCard(
+        data: store,
+        width: double.infinity,
+        imageHeight: imageHeight,
+        isQuick: false,
+        isFeatured: false,
+        onTap: () => Get.toNamed(RouteHelper.getStoreRoute(
+          id: store.id, page: 'item', slug: store.slug ?? '',
+        )),
+      ),
     );
   }
 }

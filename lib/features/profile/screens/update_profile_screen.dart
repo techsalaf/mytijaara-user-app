@@ -76,6 +76,10 @@ class _UpdateProfileScreenState extends State<UpdateProfileScreen> {
     _nameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
+    _nameFocus.dispose();
+    _emailFocus.dispose();
+    _phoneFocus.dispose();
+    scrollController.dispose();
     super.dispose();
   }
 

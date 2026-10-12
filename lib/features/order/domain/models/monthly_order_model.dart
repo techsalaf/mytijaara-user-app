@@ -1,3 +1,5 @@
+import 'package:sixam_mart/api/response_parser.dart';
+import 'package:sixam_mart/common/models/pagination_model.dart';
 class MonthlyOrderModel {
   int? totalSize;
   String? limit;
@@ -7,13 +9,16 @@ class MonthlyOrderModel {
   MonthlyOrderModel({this.totalSize, this.limit, this.offset, this.items = const <MonthlyOrder>[]});
 
   factory MonthlyOrderModel.fromJson(Map<String, dynamic> json) {
+    // Flat paging on the legacy format, nested under `pagination` now.
+    final PaginationModel pg = PaginationModel.fromJson(json);
     return MonthlyOrderModel(
-      totalSize: _toInt(json['total_size']),
-      limit: json['limit']?.toString(),
-      offset: _toInt(json['offset']),
-      items: (json['items'] is List)
-          ? (json['items'] as List).whereType<Map<String, dynamic>>().map(MonthlyOrder.fromJson).toList()
-          : <MonthlyOrder>[],
+      totalSize: pg.totalSize,
+      limit: pg.limit?.toString(),
+      offset: pg.offset,
+      // The list moved to `data`; the legacy `items` key is still checked first,
+      // so a backend answering with `items` parses exactly as before.
+      items: ResponseParser.listOrEmpty(json, legacyKey: 'items')
+          .whereType<Map<String, dynamic>>().map(MonthlyOrder.fromJson).toList(),
     );
   }
 }

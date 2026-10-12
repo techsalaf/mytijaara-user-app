@@ -34,7 +34,9 @@ class TimeSlotSection extends StatelessWidget {
         && storeId == null
         && (checkoutController.store?.scheduleOrder ?? false)
         && (cartList?.isNotEmpty ?? false)
-        && cartList![0]!.item!.availableDateStarts == null;
+        // A BOGO bundle row carries no item of its own, so `item!` threw here. A bundle has
+        // no available-date window either, so a null reads as "nothing restricts the slot".
+        && cartList![0]?.item?.availableDateStarts == null;
   }
 
   void _openSheet(BuildContext context) {

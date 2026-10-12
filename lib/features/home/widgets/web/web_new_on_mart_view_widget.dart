@@ -98,6 +98,11 @@ class _WebNewOnMartViewWidgetState extends State<WebNewOnMartViewWidget> {
                   double distance = Get.find<StoreController>().getRestaurantDistance(
                     LatLng(double.parse(storeList[index].latitude!), double.parse(storeList[index].longitude!)),
                   );
+                  // The API's label is server-computed and already in the platform's
+                  // configured unit; the client-side haversine above stays as the
+                  // fallback for payloads without one.
+                  final String distanceText = storeList[index].distanceLabel
+                      ?? '${distance > 100 ? '100+' : distance.toStringAsFixed(2)} ${'km'.tr}';
                   return Padding(
                     padding: EdgeInsets.only(
                       bottom: Dimensions.paddingSizeDefault, top: Dimensions.paddingSizeDefault,
@@ -211,7 +216,7 @@ class _WebNewOnMartViewWidgetState extends State<WebNewOnMartViewWidget> {
                                             const SizedBox(width: Dimensions.paddingSizeExtraSmall),
 
                                             Text(
-                                              '${distance > 100 ? '100+' : distance.toStringAsFixed(2)} ${'km'.tr}',
+                                              distanceText,
                                               style: robotoBold.copyWith(color: Theme.of(context).primaryColor),
                                             ),
                                             const SizedBox(width: Dimensions.paddingSizeExtraSmall),

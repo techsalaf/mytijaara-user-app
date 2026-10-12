@@ -61,6 +61,23 @@ class SignUpWidgetState extends State<SignUpWidget> {
   }
 
   @override
+  void dispose() {
+    _nameFocus.dispose();
+    _emailFocus.dispose();
+    _phoneFocus.dispose();
+    _passwordFocus.dispose();
+    _confirmPasswordFocus.dispose();
+    _referCodeFocus.dispose();
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _referCodeController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     bool isDesktop = ResponsiveHelper.isDesktop(context);
     return Form(
@@ -287,11 +304,7 @@ class SignUpWidgetState extends State<SignUpWidget> {
                             Get.dialog(const Center(child: AuthDialogWidget(exitFromApp: false, backFromThis: false)));
 
                           }else{
-                            if(Get.currentRoute == RouteHelper.signUp) {
-                            Get.back();
-                            } else {
-                              Get.toNamed(RouteHelper.getSignInRoute(RouteHelper.signUp));
-                            }
+                            RouteHelper.openSignInFromSignUp();
                           }
                         },
                         child: Padding(
@@ -421,3 +434,7 @@ class SignUpWidgetState extends State<SignUpWidget> {
     return null;
   }
 }
+
+// SUMMARY
+// Registration form used in the desktop sign-up dialog. Collects name, contact, password and
+// referral code, validates them, registers the user and links back to login.

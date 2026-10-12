@@ -15,9 +15,17 @@ import 'package:sixam_mart/features/store/screens/store_screen.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 import 'package:sixam_mart/helper/address_helper.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:url_launcher/url_launcher_string.dart';
+
+const double _kViewportFraction = 0.8;
+const double _kHeightRatio = 0.5;
+const double _kSlideBottomMargin = 3;
+
+double _sliderHeight(BuildContext context) =>
+    MediaQuery.sizeOf(context).width * _kViewportFraction * _kHeightRatio;
 
 class BannerSliderWidget extends StatefulWidget {
   final List<ParcelBanner>? bannerList;
@@ -30,7 +38,13 @@ class BannerSliderWidget extends StatefulWidget {
 
 class _BannerSliderWidgetState extends State<BannerSliderWidget> {
   final CarouselSliderController _carouselController = CarouselSliderController();
-  int _currentIndex = 0;
+  final ValueNotifier<int> _currentIndex = ValueNotifier<int>(0);
+
+  @override
+  void dispose() {
+    _currentIndex.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,8 +52,8 @@ class _BannerSliderWidgetState extends State<BannerSliderWidget> {
       return _ParcelSlider(
         bannerList: widget.bannerList!,
         carouselController: _carouselController,
-        currentIndex: _currentIndex,
-        onPageChanged: (index) => setState(() => _currentIndex = index),
+        currentIndexNotifier: _currentIndex,
+        onPageChanged: (index) => _currentIndex.value = index,
       );
     }
 
@@ -48,15 +62,18 @@ class _BannerSliderWidgetState extends State<BannerSliderWidget> {
       final List<dynamic>? data = widget.isFeatured ? bannerController.featuredBannerDataList : bannerController.bannerDataList;
 
       if (images == null) {
-        return const _BannerShimmer();
+        return const BannerSliderShimmer();
       }
       if (images.isEmpty) {
         return const SizedBox();
       }
       return _DynamicSlider(
-        images: images, data: data, isFeatured: widget.isFeatured, carouselController: _carouselController, currentIndex: _currentIndex,
+        images: images, data: data, isFeatured: widget.isFeatured, carouselController: _carouselController,
+        currentIndexNotifier: _currentIndex,
         onPageChanged: (index) {
-          setState(() => _currentIndex = index);
+          _currentIndex.value = index;
+          // notify: false — nothing in this screen reads BannerController.currentIndex,
+          // and an update() here would rebuild the GetBuilder above for nothing.
           bannerController.setCurrentIndex(index, false);
         },
       );
@@ -67,11 +84,11 @@ class _BannerSliderWidgetState extends State<BannerSliderWidget> {
 class _ParcelSlider extends StatelessWidget {
   final List<ParcelBanner> bannerList;
   final CarouselSliderController carouselController;
-  final int currentIndex;
+  final ValueNotifier<int> currentIndexNotifier;
   final ValueChanged<int> onPageChanged;
 
   const _ParcelSlider({
-    required this.bannerList, required this.carouselController, required this.currentIndex, required this.onPageChanged,
+    required this.bannerList, required this.carouselController, required this.currentIndexNotifier, required this.onPageChanged,
   });
 
   @override
@@ -87,17 +104,22 @@ class _ParcelSlider extends StatelessWidget {
             margin: const EdgeInsets.only(left: Dimensions.paddingSizeDefault),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
-              child: SizedBox.expand(child: CustomImage(image: bannerList[index].imageFullUrl ?? '', fit: BoxFit.fill)),
+              child: SizedBox.expand(child: LayoutBuilder(builder: (BuildContext context, BoxConstraints constraints) {
+                return CustomImage(image: bannerList[index].imageFullUrl ?? '', fit: BoxFit.fill,
+                  cacheWidth: ImageCacheHelper.pixels(context, constraints.maxWidth),
+                  cacheHeight: ImageCacheHelper.pixels(context, constraints.maxHeight),
+                );
+              })),
             ),
           ),
           options: CarouselOptions(
-            height: MediaQuery.of(context).size.width * 0.8 * 0.5,
-            viewportFraction: 0.8,
+            height: _sliderHeight(context),
+            viewportFraction: _kViewportFraction,
             initialPage: 0,
-            enableInfiniteScroll: true,
+            enableInfiniteScroll: bannerList.length > 1,
             enlargeCenterPage: false,
             padEnds: false,
-            autoPlay: true,
+            autoPlay: bannerList.length > 1,
             autoPlayInterval: const Duration(seconds: 5),
             autoPlayAnimationDuration: const Duration(milliseconds: 800),
             autoPlayCurve: Curves.easeInOut,
@@ -105,7 +127,7 @@ class _ParcelSlider extends StatelessWidget {
           ),
         ),
         const SizedBox(height: Dimensions.paddingSizeSmall),
-        _DotIndicator(count: bannerList.length, currentIndex: currentIndex, carouselController: carouselController),
+        _DotIndicator(count: bannerList.length, currentIndexNotifier: currentIndexNotifier, carouselController: carouselController),
       ],
     );
   }
@@ -116,12 +138,12 @@ class _DynamicSlider extends StatelessWidget {
   final List<dynamic>? data;
   final bool isFeatured;
   final CarouselSliderController carouselController;
-  final int currentIndex;
+  final ValueNotifier<int> currentIndexNotifier;
   final ValueChanged<int> onPageChanged;
 
   const _DynamicSlider({
-    required this.images, required this.data, required this.isFeatured, required this.carouselController, required this.currentIndex,
-    required this.onPageChanged,
+    required this.images, required this.data, required this.isFeatured, required this.carouselController,
+    required this.currentIndexNotifier, required this.onPageChanged,
   });
 
   Future<void> _handleTap(BuildContext context, int index) async {
@@ -164,6 +186,8 @@ class _DynamicSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final double sliderHeight = _sliderHeight(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -173,24 +197,31 @@ class _DynamicSlider extends StatelessWidget {
           itemBuilder: (context, index, realIndex) => InkWell(
             onTap: () => _handleTap(context, index),
             child: Container(
-              margin: const EdgeInsets.only(left: Dimensions.paddingSizeDefault, bottom: 3),
+              margin: const EdgeInsets.only(left: Dimensions.paddingSizeDefault, bottom: _kSlideBottomMargin),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
-                child: SizedBox.expand(child: CustomImage(image: images[index] ?? '', fit: BoxFit.fill)),
+                // SizedBox.expand gives tight constraints, so these are the exact
+                // painted box. Both axes suit BoxFit.fill, which stretches to it.
+                child: SizedBox.expand(child: LayoutBuilder(builder: (BuildContext context, BoxConstraints constraints) {
+                  return CustomImage(image: images[index] ?? '', fit: BoxFit.fill,
+                    cacheWidth: ImageCacheHelper.pixels(context, constraints.maxWidth),
+                    cacheHeight: ImageCacheHelper.pixels(context, constraints.maxHeight),
+                  );
+                })),
               ),
             ),
           ),
           options: CarouselOptions(
-            height: MediaQuery.of(context).size.width * 0.8 * 0.5,
-            viewportFraction: 0.8,
+            height: sliderHeight,
+            viewportFraction: _kViewportFraction,
             initialPage: 0,
-            enableInfiniteScroll: true,
+            enableInfiniteScroll: images.length > 1,
             enlargeCenterPage: false,
             padEnds: false,
-            autoPlay: true,
+            autoPlay: images.length > 1,
             autoPlayInterval: const Duration(seconds: 5),
             autoPlayAnimationDuration: const Duration(milliseconds: 800),
             autoPlayCurve: Curves.easeInOut,
@@ -198,66 +229,115 @@ class _DynamicSlider extends StatelessWidget {
           ),
         ),
         const SizedBox(height: Dimensions.paddingSizeSmall),
-        _DotIndicator(count: images.length, currentIndex: currentIndex, carouselController: carouselController),
+        _DotIndicator(count: images.length, currentIndexNotifier: currentIndexNotifier, carouselController: carouselController),
       ],
     );
   }
 }
 
+/// Page dots. Listens to the index itself so a page change repaints this strip
+/// instead of the slider above it.
 class _DotIndicator extends StatelessWidget {
   final int count;
-  final int currentIndex;
+  final ValueNotifier<int> currentIndexNotifier;
   final CarouselSliderController carouselController;
 
-  const _DotIndicator({required this.count, required this.currentIndex, required this.carouselController});
+  const _DotIndicator({required this.count, required this.currentIndexNotifier, required this.carouselController});
 
   @override
   Widget build(BuildContext context) {
+    final Color activeColor = Theme.of(context).textTheme.bodyLarge!.color!;
+    final Color inactiveColor = Theme.of(context).hintColor.withValues(alpha: 0.45);
+
     return SizedBox(
       height: 10,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(count, (index) {
-          final bool isActive = index == currentIndex;
-          return GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTap: () => carouselController.animateToPage(
-              index,
-              duration: const Duration(milliseconds: 350),
-              curve: Curves.easeInOut,
-            ),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 350),
-              margin: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeExtraSmall / 2),
-              height: isActive ? 8 : 5,
-              width: isActive ? 8 : 5,
-              decoration: BoxDecoration(
-                color: isActive ? Theme.of(context).textTheme.bodyLarge!.color : Theme.of(context).hintColor.withValues(alpha: 0.45),
-                borderRadius: BorderRadius.circular(99),
-              ),
-            ),
+      child: ValueListenableBuilder<int>(
+        valueListenable: currentIndexNotifier,
+        builder: (BuildContext context, int currentIndex, Widget? child) {
+          final int activeIndex = currentIndex < count ? currentIndex : 0;
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(count, (index) {
+              final bool isActive = index == activeIndex;
+              return GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: () => carouselController.animateToPage(
+                  index,
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeInOut,
+                ),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 350),
+                  margin: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeExtraSmall / 2),
+                  height: isActive ? 8 : 5,
+                  width: isActive ? 8 : 5,
+                  decoration: BoxDecoration(
+                    color: isActive ? activeColor : inactiveColor,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              );
+            }),
           );
-        }),
+        },
       ),
     );
   }
 }
 
-class _BannerShimmer extends StatelessWidget {
-  const _BannerShimmer();
+/// Loading state for [BannerSliderWidget], covering the whole section.
+///
+/// Public so a screen that feeds the slider its own list — the parcel home does —
+/// can show it while that list is still in flight, instead of hand-rolling a
+/// block. Those hand-rolled ones drifted: the parcel home drew a full-bleed
+/// `radiusDefault` rectangle at a hardcoded 150 (395 on desktop) with no dots,
+/// against a slider that is [_sliderHeight] tall, inset from the left, and
+/// `radiusLarge`.
+///
+/// Mirrors both sliders exactly: the slide at the carousel's own height with the
+/// same left margin and corner radius, then the gap and the dot row they both
+/// close with.
+class BannerSliderShimmer extends StatelessWidget {
+  const BannerSliderShimmer({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Shimmer(
-      duration: const Duration(seconds: 2),
-      child: Container(
-        margin: const EdgeInsets.only(left: Dimensions.paddingSizeDefault),
-        height: MediaQuery.of(context).size.width * 0.8 * 0.5,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
-          color: Colors.grey[300],
+    // Keyed to the theme rather than a fixed `Colors.grey[300]`, which read as a
+    // bright slab in dark mode.
+    final Color bar = Theme.of(context).disabledColor.withValues(alpha: 0.15);
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+
+      Shimmer(
+        duration: const Duration(seconds: 2),
+        child: Container(
+          // `viewportFraction: 0.8` with `padEnds: false` leaves the slide flush
+          // left and the next one peeking in; the right inset stands in for that.
+          margin: const EdgeInsets.only(left: Dimensions.paddingSizeDefault, right: 60),
+          height: _sliderHeight(context),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+            color: bar,
+          ),
         ),
       ),
-    );
+      const SizedBox(height: Dimensions.paddingSizeSmall),
+
+      // The dot strip both sliders close with — same 10px box, same dot sizes.
+      SizedBox(
+        height: 10,
+        child: Shimmer(
+          duration: const Duration(seconds: 2),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: <Widget>[
+            for (int i = 0; i < 3; i++) Container(
+              margin: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeExtraSmall / 2),
+              height: i == 0 ? 8 : 5,
+              width: i == 0 ? 8 : 5,
+              decoration: BoxDecoration(color: bar, borderRadius: BorderRadius.circular(99)),
+            ),
+          ]),
+        ),
+      ),
+    ]);
   }
 }

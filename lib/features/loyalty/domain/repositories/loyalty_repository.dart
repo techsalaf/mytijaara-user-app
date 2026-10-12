@@ -36,7 +36,7 @@ class LoyaltyRepository implements LoyaltyRepositoryInterface {
   Future<TransactionModel?> _getLoyaltyTransactionList(int? offset) async {
     TransactionModel? transactionModel;
     Response response = await apiClient.getData('${AppConstants.loyaltyTransactionUri}?offset=$offset&limit=10');
-    if (response.statusCode == 200) {
+    if (ApiClient.isSuccessCode(response.statusCode) && response.body is Map<String, dynamic>) {
       transactionModel = TransactionModel.fromJson(response.body);
     }
     return transactionModel;

@@ -22,7 +22,6 @@ class OnBoardingController extends GetxController implements GetxService {
     if (response.statusCode == 200) {
       _onBoardingList = [];
       _onBoardingList.addAll(response.body);
-      _onBoardingList.add(OnBoardingModel('', '', ''));
     }
     update();
   }

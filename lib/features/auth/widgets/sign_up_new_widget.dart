@@ -59,6 +59,23 @@ class SignUpNewWidgetState extends State<SignUpNewWidget> {
 
 
   @override
+  void dispose() {
+    _nameFocus.dispose();
+    _emailFocus.dispose();
+    _phoneFocus.dispose();
+    _passwordFocus.dispose();
+    _confirmPasswordFocus.dispose();
+    _referCodeFocus.dispose();
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _referCodeController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     bool referralEnable = Get.find<SplashController>().configModel!.refEarningStatus == 1;
     return Form(

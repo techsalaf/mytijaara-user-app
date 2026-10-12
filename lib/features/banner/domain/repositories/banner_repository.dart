@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:sixam_mart/api/response_parser.dart';
 
 import 'package:get/get.dart';
 import 'package:sixam_mart/api/api_client.dart';
@@ -40,14 +41,14 @@ class BannerRepository implements BannerRepositoryInterface {
         Response response = await apiClient.getData(AppConstants.bannerUri, moduleScoped: true);
         if (response.statusCode == 200) {
           bannerModel = BannerModel.fromJson(response.body);
-          LocalClient.organize(source, cacheId, jsonEncode(response.body), apiClient.getHeader());
+          LocalClient.organize(source, cacheId, response.bodyString ?? '', apiClient.getHeader());
 
         }
       case DataSourceEnum.local:
 
         String? cacheResponseData = await LocalClient.organize(source, cacheId, null, null);
         if(cacheResponseData != null) {
-          bannerModel = BannerModel.fromJson(jsonDecode(cacheResponseData));
+          bannerModel = BannerModel.fromJson(ResponseParser.payloadOf(jsonDecode(cacheResponseData)));
         }
     }
 
@@ -83,12 +84,15 @@ class BannerRepository implements BannerRepositoryInterface {
   }
 
   Future<PromotionalBanner?> _getPromotionalBannerList() async {
-    PromotionalBanner? promotionalBanner;
     Response response = await apiClient.getData(AppConstants.promotionalBannerUri, moduleScoped: true);
-    if (response.statusCode == 200 && response.body is Map) {
-      promotionalBanner = PromotionalBanner.fromJson(response.body);
+    // Any 2xx is a parseable answer, whatever shape it arrived in — the food
+    // module returns a bare `[]` for "no banner configured", and gating on
+    // `body is Map` dropped that as if the request had failed, leaving the view
+    // shimmering. Null is now reserved for a genuine failure.
+    if (!ApiClient.isSuccessCode(response.statusCode)) {
+      return null;
     }
-    return promotionalBanner;
+    return PromotionalBanner.fromResponse(response.body);
   }
 
   @override

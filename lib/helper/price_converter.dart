@@ -7,6 +7,8 @@ import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/styles.dart';
 
 class PriceConverter {
+  static final RegExp _thousandsSeparator = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
+
   static String convertPrice(double? price, {double? discount, String? discountType, bool forDM = false, bool isFoodVariation = false, String? formatedStringPrice, bool forTaxi = false, bool forMenuWallet = false}) {
     if(discount != null && discountType != null){
       if(discountType == 'amount' && !isFoodVariation) {
@@ -30,7 +32,7 @@ class PriceConverter {
     }
     return '${isRightSide ? '' : '${Get.find<SplashController>().configModel!.currencySymbol!} '}'
         '${formatedStringPrice ?? toFixed(price!).toStringAsFixed(forDM ? 0 : Get.find<SplashController>().configModel!.digitAfterDecimalPoint!)
-        .replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}'
+        .replaceAllMapped(_thousandsSeparator, (Match m) => '${m[1]},')}'
         '${isRightSide ? ' ${Get.find<SplashController>().configModel!.currencySymbol!}' : ''}';
   }
 
@@ -94,5 +96,15 @@ class PriceConverter {
 
   static int get customTipIndex => AppConstants.tips.indexOf('custom');
   static int get noTipIndex => AppConstants.tips.indexOf('0');
+
+  // The remembered pick is stored as the tip itself, never its row position, so
+  // reordering the row cannot leave an old pick sitting on a different tip.
+  static String tipToSave(int index) => (index >= 0 && index < AppConstants.tips.length)
+      ? AppConstants.tips[index] : AppConstants.tips[noTipIndex];
+
+  static int tipIndexFromSaved(String saved) {
+    final int index = AppConstants.tips.indexOf(saved);
+    return index == -1 ? noTipIndex : index;
+  }
 
 }

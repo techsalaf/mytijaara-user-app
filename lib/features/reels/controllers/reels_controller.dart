@@ -81,6 +81,14 @@ class ReelsController extends GetxController {
     return _reelsList!.length >= _pageSize!;
   }
 
+  void clearReels() {
+    _reelsList = null;
+    _offsetList.clear();
+    _offset = 1;
+    _pageSize = null;
+    _currentIndex = 0;
+  }
+
   Future<void> getReelsList({int offset = 1, DataSourceEnum dataSource = DataSourceEnum.local, bool notify = true}) async {
     final String offsetKey = offset.toString();
 

@@ -59,15 +59,15 @@ class OrderBannerViewWidget extends StatelessWidget {
               ? Images.preparingGroceryOrderDetails : Images.ongoingAnimation, height: 160, width: double.infinity) : CustomImage(
         image: '${order.store?.coverPhotoFullUrl}', height: 160, width: double.infinity) : const SizedBox(),
 
-      orderController.orderDetails!.isNotEmpty && orderController.orderDetails![0].itemDetails!.moduleType == 'grocery'
+      orderController.orderDetails!.isNotEmpty && orderController.orderDetails![0].itemDetails?.moduleType == 'grocery'
           ? (ongoing && order.orderStatus == 'pending') ? Image.asset(Images.pendingOrderDetails, height: 160, width: double.infinity) : CustomImage(
         image: '${order.store?.coverPhotoFullUrl}', height: 160, width: double.infinity) : const SizedBox(),
 
-      orderController.orderDetails!.isNotEmpty && orderController.orderDetails![0].itemDetails!.moduleType == 'pharmacy'
+      orderController.orderDetails!.isNotEmpty && orderController.orderDetails![0].itemDetails?.moduleType == 'pharmacy'
           ?(ongoing && order.orderStatus == 'pending') ? Image.asset(Images.pendingOrderDetails, height: 160, width: double.infinity) : CustomImage(
         image: '${order.store?.coverPhotoFullUrl}', height: 160, width: double.infinity) : const SizedBox(),
 
-      orderController.orderDetails!.isNotEmpty && orderController.orderDetails![0].itemDetails!.moduleType == 'ecommerce'
+      orderController.orderDetails!.isNotEmpty && orderController.orderDetails![0].itemDetails?.moduleType == 'ecommerce'
           ?(ongoing && order.orderStatus == 'pending') ? Image.asset(Images.pendingOrderDetails, height: 160, width: double.infinity) : CustomImage(
         image: '${order.store?.coverPhotoFullUrl}', height: 160, width: double.infinity) : const SizedBox(),
 

@@ -7,6 +7,7 @@ import 'package:sixam_mart/features/pro/widgets/pro_badge_avatar_widget.dart';
 import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/helper/date_converter.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
@@ -95,27 +96,28 @@ class _AvatarWithRating extends StatelessWidget {
   Widget build(BuildContext context) {
     final String fallback = isLoggedIn ? Images.guestIcon : Images.guestIcon;
 
-    return ProBadgeAvatarWidget(
-      badgeSize: 28,
-      child: Container(
-        width: 80,
-        height: 80,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: Theme.of(context).disabledColor.withValues(alpha: 0.2)),
-        ),
-        padding: const EdgeInsets.all(0.3),
-        child: ClipOval(
-          child: CustomImage(
-            image: imageUrl,
-            placeholder: fallback,
-            width: 80,
-            height: 80,
-            fit: BoxFit.cover,
-          ),
+    final Widget avatar = Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Theme.of(context).disabledColor.withValues(alpha: 0.2)),
+      ),
+      padding: const EdgeInsets.all(0.3),
+      child: ClipOval(
+        child: CustomImage(
+          image: imageUrl,
+          placeholder: fallback,
+          width: 80,
+          height: 80,
+          fit: BoxFit.cover,
+          cacheHeight: ImageCacheHelper.pixels(context, 80),
+          cacheWidth: ImageCacheHelper.pixels(context, 80),
         ),
       ),
     );
+
+    return isLoggedIn ? ProBadgeAvatarWidget(badgeSize: 28, child: avatar) : avatar;
   }
 }
 

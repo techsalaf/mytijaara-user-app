@@ -1,3 +1,4 @@
+import 'package:sixam_mart/common/models/pagination_model.dart';
 
 class AiChatConversationModel {
   int? totalSize;
@@ -13,9 +14,12 @@ class AiChatConversationModel {
   });
 
   AiChatConversationModel.fromJson(Map<String, dynamic> json) {
-    totalSize = json['total_size'];
-    limit = json['limit'] is String ? int.tryParse(json['limit']) : json['limit'];
-    offset = json['offset'] is String ? int.tryParse(json['offset']) : json['offset'];
+    // Paging arrives flat on the legacy format and nested under `pagination`
+    // now. Property names are unchanged, so no caller needs an edit.
+    final PaginationModel _pg = PaginationModel.fromJson(json);
+    totalSize = _pg.totalSize;
+    limit = _pg.limit;
+    offset = _pg.offset;
     if (json['data'] != null) {
       data = <AiChatConversation>[];
       json['data'].forEach((v) {

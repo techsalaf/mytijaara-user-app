@@ -53,10 +53,17 @@ class _ReceiverViewWidgetState extends State<ReceiverViewWidget> {
 
   @override
   void dispose() {
-    super.dispose();
+    _nameController.dispose();
+    _phoneController.dispose();
+    _streetNode.dispose();
+    _houseNode.dispose();
+    _floorNode.dispose();
+    _nameNode.dispose();
+    _phoneNode.dispose();
     _streetNumberController.dispose();
     _houseController.dispose();
     _floorController.dispose();
+    super.dispose();
   }
   @override
   Widget build(BuildContext context) {

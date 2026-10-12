@@ -1,20 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sixam_mart/common/widgets/custom_app_bar.dart';
-import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/common/widgets/custom_ink_well.dart';
 import 'package:sixam_mart/common/widgets/custom_snackbar.dart';
-import 'package:sixam_mart/common/widgets/footer_view.dart';
 import 'package:sixam_mart/common/widgets/menu_drawer.dart';
 import 'package:sixam_mart/common/widgets/not_logged_in_screen.dart';
 import 'package:sixam_mart/common/widgets/paginated_list_view.dart';
 import 'package:sixam_mart/features/chat/controllers/chat_controller.dart';
 import 'package:sixam_mart/features/chat/domain/models/conversation_model.dart';
 import 'package:sixam_mart/features/chat/enums/user_type_enum.dart';
+import 'package:sixam_mart/features/chat/widgets/chat_avatar_widget.dart';
 import 'package:sixam_mart/features/chat/widgets/chat_serach_field_widget.dart';
 import 'package:sixam_mart/features/chat/widgets/web_chat_view_widget.dart';
 import 'package:sixam_mart/features/chat/widgets/web_conversation_list_view_widget.dart';
-import 'package:sixam_mart/features/language/controllers/language_controller.dart';
 import 'package:sixam_mart/features/notification/domain/models/notification_body_model.dart';
 import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
@@ -52,13 +50,15 @@ class _ConversationScreenState extends State<ConversationScreen> with SingleTick
   @override
   void dispose() {
     _tabController.dispose();
+    _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
   void initCall(){
     if(AuthHelper.isLoggedIn()) {
       Get.find<ProfileController>().getUserInfo();
-      Get.find<ChatController>().getConversationList(1, type: ResponsiveHelper.isDesktop(Get.context) ? 'vendor1' : _tabTypes[_tabController.index]);
+      Get.find<ChatController>().getConversationList(1, type: _tabTypes[_tabController.index]);
       if(!ResponsiveHelper.isDesktop(Get.context)) {
         Get.find<ChatController>().getAdminConversation();
       }
@@ -83,9 +83,13 @@ class _ConversationScreenState extends State<ConversationScreen> with SingleTick
         conversation = chatController.conversationModel;
       }
 
+      final String activeType = _tabTypes[_tabController.index];
+      final List<Conversation?> visibleConversations = Get.find<ChatController>()
+          .conversationsOfType(conversation?.conversations, activeType);
+
       return Scaffold(
         appBar: CustomAppBar(title: 'conversation_list'.tr, backButton: !widget.fromNavBar),
-        endDrawer: const MenuDrawer(),endDrawerEnableOpenDragGesture: false,
+        endDrawer: const MenuDrawer(), endDrawerEnableOpenDragGesture: false,
         floatingActionButton: (chatController.conversationModel != null && !chatController.hasAdmin) && !ResponsiveHelper.isDesktop(context) ? FloatingActionButton.extended(
           label: SizedBox(
             width: context.width * 0.75,
@@ -161,34 +165,34 @@ class _ConversationScreenState extends State<ConversationScreen> with SingleTick
             SizedBox(height: AuthHelper.isLoggedIn() ? Dimensions.paddingSizeSmall : 0),
 
             Expanded(child: AuthHelper.isLoggedIn() ? (_isTabLoading ? const ConversationShimmer() : (conversation != null && conversation.conversations != null)
-            ? conversation.conversations!.isNotEmpty ? RefreshIndicator(
+            ? visibleConversations.isNotEmpty ? RefreshIndicator(
               onRefresh: () async {
                 await Get.find<ChatController>().getConversationList(1, type: _tabTypes[_tabController.index]);
               },
-              child: SingleChildScrollView(
+              child: CustomScrollView(
                 controller: _scrollController,
-                padding: EdgeInsets.zero,
-                child: FooterView(
-                  child: SizedBox(width: Dimensions.webMaxWidth, child: PaginatedListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                slivers: [
+                  SliverList.separated(
+                    itemCount: visibleConversations.length,
+                    itemBuilder: (context, index) => Center(
+                      child: SizedBox(width: Dimensions.webMaxWidth, child: _ConversationTile(
+                        conversationItem: visibleConversations[index]!,
+                        index: index,
+                      )),
+                    ),
+                    separatorBuilder: (context, index) => const SizedBox(height: Dimensions.paddingSizeSmall),
+                  ),
+                  SliverToBoxAdapter(child: Center(child: SizedBox(width: Dimensions.webMaxWidth, child: PaginatedListView(
                     scrollController: _scrollController,
                     onPaginate: (int? offset) => chatController.getConversationList(offset!, type: _tabTypes[_tabController.index]),
                     totalSize: conversation.totalSize,
                     offset: conversation.offset,
                     enabledPagination: chatController.searchConversationModel == null,
-                    itemView: ListView.builder(
-                      itemCount: conversation.conversations!.length,
-                      physics: const NeverScrollableScrollPhysics(),
-                      shrinkWrap: true,
-                      padding: EdgeInsets.zero,
-                      itemBuilder: (context, index) {
-                        return _ConversationTile(
-                          conversationItem: conversation!.conversations![index]!,
-                          index: index,
-                        );
-                      },
-                    ),
-                  )),
-                ),
+                    itemView: const SizedBox.shrink(),
+                  )))),
+                ],
               ),
             ) : Center(child: Text('no_conversation_found'.tr)) : const Center(child: CircularProgressIndicator())) :  NotLoggedInScreen(callBack: (value){
               initCall();
@@ -203,6 +207,11 @@ class _ConversationScreenState extends State<ConversationScreen> with SingleTick
 }
 
 class _ConversationTile extends StatelessWidget {
+  static String _formatLastMessageTime(String? lastMessageTime) {
+    final DateTime? date = DateConverter.apiStringToDateOrNull(lastMessageTime);
+    return date != null ? DateConverter.localDateToIsoStringAMPM(date) : '';
+  }
+
   final Conversation conversationItem;
   final int? index;
 
@@ -220,91 +229,119 @@ class _ConversationTile extends StatelessWidget {
       type = conversationItem.senderType;
     }
 
+    final bool isAdminConversation = type == UserType.admin.name;
+    if(user == null && isAdminConversation) {
+      user = User(
+        id: 0,
+        fName: Get.find<SplashController>().configModel?.businessName ?? 'admin'.tr,
+        lName: '',
+        imageFullUrl: Get.find<SplashController>().configModel?.logoFullUrl,
+      );
+    }
+
     final String? lastMessageText = conversationItem.lastMessage?.message;
     final bool hasLastMessageAttachment = conversationItem.lastMessage?.fileFullUrl?.isNotEmpty ?? false;
     final String lastMessagePreview = (lastMessageText != null && lastMessageText.isNotEmpty)
         ? lastMessageText
         : hasLastMessageAttachment ? 'sent_a_photo'.tr : type!.tr;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: Dimensions.paddingSizeSmall),
+    final bool isDeleted = user == null;
+    final String title = isDeleted ? '${type!.tr} ${'deleted'.tr}' : '${user.fName} ${user.lName}';
 
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
-        boxShadow: const [BoxShadow(color: Colors.black12, spreadRadius: 1, blurRadius: 5)],
-      ),
-      child: CustomInkWell(
-        onTap: () {
-          if(user != null) {
-            Get.toNamed(RouteHelper.getChatRoute(
-              notificationBody: NotificationBodyModel(
-                type: conversationItem.senderType,
-                notificationType: NotificationType.message,
-                adminId: type == UserType.admin.name ? 0 : null,
-                restaurantId: type == UserType.vendor.name ? user.id : null,
-                deliverymanId: type == UserType.delivery_man.name ? user.id : null,
-              ),
-              conversationID: conversationItem.id,
-              index: index,
-            ));
-          }else {
-            showCustomSnackBar('${type!.tr} ${'not_found'.tr}');
-          }
-        },
-        highlightColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0.1),
-        radius: Dimensions.radiusSmall,
-        child: Stack(children: [
-          Padding(
-            padding: const EdgeInsets.all(Dimensions.paddingSizeSmall),
+    return GetBuilder<ProfileController>(builder: (profileController) {
+      final int? myId = profileController.userInfoModel?.userInfo?.id;
+      // Unread only counts when the newest message came from the other party.
+      final bool isUnread = myId != null
+          && conversationItem.lastMessage?.senderId != myId
+          && (conversationItem.unreadMessageCount ?? 0) > 0;
+
+      return Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
+          // Shadow carries the unread state, the same way the notification list does.
+          boxShadow: isUnread ? [const BoxShadow(color: Colors.black12, spreadRadius: 1, blurRadius: 5)] : [],
+        ),
+        child: CustomInkWell(
+          onTap: () {
+            if(user != null) {
+              Get.toNamed(RouteHelper.getChatRoute(
+                notificationBody: NotificationBodyModel(
+                  type: conversationItem.senderType,
+                  notificationType: NotificationType.message,
+                  adminId: type == UserType.admin.name ? 0 : null,
+                  restaurantId: type == UserType.vendor.name ? user.id : null,
+                  deliverymanId: type == UserType.delivery_man.name ? user.id : null,
+                ),
+                conversationID: conversationItem.id,
+                index: index,
+              ));
+            }else {
+              showCustomSnackBar('${type!.tr} ${'not_found'.tr}');
+            }
+          },
+          highlightColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0.1),
+          radius: Dimensions.radiusDefault,
+          child: Padding(
+            padding: const EdgeInsets.all(Dimensions.paddingSizeDefault),
             child: Row(children: [
-              ClipOval(child: CustomImage(
-                height: 50, width: 50,
-                image: '${user != null ? user.imageFullUrl : ''}',
-              )),
+
+              ChatAvatarWidget(isAdmin: isAdminConversation, imageUrl: user?.imageFullUrl, size: 50),
               const SizedBox(width: Dimensions.paddingSizeSmall),
 
-              Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.start, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-                user != null ? Text(
-                  '${user.fName} ${user.lName}', style: robotoMedium,
-                ) : Text('${type!.tr} ${'deleted'.tr}', style: robotoMedium),
+                Row(children: [
+                  Expanded(child: Text(
+                    title,
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: isUnread ? robotoBold : robotoMedium,
+                  )),
+                  Padding(
+                    padding: const EdgeInsets.only(left: Dimensions.paddingSizeSmall),
+                    child: Text(
+                      _formatLastMessageTime(conversationItem.lastMessageTime),
+                      style: robotoRegular.copyWith(
+                        color: isUnread ? Theme.of(context).primaryColor : Theme.of(context).hintColor,
+                        fontSize: Dimensions.fontSizeExtraSmall,
+                      ),
+                    ),
+                  ),
+                ]),
                 const SizedBox(height: Dimensions.paddingSizeExtraSmall),
 
-                user != null ? Text(
-                  lastMessagePreview,
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).disabledColor),
-                ) : const SizedBox(),
+                Row(children: [
+                  Expanded(child: isDeleted ? const SizedBox() : Text(
+                    lastMessagePreview,
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: robotoRegular.copyWith(
+                      fontSize: Dimensions.fontSizeSmall,
+                      color: isUnread
+                          ? Theme.of(context).textTheme.bodyLarge?.color?.withValues(alpha: 0.7)
+                          : Theme.of(context).disabledColor,
+                    ),
+                  )),
+
+                  if(isUnread) Padding(
+                    padding: const EdgeInsets.only(left: Dimensions.paddingSizeSmall),
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeExtraSmall),
+                      decoration: BoxDecoration(color: Theme.of(context).primaryColor, shape: BoxShape.circle),
+                      child: Text(
+                        '${conversationItem.unreadMessageCount}',
+                        style: robotoMedium.copyWith(color: Theme.of(context).cardColor, fontSize: Dimensions.fontSizeExtraSmall),
+                      ),
+                    ),
+                  ),
+                ]),
+
               ])),
             ]),
           ),
-
-          Positioned(
-            right: Get.find<LocalizationController>().isLtr ? 5 : null, top: 5, left: Get.find<LocalizationController>().isLtr ? null : 5,
-            child: Text(
-              DateConverter.localDateToIsoStringAMPM(DateConverter.dateTimeStringToDate(conversationItem.lastMessageTime!)),
-              style: robotoRegular.copyWith(color: Theme.of(context).hintColor, fontSize: Dimensions.fontSizeExtraSmall),
-            ),
-          ),
-
-          GetBuilder<ProfileController>(builder: (profileController) {
-            return (profileController.userInfoModel != null && profileController.userInfoModel!.userInfo != null
-            && conversationItem.lastMessage!.senderId != profileController.userInfoModel!.userInfo!.id
-            && conversationItem.unreadMessageCount! > 0) ? Positioned(
-              right: Get.find<LocalizationController>().isLtr ? 5 : null, bottom: 5, left: Get.find<LocalizationController>().isLtr ? null : 5,
-              child: Container(
-                padding: const EdgeInsets.all(Dimensions.paddingSizeExtraSmall),
-                decoration: BoxDecoration(color: Theme.of(context).primaryColor, shape: BoxShape.circle),
-                child: Text(
-                  conversationItem.unreadMessageCount.toString(),
-                  style: robotoMedium.copyWith(color: Theme.of(context).cardColor, fontSize: Dimensions.fontSizeExtraSmall),
-                ),
-              ),
-            ) : const SizedBox();
-          }),
-
-        ]),
-      ),
-    );
+        ),
+      );
+    });
   }
 }

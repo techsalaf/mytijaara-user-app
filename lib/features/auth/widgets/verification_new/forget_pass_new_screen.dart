@@ -50,7 +50,8 @@ class _ForgetPassNewScreenState extends State<ForgetPassNewScreen> {
     if (!kIsWeb) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Future.delayed(const Duration(milliseconds: 800), () {
-          FocusScope.of(Get.context!).requestFocus(_numberFocusNode);
+          if (!mounted) return;
+          _numberFocusNode.requestFocus();
         });
       });
     }
@@ -60,6 +61,9 @@ class _ForgetPassNewScreenState extends State<ForgetPassNewScreen> {
   void dispose() {
     _numberController.dispose();
     _numberFocusNode.dispose();
+    _scrollController.dispose();
+    _emailController.dispose();
+    _emailFocusNode.dispose();
     super.dispose();
   }
 
@@ -170,7 +174,7 @@ class _ForgetPassNewScreenState extends State<ForgetPassNewScreen> {
                 const SizedBox(height: Dimensions.paddingSizeLarge),
 
                 // Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                //   Text('new_to_mytijaara'.tr, style: robotoRegular.copyWith(color: Theme.of(context).hintColor)),
+                //   Text('new_to_6amMart'.tr, style: robotoRegular.copyWith(color: Theme.of(context).hintColor)),
                 //   InkWell(
                 //     onTap: () => Get.toNamed(RouteHelper.getSignUpRoute()),
                 //     child: Padding(

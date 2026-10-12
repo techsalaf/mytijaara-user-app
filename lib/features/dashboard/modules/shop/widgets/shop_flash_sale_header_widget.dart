@@ -7,7 +7,6 @@ import 'package:sixam_mart/common/widgets/custom_ink_well.dart';
 import 'package:sixam_mart/features/flash_sale/controllers/flash_sale_controller.dart';
 import 'package:sixam_mart/features/flash_sale/domain/models/flash_sale_model.dart';
 import 'package:sixam_mart/features/flash_sale/widgets/flash_sale_header_banner.dart';
-import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 import 'package:sixam_mart/common/widgets/food_item_card.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
@@ -26,9 +25,6 @@ class _ShopFlashSaleHeaderWidgetState extends State<ShopFlashSaleHeaderWidget> {
   Widget build(BuildContext context) {
     final double viewportWidth = MediaQuery.sizeOf(context).width;
     final double cardWidth = math.max(100, viewportWidth * 0.35);
-    // FoodItemCard = square image (height == cardWidth) + a fixed info block below it.
-    // Derive the list height so the image never clips as the card scales, with the
-    // info block growing with the text scale.
     final double textScale = MediaQuery.textScalerOf(context).scale(1.0);
     final double cardHeight = cardWidth + Dimensions.paddingSizeDefault + 130 * textScale;
 
@@ -44,12 +40,9 @@ class _ShopFlashSaleHeaderWidgetState extends State<ShopFlashSaleHeaderWidget> {
         return const SizedBox.shrink();
       }
 
-      final List<Item> items = activeProducts
-          .where((ap) => ap.item != null)
-          .map((ap) => ap.item!)
-          .toList();
+      final List<ActiveProducts> saleProducts = activeProducts.where((ap) => ap.item != null).toList();
 
-      if (items.isEmpty) {
+      if (saleProducts.isEmpty) {
         return const SizedBox.shrink();
       }
 
@@ -72,9 +65,12 @@ class _ShopFlashSaleHeaderWidgetState extends State<ShopFlashSaleHeaderWidget> {
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault),
-                itemCount: items.length,
+                itemCount: saleProducts.length,
                 separatorBuilder: (context, index) => const SizedBox(width: Dimensions.paddingSizeSmall),
-                itemBuilder: (context, index) => FoodItemCard(data: items[index], width: cardWidth, index: index),
+                itemBuilder: (context, index) => FoodItemCard(
+                  data: saleProducts[index].item!, width: cardWidth, index: index,
+                  availableStock: saleProducts[index].remainingStock,
+                ),
               ),
             ),
           ],
@@ -315,3 +311,8 @@ class _ShimmerCard extends StatelessWidget {
     );
   }
 }
+
+// SUMMARY
+// Flash sale strip on the shop and grocery home. Shows the sale banner with its
+// countdown and a horizontal row of the sale's products, each carrying what is left of
+// its sale allocation, plus a shimmer while the sale is loading.

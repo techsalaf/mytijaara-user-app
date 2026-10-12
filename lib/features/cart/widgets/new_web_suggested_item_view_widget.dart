@@ -63,7 +63,9 @@ class _NewWebSuggestedItemViewWidgetState extends State<NewWebSuggestedItemViewW
           suggestedItems = [];
           List<int> cartIds = [];
           for (CartModel cartItem in widget.cartList) {
-            cartIds.add(cartItem.item!.id!);
+            if(cartItem.item?.id != null) {
+              cartIds.add(cartItem.item!.id!);
+            }
           }
           for (Item item in storeController.cartSuggestItemModel!.items!) {
             if(!cartIds.contains(item.id)){

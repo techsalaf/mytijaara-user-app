@@ -34,6 +34,10 @@ class StoreCardWithDistance extends StatelessWidget {
   Widget build(BuildContext context) {
     bool isPharmacy = Get.find<SplashController>().module != null && Get.find<SplashController>().module!.moduleType.toString() == AppConstants.pharmacy;
     double distance = (store.distance!/1000);
+    // The API's label is already in the platform's configured distance unit; the
+    // hardcoded "km" below is only the fallback for a backend without one.
+    final String distanceText = store.distanceLabel
+        ?? '${distance > 100 ? '100+' : distance.toStringAsFixed(2)} ${'km'.tr}';
     double discount = store.discount?.discount ?? 0;
     String discountType = store.discount?.discountType ?? '';
     bool isRightSide = Get.find<SplashController>().configModel!.currencySymbolDirection == 'right';
@@ -238,7 +242,7 @@ class StoreCardWithDistance extends StatelessWidget {
                                 const SizedBox(width: Dimensions.paddingSizeExtraSmall),
 
                                 Text(
-                                  '${distance > 100 ? '100+' : distance.toStringAsFixed(2)} ${'km'.tr}',
+                                  distanceText,
                                   style: robotoBold.copyWith(color: Theme.of(context).primaryColor, fontSize: Dimensions.fontSizeExtraSmall),
                                 ),
                                 const SizedBox(width: Dimensions.paddingSizeExtraSmall),

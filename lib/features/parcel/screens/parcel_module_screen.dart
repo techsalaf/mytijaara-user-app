@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sixam_mart/features/address/domain/models/address_model.dart';
+import 'package:sixam_mart/features/banner/controllers/banner_controller.dart';
 import 'package:sixam_mart/features/location/controllers/location_controller.dart';
 import 'package:sixam_mart/features/parcel/controllers/parcel_controller.dart';
 import 'package:sixam_mart/features/dashboard/widgets/sliver_gap.dart';
@@ -15,6 +16,14 @@ import 'package:sixam_mart/features/home/widgets/views/promotional_banner_view.d
 import 'package:sliver_tools/sliver_tools.dart';
 
 class ParcelModuleScreen extends StatefulWidget {
+  /// Height of the search bar this screen pins itself, inside the scroll view.
+  ///
+  /// Unlike the store modules, parcel does not hand [searchHeaderKey] to a
+  /// [SearchAndQuickFilterWidget], so `MainScreen`'s shared pinned-search overlay
+  /// never activates here and has no height to measure. `MainScreen` reads this
+  /// constant instead, to keep the back-to-top button clear of the bar.
+  static const double pinnedHeaderHeight = 70.0;
+
   final Key searchHeaderKey;
   final Key exploreRestaurantKey;
   const ParcelModuleScreen({super.key, required this.searchHeaderKey, required this.exploreRestaurantKey});
@@ -47,13 +56,34 @@ class _ParcelModuleScreenState extends State<ParcelModuleScreen> {
       const SliverToBoxAdapter(child: _ParcelRecentAddressChips()),
 
       // Section: promotional banner
-      sliverGepY(value: Dimensions.paddingSizeDefault),
-      const PromotionalBannerSliver(),
+      // const SliverToBoxAdapter(child: _ParcelPromotionalBannerSection()),
 
       // category
       const SliverToBoxAdapter(child: ParcelCategoryNewScreen()),
       sliverGepY(value: Dimensions.paddingSizeDefault),
     ]);
+  }
+}
+
+/// Promotional banner plus the gap that separates it from the address chips
+/// above. Both live in one widget so the gap collapses with the banner: this
+/// module has no banner of its own to fall back on, so a module configured
+/// without promotional artwork would otherwise leave an empty band between the
+/// chips and the categories.
+class _ParcelPromotionalBannerSection extends StatelessWidget {
+  const _ParcelPromotionalBannerSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return GetBuilder<BannerController>(builder: (bannerController) {
+      if(!PromotionalBannerView.hasContent(bannerController)) {
+        return const SizedBox.shrink();
+      }
+      return const Column(mainAxisSize: MainAxisSize.min, children: [
+        SizedBox(height: Dimensions.paddingSizeDefault),
+        PromotionalBannerView(),
+      ]);
+    });
   }
 }
 
@@ -76,7 +106,7 @@ class _ParcelDeliverySearchBarDelegate extends SliverPersistentHeaderDelegate {
   const _ParcelDeliverySearchBarDelegate();
 
   // top(10) + searchbar(50) + bottom(10) = 70
-  static const double _height = 70.0;
+  static const double _height = ParcelModuleScreen.pinnedHeaderHeight;
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {

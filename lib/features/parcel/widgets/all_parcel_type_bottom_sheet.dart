@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:sixam_mart/features/location/controllers/location_controller.dart';
 import 'package:sixam_mart/features/parcel/controllers/parcel_controller.dart';
 import 'package:sixam_mart/features/parcel/widgets/bottom_sheet_header_widget.dart';
 import 'package:sixam_mart/features/parcel/widgets/parcel_category_card_widget.dart';
-import 'package:sixam_mart/helper/address_helper.dart';
+import 'package:sixam_mart/features/parcel/widgets/set_parcel_information_bottom_sheet.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
-import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 
 class AllParcelTypeBottomSheet extends StatelessWidget {
@@ -51,11 +49,7 @@ class AllParcelTypeBottomSheet extends StatelessWidget {
                     colorIndex: index,
                     onTap: () {
                       Get.back();
-                      if (AddressHelper.getUserAddressFromSharedPref() == null) {
-                        Get.find<LocationController>().navigateToLocationScreen('home', canRoute: true);
-                        return;
-                      }
-                      Get.toNamed(RouteHelper.getParcelLocationRoute(categories[index]));
+                      SetParcelInformationBottomSheet.startFromCategory(categories[index]);
                     },
                   );
                 },

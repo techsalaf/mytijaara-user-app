@@ -1,6 +1,7 @@
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/language/domain/models/language_model.dart';
 import 'package:sixam_mart/helper/address_helper.dart';
+import 'package:sixam_mart/helper/language_loader.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/features/home/screens/home_screen.dart';
@@ -26,7 +27,11 @@ class LocalizationController extends GetxController implements GetxService {
   int _selectedLanguageIndex = 0;
   int get selectedLanguageIndex => _selectedLanguageIndex;
 
-  void setLanguage(Locale locale, {bool fromBottomSheet = false}) {
+  Future<void> setLanguage(Locale locale, {bool fromBottomSheet = false}) async {
+    // Languages other than the startup pair are loaded in the background after the
+    // first frame, so a user who taps one before that finishes would otherwise see
+    // raw translation keys. Resolves immediately once the locale is in place.
+    await LanguageLoader.ensureLocaleLoaded(locale);
     Get.updateLocale(locale);
     _locale = locale;
     _isLtr = languageServiceInterface.setLTR(_locale);

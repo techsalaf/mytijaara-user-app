@@ -54,12 +54,12 @@ class NewWebCardItemsWidget extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(vertical: Dimensions.paddingSizeExtraSmall),
                           child: TextButton.icon(
                             onPressed: (){
-                              cartController.forcefullySetModule(cartController.cartList[0].item!.moduleId!);
+                              cartController.forcefullySetModule(cartController.cartModuleId!);
                               Get.toNamed(
-                                RouteHelper.getStoreRoute(id: cartController.cartList[0].item!.storeId, page: 'item', slug: Get.find<StoreController>().store?.slug??''),
-                                arguments: StoreScreen(store: Store(id: cartController.cartList[0].item!.storeId), fromModule: false),
+                                RouteHelper.getStoreRoute(id: cartController.cartStoreId, page: 'item', slug: Get.find<StoreController>().store?.slug??''),
+                                arguments: StoreScreen(store: Store(id: cartController.cartStoreId), fromModule: false),
                               );
-                              Get.offNamed(RouteHelper.getStoreRoute(id: cartController.cartList[0].item!.storeId, page: 'item', slug: Get.find<StoreController>().store?.slug??''));
+                              Get.offNamed(RouteHelper.getStoreRoute(id: cartController.cartStoreId, page: 'item', slug: Get.find<StoreController>().store?.slug??''));
                             },
                             icon: Icon(Icons.add_circle_outline_sharp, color: Theme.of(context).primaryColor),
                             label: Text('add_more_items'.tr, style: robotoMedium.copyWith(color: Theme.of(context).textTheme.bodyLarge!.color)),

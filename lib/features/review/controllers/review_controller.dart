@@ -13,6 +13,15 @@ class ReviewController extends GetxController implements GetxService {
   List<ReviewModel>? _storeReviewList;
   List<ReviewModel>? get storeReviewList => _storeReviewList;
 
+  /// Paging metadata from the response, so the list can reach past the first page.
+  int? _storeReviewTotalSize;
+  int? get storeReviewTotalSize => _storeReviewTotalSize;
+
+  int _storeReviewOffset = 1;
+  int get storeReviewOffset => _storeReviewOffset;
+
+  final List<int> _storeReviewOffsetList = <int>[];
+
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
@@ -31,12 +40,35 @@ class ReviewController extends GetxController implements GetxService {
   int _deliveryManRating = 0;
   int get deliveryManRating => _deliveryManRating;
 
-  Future<void> getStoreReviewList(String? storeID) async {
-    _storeReviewList = null;
-    List<ReviewModel>? storeReviewList = await reviewServiceInterface.getStoreReviewList(storeID);
-    if (storeReviewList != null) {
-      _storeReviewList = [];
-      _storeReviewList!.addAll(storeReviewList);
+  /// Loads a page of a store's reviews.
+  ///
+  /// `offset` is the 1-based page number. Page 1 replaces the list (a fresh open or a
+  /// pull-to-refresh); later pages append. The response's `pagination` block is kept so
+  /// the screen knows whether more pages exist — it used to be thrown away, which
+  /// capped the screen at the endpoint's default page size.
+  Future<void> getStoreReviewList(String? storeID, {int offset = 1}) async {
+    if (offset == 1) {
+      _storeReviewList = null;
+      _storeReviewOffsetList.clear();
+      _storeReviewTotalSize = null;
+      update();
+    } else if (_storeReviewOffsetList.contains(offset)) {
+      return;
+    }
+    _storeReviewOffsetList.add(offset);
+
+    final StoreReviewModel? response = await reviewServiceInterface.getStoreReviewList(storeID, offset: offset);
+    if (response != null) {
+      _storeReviewTotalSize = response.totalSize;
+      _storeReviewOffset = response.offset ?? offset;
+      _storeReviewList ??= <ReviewModel>[];
+      _storeReviewList!.addAll(response.reviews ?? <ReviewModel>[]);
+    } else if (offset == 1) {
+      // A failed first page still has to leave the loader, or the screen spins forever.
+      _storeReviewList = <ReviewModel>[];
+      _storeReviewOffsetList.remove(offset);
+    } else {
+      _storeReviewOffsetList.remove(offset);
     }
     update();
   }

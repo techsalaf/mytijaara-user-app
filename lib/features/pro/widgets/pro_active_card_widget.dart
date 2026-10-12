@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:sixam_mart/common/controllers/theme_controller.dart';
 import 'package:sixam_mart/features/pro/controllers/pro_controller.dart';
 import 'package:sixam_mart/features/pro/domain/models/pro_active_offer_model.dart';
@@ -7,8 +9,6 @@ import 'package:sixam_mart/helper/module_helper.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/styles.dart';
-import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 
 class ProActiveCardWidget extends StatelessWidget {
   final ProActiveOfferModel? activeOfferModel;
@@ -18,6 +18,7 @@ class ProActiveCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context, ) {
+    final bool isDark = Get.find<ThemeController>().darkTheme;
     final ProActivePlanDetails? details = activeOfferModel?.planDetails;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -49,7 +50,7 @@ class ProActiveCardWidget extends StatelessWidget {
                   Expanded(
                     child: Text(
                       details?.planName ?? 'monthly_package'.tr,
-                      style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeLarge, color: Colors.black,),
+                      style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeLarge),
                     ),
                   ),
                   Container(

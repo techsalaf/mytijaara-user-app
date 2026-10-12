@@ -76,6 +76,16 @@ class ParcelInfoBottomSheet extends StatefulWidget {
 }
 
 class _ParcelInfoBottomSheetState extends State<ParcelInfoBottomSheet> {
+  /// A confirm is in flight — repeat taps are ignored so the API batch behind
+  /// `onConfirm` (distance, tiers, coverage, quote) runs once, and the button
+  /// shows its own loading state instead of looking unresponsive while it does.
+  bool _isSubmitting = false;
+
+  /// This sheet has already popped — makes the pop idempotent, so a confirm that
+  /// resolves after the sheet was otherwise closed can never pop the screen
+  /// sitting underneath it.
+  bool _closed = false;
+
   Future<void> _openMapPicker() async {
     Get.find<ParcelController>().setIsPickedUp(widget.isSender, false);
 
@@ -98,8 +108,30 @@ class _ParcelInfoBottomSheetState extends State<ParcelInfoBottomSheet> {
   }
 
   Future<void> _onConfirmTap() async {
-    final ok = await widget.onConfirm();
-    if (ok) Get.back();
+    if (_isSubmitting || _closed) return;
+
+    // Pop this sheet's own route only — `Navigator.of(context)` stays usable
+    // after the sheet closes, so an unguarded `Get.back()` here would instead
+    // pop the screen underneath it if the sheet was closed in the meantime.
+    final NavigatorState navigator = Navigator.of(context);
+    final ModalRoute<dynamic>? route = ModalRoute.of(context);
+
+    setState(() => _isSubmitting = true);
+    bool ok = false;
+    try {
+      ok = await widget.onConfirm();
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+
+    if (!ok || _closed) return;
+    _closed = true;
+    if (route?.isCurrent ?? false) navigator.pop();
+  }
+
+  void _onClose() {
+    _closed = true;
+    Get.back();
   }
 
   @override
@@ -120,7 +152,7 @@ class _ParcelInfoBottomSheetState extends State<ParcelInfoBottomSheet> {
         _SheetHeader(
           showDragHandle: !isDesktop,
           title: widget.isSender ? 'sender_info'.tr : 'receiver_info'.tr,
-          onClose: () => Get.back(),
+          onClose: _onClose,
         ),
 
         Flexible(
@@ -232,6 +264,7 @@ class _ParcelInfoBottomSheetState extends State<ParcelInfoBottomSheet> {
               CustomButton(
                 buttonText: 'confirm_information'.tr,
                 onPressed: _onConfirmTap,
+                isLoading: _isSubmitting,
               ),
               const SizedBox(height: Dimensions.paddingSizeSmall),
             ]),
@@ -383,3 +416,10 @@ class _LabeledField extends StatelessWidget {
     ]);
   }
 }
+
+// SUMMARY
+// Sheet for entering a parcel's sender or receiver details — address, street number,
+// house, floor, name, phone and, for a guest, email. Confirming re-validates and
+// persists the info, showing the button's own loading state while the follow-up quote
+// runs and popping only this sheet once, so a slow or repeated confirm can never pop
+// the screen underneath it.

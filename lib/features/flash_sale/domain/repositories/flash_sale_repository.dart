@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:sixam_mart/api/response_parser.dart';
 
 import 'package:get/get.dart';
 import 'package:sixam_mart/api/api_client.dart';
@@ -24,13 +25,13 @@ class FlashSaleRepository implements FlashSaleRepositoryInterface {
         Response response = await apiClient.getData(AppConstants.flashSaleUri);
         if(response.statusCode == 200) {
           flashSaleModel = FlashSaleModel.fromJson(response.body);
-          LocalClient.organize(source, cacheId, jsonEncode(response.body), apiClient.getHeader());
+          LocalClient.organize(source, cacheId, response.bodyString ?? '', apiClient.getHeader());
         }
 
       case DataSourceEnum.local:
         String? cacheResponseData = await LocalClient.organize(source, cacheId, null, null);
         if(cacheResponseData != null) {
-          flashSaleModel = FlashSaleModel.fromJson(jsonDecode(cacheResponseData));
+          flashSaleModel = FlashSaleModel.fromJson(ResponseParser.payloadOf(jsonDecode(cacheResponseData)));
         }
     }
 

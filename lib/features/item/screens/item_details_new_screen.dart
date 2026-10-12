@@ -17,6 +17,7 @@ import 'package:sixam_mart/features/favourite/controllers/favourite_controller.d
 import 'package:sixam_mart/features/item/controllers/item_controller.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 import 'package:sixam_mart/features/item/domain/models/item_review_model.dart';
+import 'package:sixam_mart/features/item/domain/models/item_selection_preview.dart';
 import 'package:sixam_mart/features/item/widgets/details_web_view_widget.dart';
 import 'package:sixam_mart/features/location/controllers/location_controller.dart';
 import 'package:sixam_mart/common/widgets/food_item_card.dart';
@@ -27,6 +28,7 @@ import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 import 'package:sixam_mart/helper/address_helper.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/helper/date_converter.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
@@ -38,11 +40,20 @@ class ItemDetailsNewScreen extends StatefulWidget {
   final int itemId;
   final bool inStorePage;
   final bool isCampaign;
+
+  /// A fixed variation selection to show instead of the customer's own picks
+  /// — e.g. what a bundle locked this item to. See [ItemSelectionPreview];
+  /// this screen only ever has [Item.choiceOptions] to preset (it has no
+  /// food-variation or add-on picker of its own), and its presence hides the
+  /// bottom add-to-cart bar and locks the variation section against taps.
+  final ItemSelectionPreview? preview;
+
   const ItemDetailsNewScreen({
     super.key,
     required this.itemId,
     required this.inStorePage,
     this.isCampaign = false,
+    this.preview,
   });
 
   @override
@@ -87,12 +98,41 @@ class _ItemDetailsNewScreenState extends State<ItemDetailsNewScreen> {
   void initState() {
     super.initState();
 
-    Get.find<ItemController>().getItemDetails(
+    final ItemController itemController = Get.find<ItemController>();
+    itemController.getItemDetails(
       itemId: widget.itemId,
       isCampaign: widget.isCampaign,
-    );
-    Get.find<ItemController>().setSelect(0, false);
+    ).then((_) {
+      if (!mounted || widget.preview == null) return;
+      final Item? item = itemController.item;
+      if (item == null) return;
+      _applyPreviewSelection(item, itemController, widget.preview!);
+    });
+    itemController.setSelect(0, false);
   }
+
+  bool get _readOnly => widget.preview != null;
+
+  // Drives the choice-option picker to the fixed selection a bundle locked
+  // this item to, via the same mutator a user's tap would call — this screen
+  // never renders a food-variation or add-on picker, so that is all there is
+  // to preset here.
+  void _applyPreviewSelection(Item item, ItemController itemController, ItemSelectionPreview preview) {
+    final List<ChoiceOptions> groups = item.choiceOptions ?? const <ChoiceOptions>[];
+    for (final OrderVariation picked in preview.variations) {
+      final int groupIndex = groups.indexWhere((g) => _sameLabel(g.title, picked.name) || _sameLabel(g.name, picked.name));
+      if (groupIndex == -1) continue;
+      final List<String> options = groups[groupIndex].options ?? const <String>[];
+      final List<String?> labels = picked.values?.label ?? const <String?>[];
+      final String? label = labels.isNotEmpty ? labels.first : null;
+      final int valueIndex = options.indexWhere((o) => _sameLabel(o, label));
+      if (valueIndex != -1) {
+        itemController.setCartVariationIndex(groupIndex, valueIndex, item);
+      }
+    }
+  }
+
+  bool _sameLabel(String? a, String? b) => (a ?? '').trim().toLowerCase() == (b ?? '').trim().toLowerCase() && (a ?? '').trim().isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -363,9 +403,12 @@ class _ItemDetailsNewScreenState extends State<ItemDetailsNewScreen> {
                                                       if (item.choiceOptions!.isNotEmpty)
                                                         const SizedBox(height: Dimensions.paddingSizeDefault),
                                                       if (item.choiceOptions!.isNotEmpty)
-                                                        _VariationSection(
-                                                          item: item,
-                                                          controller: itemController,
+                                                        IgnorePointer(
+                                                          ignoring: _readOnly,
+                                                          child: _VariationSection(
+                                                            item: item,
+                                                            controller: itemController,
+                                                          ),
                                                         ),
                                                     ],
                                                   ),
@@ -414,6 +457,10 @@ class _ItemDetailsNewScreenState extends State<ItemDetailsNewScreen> {
                                   ),
                                 ),
 
+                                // A bundle's contents are fixed, so its preview hides this
+                                // bar entirely — there is nothing to add, a bundle member
+                                // cannot be bought or re-configured on its own here.
+                                if (!_readOnly)
                                 Container(
                                   decoration: BoxDecoration(
                                     color: Theme.of(context).cardColor,
@@ -2189,6 +2236,8 @@ class _StoreInfoSectionState extends State<_StoreInfoSection> {
                         height: 44,
                         width: 44,
                         fit: BoxFit.cover,
+                        cacheWidth: ImageCacheHelper.pixels(context, 44),
+                        cacheHeight: ImageCacheHelper.pixels(context, 44),
                       ),
                     ),
                     const SizedBox(width: Dimensions.paddingSizeSmall),

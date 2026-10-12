@@ -16,6 +16,10 @@ class SingleDealWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Taken from the theme rather than fixed: the callers tint these cards with a
+    // translucent colour, so in dark mode the band composites dark and black text on it
+    // could not be read. Light mode resolves to the same near-black it used before.
+    final Color foreground = Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black87;
 
     return GestureDetector(
       onTap: (){
@@ -46,7 +50,7 @@ class SingleDealWidget extends StatelessWidget {
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: robotoBold.copyWith(fontSize: Dimensions.fontSizeDefault, color: Colors.black87),
+                    style: robotoBold.copyWith(fontSize: Dimensions.fontSizeDefault, color: foreground),
                   ),
                   Text(
                     subTitle,
@@ -59,9 +63,10 @@ class SingleDealWidget extends StatelessWidget {
             ),
             const SizedBox(width: Dimensions.paddingSizeDefault),
 
-            const Icon(
+            Icon(
               Icons.arrow_forward_rounded,
               size: 20,
+              color: foreground,
             ),
           ],
         ),

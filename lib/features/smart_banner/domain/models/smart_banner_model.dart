@@ -1,14 +1,20 @@
+import 'package:sixam_mart/api/response_parser.dart';
+
 class SmartBannerModel {
   List<SmartBanner>? smartBanners;
 
   SmartBannerModel({this.smartBanners});
 
   SmartBannerModel.fromJson(Map<String, dynamic> json) {
-    if (json['smart_banners'] != null) {
+    // The list arrives under `data` on the current API format and under
+    // `smart_banners` on the legacy one — accept either so this works against
+    // both backends.
+    final List<dynamic>? banners = ResponseParser.listOf(json, legacyKey: 'smart_banners');
+    if (banners != null) {
       smartBanners = [];
-      json['smart_banners'].forEach((v) {
+      for (final dynamic v in banners) {
         smartBanners!.add(SmartBanner.fromJson(v));
-      });
+      }
     }
   }
 

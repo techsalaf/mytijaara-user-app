@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer_animation/shimmer_animation.dart';
 import 'package:sixam_mart/features/banner/controllers/banner_controller.dart';
+import 'package:sixam_mart/features/banner/domain/models/promotional_banner_model.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/common/widgets/custom_image.dart';
 
@@ -17,6 +19,21 @@ class PromotionalBannerView extends StatelessWidget {
   /// width : height of the banner artwork.
   static const double bannerAspectRatio = 4 / 1;
 
+  /// Whether this widget will draw anything for the banner the controller
+  /// currently holds — true while it is still loading (the shimmer occupies the
+  /// same box), false once the response came back without artwork.
+  ///
+  /// Screens that own spacing around the banner check this so their gap
+  /// collapses with it instead of leaving a stray band behind.
+  static bool hasContent(BannerController bannerController) {
+    final PromotionalBanner? promotionalBanner = bannerController.promotionalBanner;
+    if (promotionalBanner == null) {
+      return true;
+    }
+    final String? imageUrl = promotionalBanner.bottomSectionBannerFullUrl;
+    return imageUrl != null && imageUrl.isNotEmpty;
+  }
+
   @override
   Widget build(BuildContext context) {
     return GetBuilder<BannerController>(builder: (bannerController) {
@@ -30,6 +47,10 @@ class PromotionalBannerView extends StatelessWidget {
         return const SizedBox();
       }
 
+      final double bannerWidth = MediaQuery.sizeOf(context).width - (Dimensions.paddingSizeDefault * 2);
+      final int? decodeWidth = ImageCacheHelper.pixels(context, bannerWidth);
+      final int? decodeHeight = ImageCacheHelper.pixels(context, bannerWidth / bannerAspectRatio);
+
       return Container(
         width: double.infinity,
         color: Theme.of(context).cardColor,
@@ -38,7 +59,9 @@ class PromotionalBannerView extends StatelessWidget {
           borderRadius: BorderRadius.circular(Dimensions.paddingSizeDefault),
           child: AspectRatio(
             aspectRatio: bannerAspectRatio,
-            child: CustomImage(image: imageUrl, fit: BoxFit.cover, width: double.infinity),
+            child: CustomImage(image: imageUrl, fit: BoxFit.cover, width: double.infinity,
+              cacheWidth: decodeWidth, cacheHeight: decodeHeight,
+            ),
           ),
         ),
       );

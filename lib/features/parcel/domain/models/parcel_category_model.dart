@@ -1,3 +1,4 @@
+import 'package:sixam_mart/api/json_reader.dart';
 class ParcelCategoryModel {
   int? id;
   String? imageFullUrl;
@@ -8,6 +9,12 @@ class ParcelCategoryModel {
   double? parcelPerKmShippingCharge;
   double? parcelMinimumShippingCharge;
 
+  /// The flat amount this category adds on top of whatever the zone's active
+  /// delivery rule priced. This is how a category is charged now; the two
+  /// `parcel_*_shipping_charge` fields above are the superseded per-km model,
+  /// kept only for the client-side fallback estimate.
+  double? charge;
+
   ParcelCategoryModel({
     this.id,
     this.imageFullUrl,
@@ -17,6 +24,7 @@ class ParcelCategoryModel {
     this.updatedAt,
     this.parcelPerKmShippingCharge,
     this.parcelMinimumShippingCharge,
+    this.charge,
   });
 
   ParcelCategoryModel.fromJson(Map<String, dynamic> json) {
@@ -26,8 +34,9 @@ class ParcelCategoryModel {
     description = json['description'];
     createdAt = json['created_at'];
     updatedAt = json['updated_at'];
-    parcelPerKmShippingCharge = json['parcel_per_km_shipping_charge'] != null ? json['parcel_per_km_shipping_charge'].toDouble() : 0;
-    parcelMinimumShippingCharge = json['parcel_minimum_shipping_charge'] != null ? json['parcel_minimum_shipping_charge'].toDouble() : 0;
+    parcelPerKmShippingCharge = JsonReader.toDouble(json['parcel_per_km_shipping_charge']) ?? 0;
+    parcelMinimumShippingCharge = JsonReader.toDouble(json['parcel_minimum_shipping_charge']) ?? 0;
+    charge = JsonReader.toDouble(json['charge']);
   }
 
   Map<String, dynamic> toJson() {
@@ -40,6 +49,7 @@ class ParcelCategoryModel {
     data['updated_at'] = updatedAt;
     data['parcel_per_km_shipping_charge'] = parcelPerKmShippingCharge;
     data['parcel_minimum_shipping_charge'] = parcelMinimumShippingCharge;
+    data['charge'] = charge;
     return data;
   }
 }

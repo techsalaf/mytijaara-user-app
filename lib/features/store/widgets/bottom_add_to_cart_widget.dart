@@ -16,8 +16,10 @@ class BottomAddToCartWidget extends StatelessWidget {
       final bool isStoreSpecific = storeId != null;
       final AllCartsModel? existingGroup = isStoreSpecific ? cartController.getCartsForStore(storeId!) : null;
 
+      // localCartsOfGroup folds a bundle into one row; group.carts and store.itemCount
+      // both come from get-all, which still counts every member separately.
       final int itemCount = (isStoreSpecific && existingGroup != null)
-          ? (existingGroup.carts?.length ?? existingGroup.store?.itemCount ?? 0)
+          ? cartController.localCartsOfGroup(existingGroup).length
           : cartController.cartList.length;
 
       return Center(

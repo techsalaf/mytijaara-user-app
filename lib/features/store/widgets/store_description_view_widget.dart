@@ -22,9 +22,8 @@ class StoreDescriptionViewWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    bool isAvailable = Get.find<StoreController>().isStoreOpenNow(store!.active!, store!.schedules);
+    bool isAvailable = Get.find<StoreController>().isStoreOpen(store!);
     Color? textColor = ResponsiveHelper.isDesktop(context) ? Colors.white : null;
-    print("store address====> ${store!.address}");
 
     // Module? moduleData;
     // for(ZoneData zData in AddressHelper.getUserAddressFromSharedPref()!.zoneData!) {
@@ -169,7 +168,7 @@ class StoreDescriptionViewWidget extends StatelessWidget {
              ]),
              const SizedBox(height: Dimensions.paddingSizeExtraSmall),
              Text(
-               '${store!.ratingCount} ${store!.ratingCount! < 1 ? '' : '+'} ${store!.ratingCount! < 1 ? 'rating'.tr : 'ratings'.tr}',
+               '${store!.ratingCount ?? 0} ${(store!.ratingCount ?? 0) < 1 ? '' : '+'} ${(store!.ratingCount ?? 0) < 1 ? 'rating'.tr : 'ratings'.tr}',
                style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: textColor),
              ),
            ]),
@@ -204,11 +203,11 @@ class StoreDescriptionViewWidget extends StatelessWidget {
            Text(store!.deliveryTime!, style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeSmall, color: textColor)),
          ]),
 
-         (store!.delivery! && store!.freeDelivery!) ? const Expanded(child: SizedBox()) : const SizedBox(),
-         (store!.delivery! && store!.freeDelivery!) ? const VerticalDivider(color: Colors.white, thickness: 1) : const SizedBox(),
-         (store!.delivery! && store!.freeDelivery!) ? const Expanded(child: SizedBox()) : const SizedBox(),
+         ((store!.delivery ?? false) && (store!.freeDelivery ?? false)) ? const Expanded(child: SizedBox()) : const SizedBox(),
+         ((store!.delivery ?? false) && (store!.freeDelivery ?? false)) ? const VerticalDivider(color: Colors.white, thickness: 1) : const SizedBox(),
+         ((store!.delivery ?? false) && (store!.freeDelivery ?? false)) ? const Expanded(child: SizedBox()) : const SizedBox(),
 
-         (store!.delivery! && store!.freeDelivery!) ? Column(children: [
+         ((store!.delivery ?? false) && (store!.freeDelivery ?? false)) ? Column(children: [
            Icon(Icons.money_off, color: Theme.of(context).primaryColor, size: 20),
            const SizedBox(width: Dimensions.paddingSizeExtraSmall),
            Text('free_delivery'.tr, style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: textColor)),
@@ -266,8 +265,8 @@ class StoreDescriptionViewWidget extends StatelessWidget {
          const SizedBox(width: Dimensions.paddingSizeExtraSmall),
          Text('delivery_time'.tr, style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: textColor)),
        ]),
-       (store!.delivery! && store!.freeDelivery!) ? const Expanded(child: SizedBox()) : const SizedBox(),
-       (store!.delivery! && store!.freeDelivery!) ? Column(children: [
+       ((store!.delivery ?? false) && (store!.freeDelivery ?? false)) ? const Expanded(child: SizedBox()) : const SizedBox(),
+       ((store!.delivery ?? false) && (store!.freeDelivery ?? false)) ? Column(children: [
          Icon(Icons.money_off, color: Theme.of(context).primaryColor, size: 20),
          const SizedBox(width: Dimensions.paddingSizeExtraSmall),
          Text('free_delivery'.tr, style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: textColor)),

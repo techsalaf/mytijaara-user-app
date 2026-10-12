@@ -11,7 +11,6 @@ class CustomCardCheckout extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 2))],
       ),
       padding: padding ?? const EdgeInsets.all(Dimensions.paddingSizeExtraSmall),
       margin: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault),

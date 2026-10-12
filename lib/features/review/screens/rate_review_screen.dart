@@ -1,14 +1,14 @@
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:sixam_mart/common/widgets/custom_app_bar.dart';
+import 'package:sixam_mart/common/widgets/menu_drawer.dart';
 import 'package:sixam_mart/features/order/domain/models/order_details_model.dart';
 import 'package:sixam_mart/features/order/domain/models/order_model.dart';
 import 'package:sixam_mart/features/review/controllers/review_controller.dart';
-import 'package:sixam_mart/util/dimensions.dart';
-import 'package:sixam_mart/util/styles.dart';
-import 'package:sixam_mart/common/widgets/custom_app_bar.dart';
-import 'package:sixam_mart/common/widgets/menu_drawer.dart';
 import 'package:sixam_mart/features/review/widgets/deliver_man_review_widget.dart';
 import 'package:sixam_mart/features/review/widgets/item_review_widget.dart';
-import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:sixam_mart/util/dimensions.dart';
+import 'package:sixam_mart/util/styles.dart';
 
 class RateReviewScreen extends StatefulWidget {
   final List<OrderDetailsModel> orderDetailsList;
@@ -48,7 +48,8 @@ class RateReviewScreenState extends State<RateReviewScreen> with TickerProviderS
               indicatorWeight: 3,
               unselectedLabelStyle: robotoRegular.copyWith(color: Theme.of(context).disabledColor, fontSize: Dimensions.fontSizeSmall),
               labelStyle: robotoMedium.copyWith(fontSize: Dimensions.fontSizeSmall),
-              tabs: widget.orderDetailsList.isNotEmpty ? widget.deliveryMan != null ? [
+              tabs: widget.orderDetailsList.isNotEmpty ? 
+              widget.deliveryMan != null ? [
                 Tab(text: widget.orderDetailsList.length > 1 ? 'items'.tr : 'item'.tr),
                 Tab(text: 'delivery_man'.tr),
               ] : [

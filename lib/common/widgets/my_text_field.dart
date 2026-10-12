@@ -75,6 +75,7 @@ class MyTextFieldState extends State<MyTextField> {
         ) : null,
       ),
       onTap: widget.onTap as void Function()?,
+      onTapOutside: (_) => FocusScope.of(context).unfocus(),
       onSubmitted: (text) => widget.nextFocus != null ? FocusScope.of(context).requestFocus(widget.nextFocus)
           : widget.onSubmit != null ? widget.onSubmit!(text) : null,
       onChanged: widget.onChanged as void Function(String)?,

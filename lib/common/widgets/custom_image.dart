@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/images.dart';
 
@@ -22,6 +23,9 @@ class CustomImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool hasAxisHint = cacheWidth != null || cacheHeight != null;
+    final int? decodeWidth = hasAxisHint ? cacheWidth : ImageCacheHelper.pixels(context, width ?? 100);
+    final int? decodeHeight = hasAxisHint ? cacheHeight : ImageCacheHelper.pixels(context, height ?? 100);
     return AnimatedScale(
       scale: isHovered ? 1.1 : 1.0,
       duration: const Duration(milliseconds: 300),
@@ -29,15 +33,16 @@ class CustomImage extends StatelessWidget {
       child: CachedNetworkImage(
         color: color,
         imageUrl: kIsWeb ? '${AppConstants.baseUrl}/image-proxy?url=$image' : image, height: height, width: width, fit: fit,
-        memCacheWidth: cacheWidth,
-        memCacheHeight: cacheHeight,
+        memCacheWidth: decodeWidth, memCacheHeight: decodeHeight,
         placeholder: (context, url) => Image.asset(
           placeholder.isNotEmpty ? placeholder : (isNotification ? Images.notificationPlaceholder : Images.placeholder),
-          height: height, width: width, fit: fit, color: color,
+          height: height, width: width, fit: BoxFit.cover, color: color,
+          cacheWidth: decodeWidth, cacheHeight: decodeHeight,
         ),
         errorWidget: (context, url, error) => Image.asset(
           placeholder.isNotEmpty ? placeholder : (isNotification ? Images.notificationPlaceholder : Images.placeholder),
-          height: height, width: width, fit: fit, color: color,
+          height: height, width: width, fit: BoxFit.cover, color: color,
+          cacheWidth: decodeWidth, cacheHeight: decodeHeight,
         ),
       ),
     );

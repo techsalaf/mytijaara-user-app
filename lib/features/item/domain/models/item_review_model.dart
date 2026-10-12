@@ -1,3 +1,5 @@
+import 'package:sixam_mart/api/response_parser.dart';
+import 'package:sixam_mart/common/models/pagination_model.dart';
 class ItemReviewModel {
   RatingSummary? ratingSummary;
   int? totalSize;
@@ -17,14 +19,21 @@ class ItemReviewModel {
     ratingSummary = json['rating_summary'] != null
         ? RatingSummary.fromJson(json['rating_summary'])
         : null;
-    totalSize = json['total_size'];
-    limit = json['limit']?.toString();
-    offset = json['offset']?.toString();
-    if (json['reviews'] != null) {
+    // Paging arrives flat on the legacy format and nested under `pagination`
+    // now. Property names are unchanged, so no caller needs an edit.
+    final PaginationModel _pg = PaginationModel.fromJson(json);
+    totalSize = _pg.totalSize;
+    limit = _pg.limit?.toString();
+    offset = _pg.offset?.toString();
+    // The list moved to `data` in the new API format. `listOf` checks the legacy
+    // key first, so a backend still answering with `reviews` parses exactly as before
+    // and only the new shape is newly understood.
+    final List<dynamic>? reviewEntries = ResponseParser.listOf(json, legacyKey: 'reviews');
+    if (reviewEntries != null) {
       reviews = [];
-      json['reviews'].forEach((v) {
+      for (final dynamic v in reviewEntries) {
         reviews!.add(ItemReview.fromJson(v));
-      });
+      }
     }
   }
 

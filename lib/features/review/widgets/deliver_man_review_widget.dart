@@ -1,15 +1,15 @@
-import 'package:sixam_mart/features/review/domain/models/review_body_model.dart';
-import 'package:sixam_mart/features/order/domain/models/order_model.dart';
-import 'package:sixam_mart/features/review/controllers/review_controller.dart';
-import 'package:sixam_mart/features/review/widgets/delivery_man_widget.dart';
-import 'package:sixam_mart/util/dimensions.dart';
-import 'package:sixam_mart/util/styles.dart';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:sixam_mart/common/widgets/custom_button.dart';
 import 'package:sixam_mart/common/widgets/custom_snackbar.dart';
 import 'package:sixam_mart/common/widgets/footer_view.dart';
 import 'package:sixam_mart/common/widgets/my_text_field.dart';
-import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:sixam_mart/features/order/domain/models/order_model.dart';
+import 'package:sixam_mart/features/review/controllers/review_controller.dart';
+import 'package:sixam_mart/features/review/domain/models/review_body_model.dart';
+import 'package:sixam_mart/features/review/widgets/delivery_man_widget.dart';
+import 'package:sixam_mart/util/dimensions.dart';
+import 'package:sixam_mart/util/styles.dart';
 
 class DeliveryManReviewWidget extends StatefulWidget {
   final DeliveryMan? deliveryMan;
@@ -22,6 +22,12 @@ class DeliveryManReviewWidget extends StatefulWidget {
 
 class _DeliveryManReviewWidgetState extends State<DeliveryManReviewWidget> {
   final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

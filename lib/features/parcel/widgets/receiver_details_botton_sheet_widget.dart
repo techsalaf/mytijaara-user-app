@@ -44,10 +44,17 @@ class _ReceiverDetailsBottomSheetWidgetState extends State<ReceiverDetailsBottom
 
   @override
   void dispose() {
-    super.dispose();
+    _nameController.dispose();
+    _phoneController.dispose();
+    _nameNode.dispose();
+    _phoneNode.dispose();
+    _streetNode.dispose();
+    _houseNode.dispose();
+    _floorNode.dispose();
     _streetNumberController.dispose();
     _houseController.dispose();
     _floorController.dispose();
+    super.dispose();
   }
 
 

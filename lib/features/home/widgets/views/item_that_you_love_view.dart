@@ -38,8 +38,8 @@ class _ItemThatYouLoveViewState extends State<ItemThatYouLoveView> {
 
   @override
   void dispose() {
-    super.dispose();
     _pageController.dispose();
+    super.dispose();
   }
 
   @override
@@ -158,8 +158,8 @@ class _ItemThatYouLoveShimmerViewState extends State<ItemThatYouLoveShimmerView>
 
   @override
   void dispose() {
-    super.dispose();
     pageController.dispose();
+    super.dispose();
   }
 
   @override

@@ -5,6 +5,7 @@ import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/features/smart_banner/controllers/smart_banner_controller.dart';
 import 'package:sixam_mart/features/smart_banner/domain/models/smart_banner_model.dart';
 import 'package:sixam_mart/features/smart_banner/helper/smart_banner_redirect_handler.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/styles.dart';
 
@@ -122,7 +123,10 @@ class _PromoBannerCard extends StatelessWidget {
 
         ClipRRect(
           borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
-          child: CustomImage(image: imageUrl, height: 32, width: 32, fit: BoxFit.cover),
+          child: CustomImage(
+            image: imageUrl, height: 32, width: 32, fit: BoxFit.cover,
+            cacheWidth: ImageCacheHelper.pixels(context, 32),
+          ),
         ),
       ],
     );

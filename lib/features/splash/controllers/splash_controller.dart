@@ -27,8 +27,15 @@ import 'package:sixam_mart/features/service_module/booking_details/controllers/b
 import 'package:sixam_mart/features/service_module/service_cart/controllers/service_cart_controller.dart';
 import 'package:sixam_mart/features/splash/domain/services/splash_service_interface.dart';
 import 'package:sixam_mart/features/store/controllers/store_controller.dart';
+import 'package:sixam_mart/features/bogo_offer/controllers/bogo_offer_controller.dart';
+import 'package:sixam_mart/features/bundle/controllers/bundle_controller.dart';
+import 'package:sixam_mart/features/reels/controllers/reels_controller.dart';
+import 'package:sixam_mart/features/order/controllers/order_controller.dart';
+import 'package:sixam_mart/features/home/controllers/advertisement_controller.dart';
+import 'package:sixam_mart/features/brands/controllers/brands_controller.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/helper/maintance_helper.dart';
+import 'package:sixam_mart/helper/notification_topic_helper.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/helper/shallow_route_helper.dart';
@@ -280,6 +287,44 @@ class SplashController extends GetxController implements GetxService {
     _firstTimeConnectionCheck = isChecked;
   }
 
+  /// Activates the module with [moduleId], loading the module list first if it
+  /// has not been fetched. Returns false when the id is not among the available
+  /// modules, leaving the current module untouched.
+  ///
+  /// Replaces a loop that three call sites hand-rolled:
+  ///
+  /// ```dart
+  /// int i = 0;
+  /// for(i = 0; i < moduleList!.length; i++) {
+  ///   if(wantedId == moduleList![i].id) break;
+  /// }
+  /// setModule(moduleList![i]);   // i == length when the id is absent
+  /// ```
+  ///
+  /// When the id was not in the list the loop ran to completion and the index
+  /// landed one past the end, so `moduleList![i]` threw `RangeError` — and
+  /// `moduleList!` threw outright if `getModules()` came back empty. Both fired
+  /// inside `async` button handlers, where Flutter swallows the exception, so the
+  /// button simply did nothing: no snackbar, no navigation, no error.
+  Future<bool> activateModuleById(int? moduleId) async {
+    if(moduleId == null) return false;
+
+    // Refreshed unconditionally, exactly as the loops this replaces did. Reusing an
+    // already-loaded list would change behaviour: a list left over from a previous
+    // zone can be missing the module the cart needs, and the old code recovered
+    // from that by refetching every time.
+    await getModules();
+
+    final List<ModuleModel>? modules = _moduleList;
+    if(modules == null || modules.isEmpty) return false;
+
+    final int index = modules.indexWhere((ModuleModel module) => module.id == moduleId);
+    if(index == -1) return false;
+
+    await setModule(modules[index]);
+    return true;
+  }
+
   Future<void> setModule(ModuleModel? module, {bool notify = true, bool fromModuleDialog = false}) async {
     _module = module;
     splashServiceInterface.setModule(module);
@@ -294,6 +339,9 @@ class SplashController extends GetxController implements GetxService {
         _configModel!.moduleConfig!.module = Module.fromJson(_data!['module_config'][module.moduleType]);
       }
       _cacheModule = await splashServiceInterface.setCacheModule(module);
+      // The promotion broadcast topic is scoped to zone AND module, so switching vertical
+      // moves the device to the new module's topic and leaves the old one.
+      NotificationTopicHelper.syncCustomerTopic();
       if((AuthHelper.isLoggedIn() || AuthHelper.isGuestLoggedIn()) && cacheModule != null) {
         if(cacheModule!.moduleType.toString() == AppConstants.service) {
           Get.find<ServiceCartController>().getServiceCartGroups();
@@ -328,9 +376,20 @@ class SplashController extends GetxController implements GetxService {
     }
   }
 
+  /// A missing or unknown [moduleType] used to blow up on `Module.fromJson(null)` with
+  /// a `Null is not a subtype of Map` cast error — a whole screen lost to one row whose
+  /// item carries no module. Falls back to the active module's config, then to an empty one.
   Module getModuleConfig(String? moduleType) {
-    Module module = Module.fromJson(_data!['module_config'][moduleType]);
-    moduleType == 'food' ? module.newVariation = true : module.newVariation = false;
+    final dynamic moduleConfig = _data?['module_config'];
+    dynamic config = (moduleConfig is Map && moduleType != null) ? moduleConfig[moduleType] : null;
+    if(config is! Map) {
+      final String? activeType = _module?.moduleType ?? _cacheModule?.moduleType;
+      config = (moduleConfig is Map && activeType != null) ? moduleConfig[activeType] : null;
+    }
+
+    final Module module = config is Map
+        ? Module.fromJson(Map<String, dynamic>.from(config)) : Module();
+    module.newVariation = moduleType == 'food';
     return module;
   }
 
@@ -399,27 +458,26 @@ class SplashController extends GetxController implements GetxService {
       // the module_id header immediately (so the view/header stay correct), but any
       // work after an await is skipped if a newer switch has since started.
       final int token = ++_moduleSwitchToken;
+      final ModuleModel target = _moduleList![index];
 
-      await Get.find<SplashController>().setModule(_moduleList![index]);
+      // Must precede the await: the tab repaints long before setModule returns.
+      if(target.moduleType.toString() != AppConstants.taxi) {
+        _clearModuleScopedData();
+      }
+
+      await Get.find<SplashController>().setModule(target);
 
       // A newer switch superseded this one while we awaited — don't clear caches or
       // load data for a module that's no longer selected.
       if(token != _moduleSwitchToken) return;
 
       if(_module!.moduleType.toString() != AppConstants.taxi) {
-        if(_module!.moduleType.toString() == AppConstants.service) {
-          Get.find<ServiceCartController>().getServiceCartGroups();
-        } else {
-          Get.find<CartController>().getAllCarts();
-        }
-        Get.find<ItemController>().clearItemLists();
-        Get.find<BannerController>().clearBanner();
-        Get.find<CategoryController>().clearCategoryList();
-        Get.find<CampaignController>().itemAndBasicCampaignNull();
-        Get.find<FlashSaleController>().setEmptyFlashSale(fromModule: true);
+        // No cart or cashback fetch here: the awaited setModule above already issues
+        // both for this module. Re-issuing them downloaded each payload twice, and
+        // getAllCarts' _allCartsGeneration guard then discarded the second response
+        // outright — the request was pure waste.
 
         if(AuthHelper.isLoggedIn()) {
-          Get.find<HomeController>().getCashBackOfferList();
           // Defensive: the interest page must never block/skip the module data load.
           try {
             await _showInterestPage();
@@ -443,6 +501,22 @@ class SplashController extends GetxController implements GetxService {
         Get.find<TaxiCartController>().getCarCartList();
       }
     }
+  }
+
+  void _clearModuleScopedData() {
+    Get.find<ItemController>().clearItemLists();
+    Get.find<BannerController>().clearBanner();
+    Get.find<CategoryController>().clearCategoryList();
+    Get.find<CampaignController>().itemAndBasicCampaignNull();
+    Get.find<FlashSaleController>().setEmptyFlashSale(fromModule: true);
+    Get.find<StoreController>().clearModuleStoreLists();
+    Get.find<BogoOfferController>().clearBogoHomeData();
+    Get.find<BundleController>().clearBundleHomeData();
+    // These fetch only when scrolled to, so a stale list can sit on screen for long.
+    Get.find<ReelsController>().clearReels();
+    Get.find<BrandsController>().clearBrandList();
+    Get.find<AdvertisementController>().clearAdvertisementList();
+    Get.find<OrderController>().clearLastOrders();
   }
 
   ModuleModel? getCacheModule() {

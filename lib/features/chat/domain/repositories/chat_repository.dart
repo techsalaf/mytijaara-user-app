@@ -23,7 +23,7 @@ class ChatRepository implements ChatRepositoryInterface {
   Future<ConversationsModel?> _getConversationList(int offset, String type) async {
     ConversationsModel? conversationModel;
     Response response = await apiClient.getData('${AppConstants.conversationListUri}?limit=10&offset=$offset&type=$type');
-    if(response.statusCode == 200){
+    if(ApiClient.isSuccessCode(response.statusCode) && response.body is Map<String, dynamic>){
       conversationModel = ConversationsModel.fromJson(response.body);
     }
     return conversationModel;
@@ -32,7 +32,7 @@ class ChatRepository implements ChatRepositoryInterface {
   Future<ConversationsModel?> _searchConversationList(String name) async {
     ConversationsModel? searchConversationModel;
     Response response = await apiClient.getData('${AppConstants.searchConversationListUri}?name=$name&limit=20&offset=1');
-    if(response.statusCode == 200) {
+    if(ApiClient.isSuccessCode(response.statusCode) && response.body is Map<String, dynamic>) {
       searchConversationModel = ConversationsModel.fromJson(response.body);
     }
     return searchConversationModel;

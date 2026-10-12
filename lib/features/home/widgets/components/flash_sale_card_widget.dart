@@ -42,8 +42,8 @@ class _FlashSaleCardState extends State<FlashSaleCard> {
 
   @override
   void dispose() {
-    super.dispose();
     _pageController.dispose();
+    super.dispose();
   }
 
   @override

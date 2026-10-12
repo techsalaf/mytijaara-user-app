@@ -178,8 +178,8 @@ class ProController extends GetxController implements GetxService {
 
   // Called from the global routingCallback on every settled route (Android, iOS, web alike).
   // Shows the expired-pro renew sheet on whatever page the user lands on once login is fully
-  // complete, instead of relying on a specific screen. Self-guarding + once-per-session, so it
-  // is safe to call on every navigation.
+  // complete, instead of relying on a specific screen. Self-guarding, so it is safe to call on
+  // every navigation.
   Future<void> maybeShowRenewOnRoute(String? route) async {
     if(!AuthHelper.isLoggedIn() || getRenewBottomSheetStatus()) return;
 
@@ -188,7 +188,15 @@ class ProController extends GetxController implements GetxService {
     final bool isFlowRoute = _renewSkipRoutes.any((r) => current == r || current.startsWith('$r/'));
     if(isFlowRoute) return;
 
-    await Get.find<ProfileController>().getUserInfo();
+    final ProfileController profileController = Get.find<ProfileController>();
+    // Only fetched when there is nothing to read. The persisted flag above latches solely for
+    // a customer who is actually shown the sheet, so refetching unconditionally here charged
+    // every other customer a `customer/info` round trip on every navigation of the session.
+    // `isExpired` reads the status the profile already carries, and every other path that
+    // refreshes it — sign-in, home load, wallet, an order — feeds this check for free.
+    if(profileController.userInfoModel == null) {
+      await profileController.getUserInfo();
+    }
     Future.delayed(const Duration(milliseconds: 600), () => showRenewProBottomSheet());
   }
 

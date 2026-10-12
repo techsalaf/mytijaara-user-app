@@ -97,9 +97,22 @@ class CustomTextFieldState extends State<CustomTextField> {
   @override
   void initState() {
     super.initState();
-    widget.focusNode?.addListener(() {
-      setState(() {});
-    });
+    widget.focusNode?.addListener(_onFocusChanged);
+  }
+
+  @override
+  void didUpdateWidget(CustomTextField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode != widget.focusNode) {
+      oldWidget.focusNode?.removeListener(_onFocusChanged);
+      widget.focusNode?.addListener(_onFocusChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.focusNode?.removeListener(_onFocusChanged);
+    super.dispose();
   }
 
   @override
@@ -227,6 +240,7 @@ class CustomTextFieldState extends State<CustomTextField> {
                 child: Image.asset(widget.suffixImage!, height: 10, width: 10, fit: BoxFit.cover),
             )) : widget.suffixChild,
           ),
+          onTapOutside: (_) => FocusScope.of(context).unfocus(),
           onFieldSubmitted: (text) => widget.nextFocus != null ? FocusScope.of(context).requestFocus(widget.nextFocus)
               : widget.onSubmit != null ? widget.onSubmit!(text) : null,
           onChanged: widget.onChanged as void Function(String)?,
@@ -237,6 +251,12 @@ class CustomTextFieldState extends State<CustomTextField> {
       ],
     );
   }
+
+    void _onFocusChanged() {
+      if (mounted) {
+        setState(() {});
+      }
+    }
 
   void _toggle() {
     setState(() {

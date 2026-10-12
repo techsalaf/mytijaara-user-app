@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:get/get.dart';
 import 'package:sixam_mart/api/api_client.dart';
+import 'package:sixam_mart/api/response_parser.dart';
 import 'package:sixam_mart/api/local_client.dart';
 import 'package:sixam_mart/common/enums/data_source_enum.dart';
 import 'package:sixam_mart/features/item/domain/models/basic_campaign_model.dart';
@@ -31,9 +32,10 @@ class CampaignRepository implements CampaignRepositoryInterface {
       case DataSourceEnum.client:
         Response response = await apiClient.getData(AppConstants.basicCampaignUri);
         if (response.statusCode == 200) {
+          final List<dynamic> campaignsJson = ResponseParser.listOrEmpty(response.body);
           basicCampaignList = [];
-          response.body.forEach((campaign) => basicCampaignList!.add(BasicCampaignModel.fromJson(campaign)));
-          LocalClient.organize(source, cacheId, jsonEncode(response.body), apiClient.getHeader());
+          for (final dynamic campaign in campaignsJson) { basicCampaignList.add(BasicCampaignModel.fromJson(campaign)); }
+          LocalClient.organize(source, cacheId, jsonEncode(campaignsJson), apiClient.getHeader());
         }
 
       case DataSourceEnum.local:
@@ -49,15 +51,16 @@ class CampaignRepository implements CampaignRepositoryInterface {
 
   Future<List<Item>?> _getItemCampaignList(DataSourceEnum source) async {
     List<Item>? itemCampaignList;
-    String cacheId = '${AppConstants.basicCampaignUri}-${Get.find<SplashController>().module!.id!}';
+    String cacheId = '${AppConstants.basicCampaignUri}-${Get.find<SplashController>().module?.id!}';
 
     switch(source) {
       case DataSourceEnum.client:
         Response response = await apiClient.getData(AppConstants.itemCampaignUri);
         if (response.statusCode == 200) {
+          final List<dynamic> campsJson = ResponseParser.listOrEmpty(response.body);
           itemCampaignList = [];
-          response.body.forEach((camp) => itemCampaignList!.add(Item.fromJson(camp)));
-          LocalClient.organize(source, cacheId, jsonEncode(response.body), apiClient.getHeader());
+          for (final dynamic camp in campsJson) { itemCampaignList.add(Item.fromJson(camp)); }
+          LocalClient.organize(source, cacheId, jsonEncode(campsJson), apiClient.getHeader());
         }
 
       case DataSourceEnum.local:

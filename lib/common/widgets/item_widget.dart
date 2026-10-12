@@ -1,3 +1,4 @@
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sixam_mart/common/models/module_model.dart';
@@ -53,6 +54,10 @@ class ItemWidget extends StatelessWidget {
     String? discountType;
     bool isAvailable;
     String genericName = '';
+
+    // Resolved once so the decode hint below cannot drift from the painted box.
+    final double thumbWidth = imageWidth ?? (desktop ? 120 : 90);
+    final double thumbHeight = imageHeight ?? (desktop ? 120 : length == null ? 100 : 90);
 
     if(!isStore && item!.genericName != null && item!.genericName!.isNotEmpty) {
       for (String name in item!.genericName!) {
@@ -123,7 +128,14 @@ class ItemWidget extends StatelessWidget {
                           child: CustomImage(
                             isHovered: hovered,
                             image: '${isStore ? store != null ? store!.logoFullUrl : '' : item!.imageFullUrl}',
-                            height: imageHeight ?? (desktop ? 120 : length == null ? 100 : 90), width: imageWidth ?? (desktop ? 120 : 90), fit: BoxFit.cover,
+                            height: thumbHeight, width: thumbWidth, fit: BoxFit.cover,
+                            // Width axis only. With no hint at all CustomImage derives both
+                            // axes from `height`/`width`, and two axes make ResizeImage decode
+                            // to exactly those numbers ([ResizeImagePolicy.exact]) — the source
+                            // aspect ratio is dropped and the photo is stretched into the box
+                            // instead of being cropped by `cover`. One axis lets the decoder
+                            // derive the other from the source and keep the ratio.
+                            cacheWidth: ImageCacheHelper.pixels(context, thumbWidth),
                           ),
                         ),
 

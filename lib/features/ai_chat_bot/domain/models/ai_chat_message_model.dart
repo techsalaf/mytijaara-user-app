@@ -1,4 +1,8 @@
+import 'package:sixam_mart/common/models/pagination_model.dart';
+import 'package:sixam_mart/features/bogo_offer/domain/models/bogo_offer_model.dart';
+import 'package:sixam_mart/features/bundle/domain/models/bundle_model.dart';
 import 'package:sixam_mart/features/category/domain/models/category_model.dart';
+import 'package:sixam_mart/features/happy_hour/domain/models/happy_hour_model.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 import 'package:sixam_mart/util/app_constants.dart';
@@ -13,9 +17,12 @@ class AiChatMessageModel {
   AiChatMessageModel({this.totalSize, this.limit, this.offset, this.conversationId, this.messages});
 
   AiChatMessageModel.fromJson(Map<String, dynamic> json) {
-    totalSize = json['total_size'];
-    limit = json['limit'] is String ? int.tryParse(json['limit']) : json['limit'];
-    offset = json['offset'] is String ? int.tryParse(json['offset']) : json['offset'];
+    // Paging arrives flat on the legacy format and nested under `pagination`
+    // now. Property names are unchanged, so no caller needs an edit.
+    final PaginationModel _pg = PaginationModel.fromJson(json);
+    totalSize = _pg.totalSize;
+    limit = _pg.limit;
+    offset = _pg.offset;
     conversationId = json['conversation_id'];
 
     final dynamic rawMessages = json['data'] ?? json['messages'];
@@ -100,10 +107,15 @@ class AiChatMetadata {
   List<Item>? products;
   List<Store>? stores;
   List<CategoryModel>? categories;
+  List<AiChatBogoOffer>? bogoOffers;
+  List<Bundle>? bundles;
+  List<HappyHourModel>? happyHours;
   AiChatCart? cart;
   bool? cartUpdated;
 
-  AiChatMetadata({this.products, this.stores, this.categories, this.cart, this.cartUpdated});
+  AiChatMetadata({this.products, this.stores, this.categories, this.bogoOffers, this.bundles, this.happyHours,
+    this.cart, this.cartUpdated,
+  });
 
   AiChatMetadata.fromJson(Map<String, dynamic> json) {
     cartUpdated = json['cart_updated'] is bool ? json['cart_updated'] as bool : null;
@@ -141,6 +153,39 @@ class AiChatMetadata {
       }
     }
 
+    if (json['bogo_offers'] is List) {
+      bogoOffers = <AiChatBogoOffer>[];
+      for (var v in (json['bogo_offers'] as List)) {
+        if (v is Map<String, dynamic>) {
+          try {
+            bogoOffers!.add(AiChatBogoOffer.fromJson(v));
+          } catch (_) {}
+        }
+      }
+    }
+
+    if (json['bundles'] is List) {
+      bundles = <Bundle>[];
+      for (var v in (json['bundles'] as List)) {
+        if (v is Map<String, dynamic>) {
+          try {
+            bundles!.add(Bundle.fromJson(v));
+          } catch (_) {}
+        }
+      }
+    }
+
+    if (json['happy_hours'] is List) {
+      happyHours = <HappyHourModel>[];
+      for (var v in (json['happy_hours'] as List)) {
+        if (v is Map<String, dynamic>) {
+          try {
+            happyHours!.add(HappyHourModel.fromJson(v));
+          } catch (_) {}
+        }
+      }
+    }
+
     if (json['cart'] is Map<String, dynamic>) {
       try {
         cart = AiChatCart.fromJson(json['cart']);
@@ -151,8 +196,12 @@ class AiChatMetadata {
   bool get hasProducts => products != null && products!.isNotEmpty;
   bool get hasStores => stores != null && stores!.isNotEmpty;
   bool get hasCategories => categories != null && categories!.isNotEmpty;
+  bool get hasBogoOffers => bogoOffers != null && bogoOffers!.isNotEmpty;
+  bool get hasBundles => bundles != null && bundles!.isNotEmpty;
+  bool get hasHappyHours => happyHours != null && happyHours!.isNotEmpty;
   bool get hasCart => cart != null && cart!.stores.isNotEmpty;
-  bool get isEmpty => !hasProducts && !hasStores && !hasCategories && !hasCart;
+  bool get isEmpty => !hasProducts && !hasStores && !hasCategories && !hasBogoOffers && !hasBundles
+      && !hasHappyHours && !hasCart;
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = <String, dynamic>{};
@@ -165,6 +214,9 @@ class AiChatMetadata {
     if (categories != null) {
       data['categories'] = categories!.map((v) => v.toJson()).toList();
     }
+    if (happyHours != null) {
+      data['happy_hours'] = happyHours!.map((v) => v.toJson()).toList();
+    }
     if (cart != null) {
       data['cart'] = cart!.toJson();
     }
@@ -173,6 +225,23 @@ class AiChatMetadata {
     }
     return data;
   }
+}
+
+/// A BOGO offer as the chat sends it, with the module it belongs to.
+///
+/// [BogoOfferCardModel] carries no module of its own — the BOGO screen supplies it
+/// from the tab the offer was listed under. The chat can surface an offer from any
+/// module, so the id travels beside the offer instead.
+class AiChatBogoOffer {
+  final BogoOfferCardModel offer;
+  final int? moduleId;
+
+  const AiChatBogoOffer({required this.offer, this.moduleId});
+
+  factory AiChatBogoOffer.fromJson(Map<String, dynamic> json) => AiChatBogoOffer(
+    offer: BogoOfferCardModel.fromJson(json),
+    moduleId: int.tryParse('${json['module_id']}'),
+  );
 }
 
 class AiChatCart {
@@ -365,3 +434,9 @@ Map<String, dynamic> _normalizeCategoryJson(Map<String, dynamic> raw) {
 
   return json;
 }
+
+// SUMMARY
+// The AI chat's message payloads. Holds a page of messages, a single message with its
+// role and text, and the metadata a reply carries — recommended products, stores and
+// categories, BOGO offers and bundles, and a snapshot of the cart the bot just changed —
+// each normalised into the models the rest of the app already renders.

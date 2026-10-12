@@ -79,6 +79,26 @@ class _RiderRegistrationScreenState extends State<RiderRegistrationScreen> {
   }
 
   @override
+  void dispose() {
+    _fNameController.dispose();
+    _lNameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _identityNumberController.dispose();
+    _referTextController.dispose();
+    _fNameNode.dispose();
+    _lNameNode.dispose();
+    _emailNode.dispose();
+    _phoneNode.dispose();
+    _passwordNode.dispose();
+    _confirmPasswordNode.dispose();
+    _identityNumberNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,

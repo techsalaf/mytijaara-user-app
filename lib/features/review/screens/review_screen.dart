@@ -8,6 +8,7 @@ import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/common/widgets/custom_app_bar.dart';
 import 'package:sixam_mart/common/widgets/footer_view.dart';
 import 'package:sixam_mart/common/widgets/menu_drawer.dart';
+import 'package:sixam_mart/common/widgets/paginated_list_view.dart';
 import 'package:sixam_mart/common/widgets/no_data_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -31,6 +32,12 @@ class _ReviewScreenState extends State<ReviewScreen> {
     super.initState();
 
     Get.find<ReviewController>().getStoreReviewList(widget.storeID);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -63,7 +70,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                         child: RatingWidget(
                           averageRating: widget.store?.avgRating ?? 0,
                           ratingCount: widget.store?.ratingCount ?? 0,
-                          reviewCommentCount: widget.store?.reviewsCommentsCount ?? 0,
+                          reviewCommentCount: widget.store?.reviewsCommentsCount ?? widget.store?.reviewsCount ?? 0,
                           ratings: widget.store?.ratings,
                         )
                       ),
@@ -79,7 +86,13 @@ class _ReviewScreenState extends State<ReviewScreen> {
                             borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
                             boxShadow: [BoxShadow(color: Colors.grey.withValues(alpha: 0.1), spreadRadius: 1, blurRadius: 10, offset: const Offset(0, 1))],
                           ),
-                          child: ReviewListWidget(reviewController: reviewController, storeName: widget.storeName),
+                          child: PaginatedListView(
+                            scrollController: _scrollController,
+                            totalSize: reviewController.storeReviewTotalSize,
+                            offset: reviewController.storeReviewOffset,
+                            onPaginate: (int? offset) async => await reviewController.getStoreReviewList(widget.storeID, offset: offset!),
+                            itemView: ReviewListWidget(reviewController: reviewController, storeName: widget.storeName),
+                          ),
                         ),
                       ),
 
@@ -93,7 +106,15 @@ class _ReviewScreenState extends State<ReviewScreen> {
                       ),
                       const SizedBox(height: Dimensions.paddingSizeLarge),
 
-                      ReviewListWidget(reviewController: reviewController, storeName: widget.storeName),
+                      // The response is paginated; without this only the first page was
+                      // ever reachable.
+                      PaginatedListView(
+                        scrollController: _scrollController,
+                        totalSize: reviewController.storeReviewTotalSize,
+                        offset: reviewController.storeReviewOffset,
+                        onPaginate: (int? offset) async => await reviewController.getStoreReviewList(widget.storeID, offset: offset!),
+                        itemView: ReviewListWidget(reviewController: reviewController, storeName: widget.storeName),
+                      ),
 
                     ]),
                   ),

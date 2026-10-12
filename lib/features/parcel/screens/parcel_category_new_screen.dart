@@ -4,7 +4,6 @@ import 'package:shimmer_animation/shimmer_animation.dart';
 import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/features/banner/controllers/banner_controller.dart';
 import 'package:sixam_mart/features/language/controllers/language_controller.dart';
-import 'package:sixam_mart/features/location/controllers/location_controller.dart';
 import 'package:sixam_mart/features/parcel/controllers/parcel_controller.dart';
 import 'package:sixam_mart/features/parcel/domain/models/parcel_category_model.dart';
 import 'package:sixam_mart/features/pro/controllers/pro_controller.dart';
@@ -15,9 +14,10 @@ import 'package:sixam_mart/features/dashboard/widgets/banner_slider.dart';
 import 'package:sixam_mart/features/parcel/widgets/all_parcel_type_bottom_sheet.dart';
 import 'package:sixam_mart/features/parcel/widgets/need_help_to_getting_start_widget.dart';
 import 'package:sixam_mart/features/parcel/widgets/parcel_category_card_widget.dart';
+import 'package:sixam_mart/features/parcel/widgets/set_parcel_information_bottom_sheet.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
-import 'package:sixam_mart/helper/address_helper.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
@@ -79,20 +79,7 @@ class _ParcelCategoryNewScreenState extends State<ParcelCategoryNewScreen> {
             const SizedBox(height: Dimensions.paddingSizeDefault,),
             bannerController.parcelOtherBannerModel != null && bannerController.parcelOtherBannerModel!.banners != null ? bannerController.parcelOtherBannerModel!.banners!.isNotEmpty ?
                 BannerSliderWidget(bannerList: bannerController.parcelOtherBannerModel!.banners!)
-             : const SizedBox() : Shimmer(
-              duration: const Duration(seconds: 2),
-              enabled: true,
-              child: Container(
-                width: MediaQuery.of(context).size.width,
-                height: isDesktop ? 395 : 150,
-                padding: const EdgeInsets.only(top: Dimensions.paddingSizeDefault),
-
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
-                ),
-              ),
-            ),
+             : const SizedBox() : const BannerSliderShimmer(),
             SizedBox(height: isDesktop ? Dimensions.paddingSizeExtraLarge : Dimensions.paddingSizeLarge),
 
             Container(
@@ -204,7 +191,10 @@ class _ExperienceCardWidget extends StatelessWidget {
 
         ClipRRect(
           borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
-          child: CustomImage(image: image, height: 40, width: 40),
+          child: CustomImage(
+            image: image, height: 40, width: 40,
+            cacheWidth: ImageCacheHelper.pixels(context, 40),
+          ),
         ),
         const SizedBox(height: Dimensions.paddingSizeSmall),
 
@@ -231,45 +221,56 @@ class _ExperienceCardWidget extends StatelessWidget {
 }
 
 
+/// The grid geometry the "What would you like to send?" section is laid out on.
+///
+/// Shared by the real grid and its loading skeleton so the two cannot drift.
+/// They had: the shimmer sized its rows at 75px against the grid's 90 and drew
+/// seven of them against a cap of four, so the section visibly shrank and
+/// re-flowed the moment the categories arrived.
+class _ParcelCategoryGrid {
+  const _ParcelCategoryGrid._();
+
+  /// How many cards are shown before the "see more" sheet takes over.
+  static const int visibleCount = 4;
+
+  static SliverGridDelegateWithFixedCrossAxisCount delegate(bool isDesktop) =>
+      SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: isDesktop ? 3 : 2,
+        crossAxisSpacing: isDesktop ? Dimensions.paddingSizeLarge : Dimensions.paddingSizeSmall,
+        mainAxisSpacing: isDesktop ? Dimensions.paddingSizeLarge : Dimensions.paddingSizeSmall,
+        mainAxisExtent: isDesktop ? 100 : 90,
+      );
+
+  static EdgeInsets padding(bool isDesktop) =>
+      EdgeInsets.symmetric(horizontal: isDesktop ? 0 : Dimensions.paddingSizeLarge);
+}
+
 class _ParcelCategoryGridView extends StatelessWidget {
   final List<ParcelCategoryModel> categories;
   final bool isDesktop;
   const _ParcelCategoryGridView({required this.categories, required this.isDesktop});
 
-  static const int _initialVisibleCount = 4;
-
   @override
   Widget build(BuildContext context) {
-    final bool hasExtra = categories.length > _initialVisibleCount;
-    final int visibleCount = hasExtra ? _initialVisibleCount : categories.length;
+    final bool hasExtra = categories.length > _ParcelCategoryGrid.visibleCount;
+    final int visibleCount = hasExtra ? _ParcelCategoryGrid.visibleCount : categories.length;
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
       GridView.builder(
         controller: ScrollController(),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: isDesktop ? 3 : 2,
-          crossAxisSpacing: isDesktop ? Dimensions.paddingSizeLarge : Dimensions.paddingSizeSmall,
-          mainAxisSpacing: isDesktop ? Dimensions.paddingSizeLarge : Dimensions.paddingSizeSmall,
-          mainAxisExtent: isDesktop ? 100 : 90,
-        ),
+        gridDelegate: _ParcelCategoryGrid.delegate(isDesktop),
         itemCount: visibleCount,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        padding: EdgeInsets.symmetric(horizontal: isDesktop ? 0 : Dimensions.paddingSizeLarge),
+        padding: _ParcelCategoryGrid.padding(isDesktop),
         itemBuilder: (context, index) {
           return ParcelCategoryCardWidget(
             image: '${categories[index].imageFullUrl}',
             itemName: categories[index].name ?? '',
             description: categories[index].description ?? '',
             colorIndex: index,
-            onTap: () {
-              if (AddressHelper.getUserAddressFromSharedPref() == null) {
-                Get.find<LocationController>().navigateToLocationScreen('home', canRoute: true);
-                return;
-              }
-              Get.toNamed(RouteHelper.getParcelLocationRoute(categories[index]));
-            },
+            onTap: () => SetParcelInformationBottomSheet.startFromCategory(categories[index]),
           );
         },
       ),
@@ -345,53 +346,119 @@ class ParcelShimmer extends StatelessWidget {
     }
 
     return GridView.builder(
-      gridDelegate: isDeliveryItem ? SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: isDesktop ? 3 : 2,
-        crossAxisSpacing: isDesktop ? Dimensions.paddingSizeLarge : Dimensions.paddingSizeSmall,
-        mainAxisSpacing: isDesktop ? Dimensions.paddingSizeLarge : Dimensions.paddingSizeSmall,
-        mainAxisExtent: isDesktop ? 100 : 75,
-      ) : const SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: isDeliveryItem ? _ParcelCategoryGrid.delegate(isDesktop) : const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
         crossAxisSpacing: Dimensions.paddingSizeDefault,
         mainAxisSpacing: Dimensions.paddingSizeDefault,
         mainAxisExtent: 140,
       ),
-      itemCount: isDeliveryItem ? 7 : 3,
+      // Exactly what the grid will settle on, so the section does not resize
+      // under the customer when the categories land.
+      itemCount: isDeliveryItem ? _ParcelCategoryGrid.visibleCount : 3,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.symmetric(horizontal: isDesktop ? 0 : Dimensions.paddingSizeLarge),
+      padding: isDeliveryItem
+          ? _ParcelCategoryGrid.padding(isDesktop)
+          : EdgeInsets.symmetric(horizontal: isDesktop ? 0 : Dimensions.paddingSizeLarge),
       itemBuilder: (context, index) {
         if (!isDeliveryItem) {
           return _ExperienceShimmerCard(isEnabled: isEnabled);
         }
-        return Container(
-          padding: const EdgeInsets.all(Dimensions.paddingSizeSmall),
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
-          ),
-          child: Shimmer(
-            duration: const Duration(seconds: 2),
-            enabled: isEnabled,
-            child: Row(children: [
-
-              Container(
-                height: 50, width: 50, alignment: Alignment.center,
-                padding: const EdgeInsets.all(Dimensions.paddingSizeSmall),
-                decoration: BoxDecoration(color: Colors.grey[300], shape: BoxShape.circle),
-              ),
-              const SizedBox(width: Dimensions.paddingSizeSmall),
-
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                Container(height: 15, width: 200, color: Colors.grey[300]),
-                const SizedBox(height: Dimensions.paddingSizeExtraSmall),
-                Container(height: 15, width: 100, color: Colors.grey[300]),
-              ])),
-              const SizedBox(width: Dimensions.paddingSizeSmall),
-            ]),
-          ),
-        );
+        return _ParcelCategoryShimmerCard(isEnabled: isEnabled);
       },
+    );
+  }
+}
+
+/// The loading tile for one "What would you like to send?" card.
+///
+/// Traces [ParcelCategoryCardWidget]'s *shape* — `radiusLarge` corners, the same
+/// padding, the same left-text / right-thumbnail arrangement — but deliberately
+/// **not its colour**. The real cards are pastel-tinted per index; painting the
+/// skeleton in those made loading look like finished content and turned the
+/// section into a block of colour before anything had arrived. A neutral tile
+/// reads as "not ready yet", which is what a skeleton is for.
+///
+/// (The earlier skeleton was a grey card with a 50px *circle on the left* — a
+/// layout the real card never has — so the content appeared to jump sides.)
+class _ParcelCategoryShimmerCard extends StatelessWidget {
+  final bool isEnabled;
+
+  const _ParcelCategoryShimmerCard({required this.isEnabled});
+
+  @override
+  Widget build(BuildContext context) {
+    // One neutral tone for every tile, keyed to the theme so it holds up in dark
+    // mode. The bars sit a shade darker so they read against the tile.
+    final Color tile = Theme.of(context).disabledColor.withValues(alpha: 0.08);
+    final Color bar = Theme.of(context).disabledColor.withValues(alpha: 0.20);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: tile,
+        borderRadius: BorderRadius.circular(Dimensions.radiusLarge),
+      ),
+      padding: const EdgeInsets.symmetric(
+        vertical: Dimensions.paddingSizeSmall,
+        horizontal: Dimensions.paddingSizeSmall,
+      ),
+      child: Shimmer(
+        duration: const Duration(seconds: 2),
+        enabled: isEnabled,
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // The title: one bold line, as the card allows exactly one.
+              _Bar(height: 13, color: bar),
+              const SizedBox(height: 6),
+
+              // The description: two lines, the second short, matching the
+              // card's `maxLines: 2` body.
+              _Bar(height: 9, color: bar),
+              const SizedBox(height: 5),
+              _Bar(height: 9, color: bar, widthFactor: 0.55),
+            ],
+          )),
+          const SizedBox(width: Dimensions.paddingSizeExtraSmall),
+
+          // The 40x40 rounded thumbnail, on the right where the real one sits.
+          Container(
+            height: 40, width: 40,
+            decoration: BoxDecoration(
+              color: bar,
+              borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// One placeholder line. [widthFactor] shortens it to suggest a ragged last
+/// line of text rather than a solid block.
+class _Bar extends StatelessWidget {
+  final double height;
+  final Color color;
+  final double widthFactor;
+
+  const _Bar({required this.height, required this.color, this.widthFactor = 1});
+
+  @override
+  Widget build(BuildContext context) {
+    return FractionallySizedBox(
+      alignment: AlignmentDirectional.centerStart,
+      widthFactor: widthFactor,
+      child: Container(
+        height: height,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+        ),
+      ),
     );
   }
 }

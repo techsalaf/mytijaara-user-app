@@ -1,10 +1,12 @@
 import 'package:get/get_connect/http/src/response/response.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:sixam_mart/common/enums/data_source_enum.dart';
+import 'package:sixam_mart/features/checkout/domain/models/coverage_list_model.dart';
 import 'package:sixam_mart/features/checkout/domain/models/place_order_body_model.dart';
 import 'package:sixam_mart/features/checkout/domain/repositories/checkout_repository_interface.dart';
 import 'package:sixam_mart/features/parcel/domain/models/parcel_cancellation_reasons_model.dart';
 import 'package:sixam_mart/features/parcel/domain/models/parcel_category_model.dart';
+import 'package:sixam_mart/features/parcel/domain/models/parcel_tier_model.dart';
 import 'package:sixam_mart/features/parcel/domain/models/video_content_model.dart';
 import 'package:sixam_mart/features/parcel/domain/models/why_choose_model.dart';
 import 'package:sixam_mart/features/parcel/domain/repositories/parcel_repository_interface.dart';
@@ -71,6 +73,26 @@ class ParcelService implements ParcelServiceInterface{
   @override
   Future<ParcelCancellationReasonsModel?> getParcelCancellationReasons({required bool isBeforePickup}) async {
     return parcelRepositoryInterface.getParcelCancellationReasons(isBeforePickup: isBeforePickup);
+  }
+
+  @override
+  Future<ParcelTierListModel<ParcelWeightModel>?> getParcelWeightList({required int zoneId, int? moduleId}) async {
+    return await parcelRepositoryInterface.getParcelWeightList(zoneId: zoneId, moduleId: moduleId);
+  }
+
+  @override
+  Future<ParcelTierListModel<ParcelDimensionModel>?> getParcelDimensionList({required int zoneId, int? moduleId}) async {
+    return await parcelRepositoryInterface.getParcelDimensionList(zoneId: zoneId, moduleId: moduleId);
+  }
+
+  /// Delegated to the checkout repository rather than duplicated here: the
+  /// endpoint is the same `delivery-charge/coverage-list` a store checkout
+  /// calls, answered for a `(zone, module)` pair, and a parcel is priced by the
+  /// same delivery rule. A second copy would only be a second thing to keep in
+  /// step.
+  @override
+  Future<CoverageListModel?> getParcelCoverageList({required int zoneId, int? moduleId}) async {
+    return await checkoutRepositoryInterface.getCoverageList(zoneId: zoneId, moduleId: moduleId);
   }
 
 }

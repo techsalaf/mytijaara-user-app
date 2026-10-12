@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:sixam_mart/common/controllers/theme_controller.dart';
 import 'package:sixam_mart/common/widgets/back_to_top.dart';
+import 'package:sixam_mart/common/widgets/lazy_sliver.dart';
 import 'package:sixam_mart/features/home/screens/home_screen.dart';
 import 'package:sixam_mart/features/smart_banner/controllers/smart_banner_controller.dart';
 import 'package:sixam_mart/features/home/widgets/refer_bottom_sheet_widget.dart';
@@ -85,9 +86,6 @@ class _MainScreenState extends State<MainScreen> with AutomaticKeepAliveClientMi
     super.didUpdateWidget(oldWidget);
   }
 
-  // Hysteresis dead-zone to prevent jitter at the pin boundary. The pinned state
-  // uses a larger unpin threshold to avoid rapid toggling caused by sub-pixel
-  // localToGlobal noise as the widget crosses the viewport edge.
   static const double _pinHysteresis = 4.0;
 
   void _handleScroll() {
@@ -96,8 +94,6 @@ class _MainScreenState extends State<MainScreen> with AutomaticKeepAliveClientMi
     }
 
     final double? searchHeaderTop = _getSearchHeaderTop();
-    // Pin when the header reaches the viewport top; unpin only once it's _pinHysteresis
-    // px back in view. This dead zone prevents rapid toggling at the boundary.
     final bool isPinned = searchHeaderTop != null && (_isSearchPinned
         ? searchHeaderTop <= _pinHysteresis
         : searchHeaderTop <= 0);
@@ -109,15 +105,11 @@ class _MainScreenState extends State<MainScreen> with AutomaticKeepAliveClientMi
     final bool showBackToTop = _scrollController.position.pixels > _backToTopThreshold;
     final bool isTopHeaderScrolledOut = _getIsTopHeaderScrolledOut();
 
-    // Continuous offset → ValueNotifier (rebuilds only the pinned search widget).
-    // ValueNotifier no-ops when the value is unchanged, so idle frames cost nothing.
     _pinnedTopFilterScrollOutOffset.value = pinnedTopFilterScrollOutOffset;
     if(showBackToTop) {
       _backToTopTop.value = _resolveBackToTopTop();
     }
 
-    // Booleans flip rarely (once per boundary) — setState is fine and keeps the
-    // status-bar tint / pinned-overlay visibility in sync as redesign expects.
     if(isPinned != _isSearchPinned || isExploreRestaurantFilterPinned != _isExploreRestaurantFilterPinned || showBackToTop != _showBackToTop || isTopHeaderScrolledOut != _isTopHeaderScrolledOut) {
       setState(() {
         _isSearchPinned = isPinned;
@@ -128,9 +120,6 @@ class _MainScreenState extends State<MainScreen> with AutomaticKeepAliveClientMi
     }
   }
 
-  // True once the top header's bottom edge has passed above the viewport top,
-  // i.e. module content (cardColor) now sits behind the status bar. Used to tint
-  // the status bar for modules that have no pinnable search header.
   bool _getIsTopHeaderScrolledOut() {
     final BuildContext? topHeaderContext = _topHeaderKey.currentContext;
     final BuildContext? scrollContext = _scrollViewKey.currentContext;
@@ -157,7 +146,25 @@ class _MainScreenState extends State<MainScreen> with AutomaticKeepAliveClientMi
     final double stackTop = scrollObject.localToGlobal(Offset.zero).dy;
     final double searchBottom = _getPinnedOverlayBottom(_pinnedSearchKey, stackTop);
     final double filterBottom = _getPinnedOverlayBottom(_pinnedExploreFilterKey, stackTop);
-    return (searchBottom > filterBottom ? searchBottom : filterBottom) + _backToTopGap;
+    final double moduleHeaderBottom = _moduleOwnedPinnedHeaderHeight;
+
+    double highest = searchBottom > filterBottom ? searchBottom : filterBottom;
+    if(moduleHeaderBottom > highest) {
+      highest = moduleHeaderBottom;
+    }
+    return highest + _backToTopGap;
+  }
+
+  double _moduleOwnedPinnedHeaderHeight = 0;
+
+  static double _pinnedHeaderHeightFor(String? moduleType) {
+    if(moduleType == AppConstants.parcel) {
+      return ParcelModuleScreen.pinnedHeaderHeight;
+    }
+    if(moduleType == AppConstants.taxi) {
+      return RentalModuleScreen.pinnedHeaderHeight;
+    }
+    return 0;
   }
 
   double _getPinnedOverlayBottom(GlobalKey key, double stackTop) {
@@ -176,11 +183,6 @@ class _MainScreenState extends State<MainScreen> with AutomaticKeepAliveClientMi
     _scrollController.animateTo(0, duration: const Duration(milliseconds: 400), curve: Curves.easeOut);
   }
 
-  // The per-frame measurement in _handleScroll reads localToGlobal one frame
-  // behind the actual scroll, so when scrolling stops the last value can be
-  // stale (e.g. the pinned top-filter scroll-out offset doesn't settle to its
-  // right position). When the scroll goes idle, re-measure once the final
-  // layout has been laid out so every pinned offset lands correctly.
   bool _onScrollEnd(ScrollEndNotification notification) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -256,10 +258,9 @@ class _MainScreenState extends State<MainScreen> with AutomaticKeepAliveClientMi
       await ServiceScreen.loadData();
     } else {
       await HomeScreen.loadData(true, fromModule: true);
+      LazyRefreshNotifier.bump();
     }
 
-    // Smart banners are shown only on the general Home dashboard (home_new_screen),
-    // and HomeScreen.loadData doesn't reload them — refresh them here on Home pull-to-refresh.
     if (moduleType == null) {
       Get.find<SmartBannerController>().getSmartBanners(notify: false);
     }
@@ -293,9 +294,6 @@ class _MainScreenState extends State<MainScreen> with AutomaticKeepAliveClientMi
   }
 
   ModuleModel _getSelectedModuleSelection(SplashController splashController) {
-    // if(widget.moduleType != null && !_hasSyncedSelectedModuleIndex) {
-    //   return const ModuleModel(label: 'Home');
-    // }
 
     final int selectedIndex = splashController.selectedModuleIndex;
     if(selectedIndex == 0) {
@@ -351,23 +349,15 @@ class _MainScreenState extends State<MainScreen> with AutomaticKeepAliveClientMi
   Widget build(BuildContext context) {
     super.build(context);
     return GetBuilder<SplashController>(builder: (splashController) {
-      // When the zone offers a single module, lock the dashboard to that module:
-      // hide the module tab strip + Home landing, and show only that module's screen.
       final bool isSingleModule = splashController.moduleList != null && splashController.moduleList!.length == 1;
 
       ModuleModel selectedModule = _getSelectedModuleSelection(splashController);
       if (isSingleModule) {
-        // Resolve to the single module right away so HomeNewScreen never flashes
-        // for a frame before the post-frame selection lands. Uses the same label
-        // mapping as the indexed path, so the render switch resolves identically.
         if (selectedModule.moduleType == null) {
           final singleModule = splashController.moduleList![0];
           final String moduleType = singleModule.moduleType?.toString() ?? '';
           selectedModule = ModuleModel(label: _moduleLabel(singleModule.moduleName, moduleType), moduleType: moduleType);
         }
-        // Make it the active selection once (sets _module + loads its data). Deferred
-        // to post-frame to avoid calling update() during build; switchModule is
-        // internally idempotent so this won't loop.
         if (splashController.selectedModuleIndex != 1) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) splashController.selectModuleByTabIndex(1);
@@ -376,25 +366,20 @@ class _MainScreenState extends State<MainScreen> with AutomaticKeepAliveClientMi
       }
 
       final String? selectedModuleType = selectedModule.moduleType;
+      _moduleOwnedPinnedHeaderHeight = _pinnedHeaderHeightFor(selectedModuleType);
       final bool isHomeModule = selectedModuleType == null;
       final bool isParcelModule = selectedModuleType == AppConstants.parcel;
       final bool isServiceModule = selectedModuleType == AppConstants.service;
       final bool showPinnedSearch = _isSearchPinned;
       final bool showPinnedExploreRestaurantFilter = !isHomeModule && _isSearchPinned && _isExploreRestaurantFilterPinned;
 
-      // Status bar tint: matches the TopHeaderWidget (disabled tint) at the top, and
-      // the pinned search bar (card color) once the search layer sticks.
       final bool isDark = Get.find<ThemeController>().darkTheme;
-      // Opaque equivalent of the TopHeaderWidget tint (disabledColor@30 over card) so
-      // it can back the status bar without a semi-transparent color bleeding to the window.
       final Color topStatusBarColor = Color.alphaBlend(
         Theme.of(context).disabledColor.withAlpha(30),
         Theme.of(context).cardColor,
       );
       final Color statusBarColor = (_isSearchPinned || _isTopHeaderScrolledOut) ? Theme.of(context).cardColor : topStatusBarColor;
 
-      // Publish the tint so the root overlay can hold the status-bar colour above
-      // modal barriers (bottom sheets / dialogs) opened from the home tab.
       if (!ResponsiveHelper.isWeb()) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
@@ -412,13 +397,8 @@ class _MainScreenState extends State<MainScreen> with AutomaticKeepAliveClientMi
         child: Scaffold(
         extendBody: true,
         backgroundColor: Theme.of(context).cardColor,
-        // endDrawer: const MenuDrawer(),
-        // endDrawerEnableOpenDragGesture: false,
-        // bottomNavigationBar: BottomNavigationWidget(padding: Dimensions.paddingSizeDefault),
         body: Column(
           children: [
-            // Only the status-bar strip carries the dynamic tint; the body keeps
-            // cardColor so the header (which adds its own tint) isn't double-tinted.
             Container(height: MediaQuery.paddingOf(context).top, color: statusBarColor),
             Expanded(child: SafeArea(
               top: false,
@@ -435,11 +415,8 @@ class _MainScreenState extends State<MainScreen> with AutomaticKeepAliveClientMi
                   controller: _scrollController,
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
-                    // Section: top header and module tabs (tabs hidden when a single module is active)
                     SliverToBoxAdapter(child: TopHeaderWidget(key: _topHeaderKey, isHomeModule: isHomeModule, isParcelModule: isParcelModule, showModuleTabs: !isSingleModule)),
 
-                    // module view — resolved by moduleType, never by the display label
-                    // (the label is the admin-configured module name and can be anything).
                     if(isHomeModule) HomeNewScreen(searchHeaderKey: _searchHeaderKey, isSearchPinned: _isSearchPinned),
                     if(selectedModuleType == AppConstants.grocery) GroceryModuleScreen(searchHeaderKey: _searchHeaderKey, exploreRestaurantKey: _exploreRestaurantFilterKey, scrollController: _scrollController, isSearchPinned: _isSearchPinned,),
                     if(selectedModuleType == AppConstants.pharmacy) PharmacyModuleScreen(searchHeaderKey: _searchHeaderKey, exploreRestaurantKey: _exploreRestaurantFilterKey, scrollController: _scrollController, isSearchPinned: _isSearchPinned,),

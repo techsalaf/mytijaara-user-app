@@ -20,8 +20,6 @@ import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 
-import 'upload_prescription_widget.dart';
-
 class TopSection extends StatelessWidget {
   final CheckoutController checkoutController;
   final double charge;
@@ -30,9 +28,8 @@ class TopSection extends StatelessWidget {
   final bool tomorrowClosed;
   final bool todayClosed;
   final Module? module;
-  final  double price;
+  final double subTotal;
   final double discount;
-  final double addOns;
   final int? storeId;
   final List<AddressModel> address;
   final List<CartModel?>? cartList;
@@ -53,7 +50,6 @@ class TopSection extends StatelessWidget {
   final TextEditingController guestConfirmPasswordController;
   final FocusNode guestPasswordNode;
   final FocusNode guestConfirmPasswordNode;
-  final double variationPrice;
   final String deliveryChargeForView;
   final double badWeatherCharge;
   final double extraChargeForToolTip;
@@ -61,7 +57,7 @@ class TopSection extends StatelessWidget {
 
   const TopSection({
     super.key, required this.deliveryCharge, required  this.charge, required this.tomorrowClosed,
-    required this.todayClosed, required this.price, required this.discount, required this.addOns,
+    required this.todayClosed, required this.subTotal, required this.discount,
     required this.addressList, required this.checkoutController,
     this.module, this.storeId, required this.address, required this.cartList,
     required this.isCashOnDeliveryActive, required this.isDigitalPaymentActive, required this.isWalletActive,
@@ -69,7 +65,7 @@ class TopSection extends StatelessWidget {
     required this.guestNumberTextEditingController, required this.guestNumberNode,
     required this.guestEmailController, required this.guestEmailNode, required this.tooltipController1,
     required this.tooltipController2, required this.dmTipsTooltipController, required this.guestPasswordController, required this.guestConfirmPasswordController,
-    required this.guestPasswordNode, required this.guestConfirmPasswordNode, required this.variationPrice, required this.deliveryChargeForView,
+    required this.guestPasswordNode, required this.guestConfirmPasswordNode, required this.deliveryChargeForView,
     required this.badWeatherCharge, required this.extraChargeForToolTip, this.proFreeDelivery = false,
   });
 
@@ -83,26 +79,18 @@ class TopSection extends StatelessWidget {
       decoration: ResponsiveHelper.isDesktop(context) ? BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
-        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 5, spreadRadius: 1)],
       ) : null,
       child: Column(children: [
 
-        !AuthHelper.isGuestLoggedIn() && storeId != null ? Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeLarge, vertical: Dimensions.paddingSizeSmall),
-          child: UploadPrescriptionWidget(
-            checkoutController: checkoutController, storeId: storeId, isPrescriptionRequired: storeId != null,
-            tooltipController1: tooltipController1, tooltipController2: tooltipController2,
-          ),
-        ) : const SizedBox(),
         const SizedBox(height: Dimensions.paddingSizeLarge),
 
         // delivery option
         DeliveryTypeSection(
           homeDeliveryEnabled: storeId != null
-              || (Get.find<SplashController>().configModel!.homeDeliveryStatus == 1 && checkoutController.store!.delivery!),
+              || (Get.find<SplashController>().configModel!.homeDeliveryStatus == 1 && (checkoutController.store!.delivery ?? true)),
           takeAwayEnabled: storeId == null
               && Get.find<SplashController>().configModel!.takeawayStatus == 1
-              && checkoutController.store!.takeAway!,
+              && (checkoutController.store!.takeAway ?? false),
           total: total,
           charge: charge,
         ),
@@ -112,10 +100,7 @@ class TopSection extends StatelessWidget {
           final bool showTimeSlot = TimeSlotSection.shouldRender(
             storeId: storeId, checkoutController: controller, cartList: cartList,
           );
-          // Saver delivery options apply only to instant delivery — hide them once a schedule slot is chosen.
-          final bool showSaver = controller.isInstantDelivery && SaverDeliveryTimeWidget.canShow(
-            controller: controller, deliveryCharge: deliveryCharge, originalDeliveryCharge: charge, proFreeDelivery: proFreeDelivery,
-          );
+          final bool showSaver = controller.isInstantDelivery && SaverDeliveryTimeWidget.canShow(controller: controller);
 
           if(showTimeSlot) {
             return Column(
@@ -164,8 +149,8 @@ class TopSection extends StatelessWidget {
 
         /// Coupon..
         !isDesktop && !isGuestLoggedIn ? CouponSection(
-          storeId: storeId, checkoutController: checkoutController, total: total, price: price,
-          discount: discount, addOns: addOns, deliveryCharge: deliveryCharge, variationPrice: variationPrice,
+          storeId: storeId, checkoutController: checkoutController, total: total, subTotal: subTotal,
+          discount: discount, deliveryCharge: deliveryCharge,
         ) : const SizedBox(),
 
         ///DmTips..

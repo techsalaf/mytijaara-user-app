@@ -1,4 +1,5 @@
 import 'package:sixam_mart/common/widgets/custom_button.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
@@ -59,6 +60,8 @@ class _NoDataView extends StatelessWidget {
         child: Image.asset(
           fromAddress ? Images.address : isCart ? Images.emptyCart : Images.noDataFound,
           width: MediaQuery.of(context).size.height*0.15, height: MediaQuery.of(context).size.height*0.15,
+          cacheHeight: ImageCacheHelper.pixels(context, MediaQuery.of(context).size.height*0.15),
+          cacheWidth: ImageCacheHelper.pixels(context, MediaQuery.of(context).size.height*0.15)
         ),
       ),
       SizedBox(height: MediaQuery.of(context).size.height*0.03),

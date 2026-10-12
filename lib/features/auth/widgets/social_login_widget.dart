@@ -16,6 +16,7 @@ import 'package:sixam_mart/features/auth/screens/new_user_setup_screen.dart';
 import 'package:sixam_mart/features/auth/widgets/sign_in/existing_user_bottom_sheet.dart';
 import 'package:sixam_mart/features/location/controllers/location_controller.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
+import 'package:sixam_mart/helper/keyboard_helper.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/util/app_constants.dart';
@@ -269,6 +270,7 @@ class SocialLoginWidget extends StatelessWidget {
   }
 
   void _googleLogin(GoogleSignIn googleSignIn) async {
+    KeyboardHelper.dismiss();
     if(kIsWeb) {
       await _googleWebSignIn();
 
@@ -334,6 +336,7 @@ class SocialLoginWidget extends StatelessWidget {
   }
 
   void _facebookLogin() async {
+    KeyboardHelper.dismiss();
     LoginResult result = await FacebookAuth.instance.login(
       permissions: ["public_profile", "email"],
       loginTracking: LoginTracking.enabled,
@@ -357,6 +360,7 @@ class SocialLoginWidget extends StatelessWidget {
   }
 
   void _appleLogin() async {
+    KeyboardHelper.dismiss();
     String clientID = Get.find<SplashController>().configModel!.appleLogin![0].clientId!;
     String redirectURL = Get.find<SplashController>().configModel!.appleLogin![0].redirectUrl!;
 
@@ -386,6 +390,7 @@ class SocialLoginWidget extends StatelessWidget {
   }
 
   Future<void> _processSocialSuccessSetup(ResponseModel response, SocialLogInBody? googleBodyModel, SocialLogInBody? appleBodyModel, SocialLogInBody? facebookBodyModel) async {
+    KeyboardHelper.dismiss();
     String? email = googleBodyModel != null ? googleBodyModel.email : appleBodyModel != null ? appleBodyModel.email : facebookBodyModel?.email;
     if(response.isSuccess && response.authResponseModel != null && response.authResponseModel!.isExistUser != null) {
       if(appleBodyModel != null) {

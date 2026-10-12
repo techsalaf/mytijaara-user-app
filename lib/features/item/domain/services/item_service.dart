@@ -120,22 +120,37 @@ class ItemService implements ItemServiceInterface {
 
   @override
   List<int> initializeCartVariationIndexes(List<Variation>? variation, List<ChoiceOptions>? choiceOptions) {
-    List<int> variationIndex = [];
     List<String> variationTypes = [];
-    if(variation!.isNotEmpty && variation[0].type != null) {
+    if(variation != null && variation.isNotEmpty && variation[0].type != null) {
       variationTypes.addAll(variation[0].type!.split('-'));
     }
-    int varIndex = 0;
-    for (var choiceOption in choiceOptions!) {
-      for(int index=0; index<choiceOption.options!.length; index++) {
-        if(choiceOption.options![index].trim().replaceAll(' ', '') == variationTypes[varIndex].trim()) {
-          variationIndex.add(index);
-          break;
-        }
-      }
-      varIndex++;
+    List<int> variationIndex = [];
+    for(int group = 0; group < (choiceOptions?.length ?? 0); group++) {
+      // One entry per group whatever the row holds: the picker indexes this list by group,
+      // so a short one left every option unselected and put every tap out of range.
+      variationIndex.add(_selectedOptionIndex(
+        choiceOptions![group].options ?? const <String>[],
+        group < variationTypes.length ? variationTypes[group] : null,
+      ));
     }
     return variationIndex;
+  }
+
+  int _selectedOptionIndex(List<String> options, String? type) {
+    if(type == null) {
+      return 0;
+    }
+    // A stored type has its spaces stripped and the options do not, so both are
+    // normalised rather than only the option side.
+    final String wanted = type.trim().replaceAll(' ', '');
+    for(int index = 0; index < options.length; index++) {
+      if(options[index].trim().replaceAll(' ', '') == wanted) {
+        return index;
+      }
+    }
+    // Falls back to the first option, exactly as an item opened outside the cart does —
+    // an unmatched type must still leave a selection the picker and the bill can read.
+    return 0;
   }
 
   @override
@@ -299,6 +314,10 @@ class ItemService implements ItemServiceInterface {
   @override
   Future<int> isExistInCartForBottomSheet(List<CartModel> cartList, int? itemId, int? cartIndex, List<List<bool?>>? variations) async{
     for(int index=0; index<cartList.length; index++) {
+      // Skips any row with no item of its own — item! is dereferenced below.
+      if(cartList[index].isAtomicBundle) {
+        continue;
+      }
       if(cartList[index].item!.id == itemId) {
         if((index == cartIndex)) {
           return -1;

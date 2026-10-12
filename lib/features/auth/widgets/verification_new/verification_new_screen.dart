@@ -81,10 +81,11 @@ class VerificationNewScreenState extends State<VerificationNewScreen> {
 
   @override
   void dispose() {
-    super.dispose();
+    _scrollController.dispose();
 
     _timer?.cancel();
     errorController.close();
+    super.dispose();
   }
 
   @override

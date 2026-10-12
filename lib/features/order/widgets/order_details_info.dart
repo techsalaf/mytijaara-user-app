@@ -6,6 +6,7 @@ class _OrderDetailsInfo extends StatefulWidget {
   final List<OrderDetailsModel> orderDetails;
   final BillingValues billing;
   final bool? isDragable;
+  final Future<void> Function()? onExpandSheet;
 
   const _OrderDetailsInfo({
     required this.order,
@@ -13,6 +14,7 @@ class _OrderDetailsInfo extends StatefulWidget {
     required this.orderDetails,
     required this.billing,
     this.isDragable = false,
+    this.onExpandSheet,
   });
 
   @override
@@ -20,12 +22,15 @@ class _OrderDetailsInfo extends StatefulWidget {
 }
 
 class _OrderDetailsInfoState extends State<_OrderDetailsInfo> {
-  late bool _isExpanded;
+  final GlobalKey _billingKey = GlobalKey();
 
-  @override
-  void initState() {
-    super.initState();
-    _isExpanded = true;
+  Future<void> _scrollToBilling() async {
+    await widget.onExpandSheet?.call();
+    final BuildContext? billingContext = _billingKey.currentContext;
+    if (billingContext == null || !billingContext.mounted) return;
+    await Scrollable.ensureVisible(
+      billingContext, duration: const Duration(milliseconds: 400), curve: Curves.easeInOut,
+    );
   }
 
   @override
@@ -59,7 +64,7 @@ class _OrderDetailsInfoState extends State<_OrderDetailsInfo> {
         widget.order.orderStatus != 'canceled' && Get.find<SplashController>().configModel!.orderDeliveryVerification! ? Divider(height: Dimensions.paddingSizeLarge, color: Theme.of(context).disabledColor.withValues(alpha: 0.5)) : const SizedBox(),
 
         GestureDetector(
-          onTap: () => setState(() => _isExpanded = !_isExpanded),
+          onTap: _scrollToBilling,
           child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
             Text(
               PriceConverter.convertPrice(widget.total),
@@ -67,50 +72,51 @@ class _OrderDetailsInfoState extends State<_OrderDetailsInfo> {
             ),
             const SizedBox(width: Dimensions.paddingSizeSmall),
 
-            AnimatedRotation(
-              turns: _isExpanded ? 0 : -0.5,
-              duration: const Duration(milliseconds: 300),
-              child: Container(width: 24, height: 24,
-                decoration: BoxDecoration(color: Theme.of(context).disabledColor.withValues(alpha: 0.12), shape: BoxShape.circle),
-                child: Icon(Icons.keyboard_arrow_down, size: 16, color: Theme.of(context).textTheme.bodyLarge?.color),
-              ),
+            Container(width: 24, height: 24,
+              decoration: BoxDecoration(color: Theme.of(context).disabledColor.withValues(alpha: 0.12), shape: BoxShape.circle),
+              child: Icon(Icons.keyboard_arrow_down, size: 16, color: Theme.of(context).textTheme.bodyLarge?.color),
             ),
           ]),
         ),
 
-        AnimatedCrossFade(
-          firstChild: const SizedBox(width: double.infinity),
-          secondChild: Padding(
-            padding: const EdgeInsets.only(top: Dimensions.paddingSizeDefault),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Padding(
+          padding: const EdgeInsets.only(top: Dimensions.paddingSizeDefault),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Divider(height: 20, thickness: 1, color: dividerColor),
+
+            if (widget.order.scheduled == 1) ...[
+              ScheduledOrderBanner(order: widget.order),
               Divider(height: 20, thickness: 1, color: dividerColor),
+            ],
 
-              if (widget.order.scheduled == 1) ...[
-                ScheduledOrderBanner(order: widget.order),
-                Divider(height: 20, thickness: 1, color: dividerColor),
-              ],
+            if (!widget.isDragable! && widget.order.deliveryMan != null) ...[
+              const SizedBox(height: Dimensions.paddingSizeSmall),
+              DeliveryManSection(order: widget.order),
+              const SizedBox(height: Dimensions.paddingSizeDefault),
+            ],
 
-              if (!widget.isDragable! && widget.order.deliveryMan != null) ...[
-                const SizedBox(height: Dimensions.paddingSizeSmall),
-                DeliveryManSection(order: widget.order),
-                const SizedBox(height: Dimensions.paddingSizeDefault),
-              ],
+            StoreUserAddressBlock(order: widget.order),
 
-              StoreUserAddressBlock(order: widget.order),
-
-              if ((widget.order.deliveryInstruction != null || widget.order.unavailableItemNote != null || widget.order.orderNote != null || (widget.order.bringChangeAmount != null && widget.order.bringChangeAmount! > 0))) ...[
-                const SizedBox(height: Dimensions.paddingSizeDefault),
-                NotesCollapsible(order: widget.order),
-              ],
-            ]),
-          ),
-          crossFadeState: _isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-          duration: const Duration(milliseconds: 200),
+            if ((widget.order.deliveryInstruction != null || widget.order.unavailableItemNote != null || widget.order.orderNote != null || (widget.order.bringChangeAmount != null && widget.order.bringChangeAmount! > 0))) ...[
+              const SizedBox(height: Dimensions.paddingSizeDefault),
+              NotesCollapsible(order: widget.order),
+            ],
+          ]),
         ),
+
+        if (PrescriptionSection.hasPrescription(widget.order)) ...[
+          Divider(height: 40, thickness: 1, color: dividerColor),
+          PrescriptionSection(order: widget.order),
+        ],
 
         if (hasItems) ...[
           Divider(height: 40, thickness: 1, color: dividerColor),
           ItemInfoSection(orderDetails: widget.orderDetails),
+        ],
+
+        if (widget.order.orderType == 'parcel' && widget.order.parcelCategory != null) ...[
+          Divider(height: 40, thickness: 1, color: dividerColor),
+          ParcelTypeSection(order: widget.order),
         ],
 
         if((widget.order.payments != null && widget.order.payments!.isNotEmpty) || (widget.order.paymentMethod != null && widget.order.paymentMethod!.isNotEmpty)) ...[
@@ -119,15 +125,13 @@ class _OrderDetailsInfoState extends State<_OrderDetailsInfo> {
             PaymentMethodSection(payments: widget.order.payments!)
           else
             PaymentMethodSection(payments: [Payments(paymentMethod: widget.order.paymentMethod, amount: widget.order.orderAmount)]),
-        ],
 
-        if (widget.order.orderType == 'parcel' && widget.order.parcelCategory != null) ...[
-          Divider(height: 40, thickness: 1, color: dividerColor),
-          ParcelTypeSection(order: widget.order),
+          // Renders nothing unless the payment never completed — see PaymentRetrySection.
+          PaymentRetrySection(order: widget.order),
         ],
 
         Divider(height: 40, thickness: 1, color: dividerColor),
-        BillingSummarySection(order: widget.order, billing: widget.billing),
+        BillingSummarySection(key: _billingKey, order: widget.order, billing: widget.billing),
 
       ]),
     );
@@ -186,16 +190,13 @@ class _RegularBottomView extends StatelessWidget {
   Widget build(BuildContext context) {
     final showCancelButton = _ButtonVisibilityHelper.shouldShowCancelButton(order, orderController);
     final showReviewButton = _ButtonVisibilityHelper.shouldShowReviewButton(order, orderController);
-    final showProButton = _ButtonVisibilityHelper.isProOrder(order);
-    final showAnything = orderController.showCancelled || showCancelButton || showReviewButton || showProButton;
-    final proSavings = _ButtonVisibilityHelper.proSavings(order, billing);
+    final showAnything = orderController.showCancelled || showCancelButton || showReviewButton;
 
     if (!showAnything) return const SizedBox.shrink();
 
     return _StickyBottomBar(
       child: Column(children: [
         if (!orderController.showCancelled) ...[
-          if (proSavings > 0) ProSavingsBannerWidget(amount: proSavings, margin: const EdgeInsets.only(bottom: Dimensions.paddingSizeSmall)),
 
           if (showCancelButton)
             _CancelButtonRow(
@@ -248,21 +249,17 @@ class _ParcelBottomView extends StatelessWidget {
     final showReturnOtp = _ButtonVisibilityHelper.shouldShowParcelReturnOtp(order);
     final showReviewButton = _ButtonVisibilityHelper.shouldShowParcelReviewButton(order);
     final showSwitchToCodButton = _ButtonVisibilityHelper.shouldShowSwitchToCodButton(order, isCashOnDeliveryActive);
-    final showProButton = _ButtonVisibilityHelper.isProOrder(order);
     final showAnything = orderController.showCancelled
         || showCancelButton
         || showReturnOtp
         || showReviewButton
-        || showSwitchToCodButton
-        || showProButton;
-    final proSavings = _ButtonVisibilityHelper.proSavings(order, billing);
+        || showSwitchToCodButton;
 
     if (!showAnything) return const SizedBox.shrink();
 
     return _StickyBottomBar(
       child: Column(children: [
         if (!orderController.showCancelled) ...[
-          if (proSavings > 0) ProSavingsBannerWidget(amount: proSavings, margin: const EdgeInsets.only(bottom: Dimensions.paddingSizeSmall)),
 
           if (showCancelButton)
             _CancelButtonRow(
@@ -441,15 +438,10 @@ class _ReviewButton extends StatelessWidget {
     return CustomButton(
       buttonText: 'review'.tr,
       onPressed: () {
-        final orderDetailsList = <OrderDetailsModel>[];
-        final orderDetailsIdList = <int?>[];
-
-        for (var orderDetail in orderController.orderDetails!) {
-          if (!orderDetailsIdList.contains(orderDetail.itemDetails!.id)) {
-            orderDetailsList.add(orderDetail);
-            orderDetailsIdList.add(orderDetail.itemDetails!.id);
-          }
-        }
+        // A bundle or BOGO line is unfolded into the items it delivered, each rated on its
+        // own; both used to be skipped entirely, so nothing inside them could be reviewed.
+        final List<OrderDetailsModel> orderDetailsList =
+            ReviewableItemsHelper.from(orderController.orderDetails);
 
         Get.toNamed(RouteHelper.getReviewRoute(), arguments: RateReviewScreen(
           orderDetailsList: orderDetailsList,
@@ -559,27 +551,6 @@ class _ParcelReturnSliderState extends State<_ParcelReturnSlider> {
 }
 
 class _ButtonVisibilityHelper {
-  static bool isProOrder(OrderModel order) {
-    return (order.proDiscount ?? 0) > 0
-        || (order.deliveryFeeReductionAmount ?? 0) > 0
-        || (order.benefitType == ProBenefitType.coupon && (order.couponDiscountAmount ?? 0) > 0);
-  }
-
-  static double proSavings(OrderModel order, BillingValues billing) {
-    final isProDiscount = order.benefitType == ProBenefitType.discount && (order.proDiscount ?? 0) > 0;
-    final isProCoupon = order.benefitType == ProBenefitType.coupon && (billing.couponDiscount > 0 || (order.couponDiscountAmount ?? 0) > 0);
-    final isProDeliveryFee = order.benefitType == ProBenefitType.deliveryFee && (order.deliveryFeeReductionAmount ?? 0) > 0;
-
-    if (isProDiscount) {
-      return order.proDiscount ?? 0;
-    } else if (isProCoupon) {
-      return (order.couponDiscountAmount ?? 0) > 0 ? (order.couponDiscountAmount ?? 0) : billing.couponDiscount;
-    } else if (isProDeliveryFee) {
-      return order.deliveryFeeReductionAmount ?? 0;
-    }
-    return 0;
-  }
-
   static bool shouldShowCancelButton(OrderModel order, OrderController orderController) {
     final isUserLoggedIn = Get.find<AuthController>().isLoggedIn();
     final hasGuestOrderDetails = orderController.orderDetails != null && orderController.orderDetails!.isNotEmpty && orderController.orderDetails![0].isGuest == 1;
@@ -602,13 +573,6 @@ class _ButtonVisibilityHelper {
     } else {
       return cancellableStatuses.contains(order.orderStatus) && canCancel;
     }
-  }
-
-  static bool shouldShowTrackDeliveryButton(OrderModel? order) {
-    if (order == null) return false;
-    final trackableStatuses = ['pending', 'accepted', 'confirmed', 'processing', 'handover', 'picked_up'];
-    final isPendingWithoutDigitalPayment = order.orderStatus == 'pending' && order.paymentMethod != 'digital_payment';
-    return isPendingWithoutDigitalPayment || trackableStatuses.contains(order.orderStatus);
   }
 
   static bool shouldShowReviewButton(OrderModel order, OrderController orderController) {

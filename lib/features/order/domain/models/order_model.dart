@@ -1,8 +1,14 @@
+import 'package:sixam_mart/api/response_parser.dart';
+import 'package:sixam_mart/api/json_reader.dart';
+import 'package:sixam_mart/common/models/pagination_model.dart';
 
 import 'package:sixam_mart/features/address/domain/models/address_model.dart';
+import 'package:sixam_mart/features/order/domain/models/order_parcel_measurement_model.dart';
 import 'package:sixam_mart/features/parcel/domain/models/parcel_category_model.dart';
 import 'package:sixam_mart/features/pro/domain/models/pro_active_offer_model.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
+import 'package:sixam_mart/helper/date_converter.dart';
+import 'package:sixam_mart/helper/type_converter_helper.dart';
 
 class PaginatedOrderModel {
   int? totalSize;
@@ -13,14 +19,22 @@ class PaginatedOrderModel {
   PaginatedOrderModel({this.totalSize, this.limit, this.offset, this.orders});
 
   PaginatedOrderModel.fromJson(Map<String, dynamic> json) {
-    totalSize = json['total_size'];
-    limit = json['limit'].toString();
-    offset = (json['offset'] != null && json['offset'].toString().trim().isNotEmpty) ? int.parse(json['offset'].toString()) : null;
-    if (json['orders'] != null) {
+    // Paging arrives flat (`total_size`/`limit`/`offset`) on the legacy format
+    // and nested under `pagination` now. Property names are unchanged, so no
+    // caller needs an edit.
+    final PaginationModel _pg = PaginationModel.fromJson(json);
+    totalSize = _pg.totalSize;
+    limit = _pg.limit?.toString();
+    offset = _pg.offset;
+    // The list moved to `data` in the new API format. `listOf` checks the legacy
+    // key first, so a backend still answering with `orders` parses exactly as before
+    // and only the new shape is newly understood.
+    final List<dynamic>? orderEntries = ResponseParser.listOf(json, legacyKey: 'orders');
+    if (orderEntries != null) {
       orders = [];
-      json['orders'].forEach((v) {
+      for (final dynamic v in orderEntries) {
         orders!.add(OrderModel.fromJson(v));
-      });
+      }
     }
   }
 
@@ -77,6 +91,12 @@ class OrderModel {
   AddressModel? deliveryAddress;
   AddressModel? receiverDetails;
   ParcelCategoryModel? parcelCategory;
+
+  /// The weight band and size class the parcel was priced against. Both are
+  /// null whenever the zone does not price by that tier — see
+  /// [OrderParcelMeasurement].
+  OrderParcelMeasurement? parcelWeight;
+  OrderParcelMeasurement? parcelDimension;
   double? dmTips;
   String? refundCancellationNote;
   String? refundCustomerNote;
@@ -85,6 +105,9 @@ class OrderModel {
   bool? taxStatus;
   String? cancellationReason;
   int? processingTime;
+  /// Estimated delivery window from the API. Null whenever the platform has no
+  /// promise to make — see [OrderEta].
+  OrderEta? eta;
   bool? cutlery;
   String? unavailableItemNote;
   String? deliveryInstruction;
@@ -113,6 +136,7 @@ class OrderModel {
   List<ItemsPreview>? itemsPreview;
   int ? moduleId;
   int? itemCount;
+  bool? isBogo;
 
   OrderModel({
     this.id,
@@ -152,6 +176,8 @@ class OrderModel {
     this.deliveryAddress,
     this.receiverDetails,
     this.parcelCategory,
+    this.parcelWeight,
+    this.parcelDimension,
     this.store,
     this.orderAttachmentFullUrl,
     this.dmTips,
@@ -162,6 +188,7 @@ class OrderModel {
     this.taxStatus,
     this.cancellationReason,
     this.processingTime,
+    this.eta,
     this.cutlery,
     this.unavailableItemNote,
     this.deliveryInstruction,
@@ -189,25 +216,26 @@ class OrderModel {
     this.proDiscount,
     this.itemsPreview,
     this.itemCount,
-    this.moduleId
+    this.moduleId,
+    this.isBogo,
   });
 
   OrderModel.fromJson(Map<String, dynamic> json) {
     id = json['id'];
     userId = json['user_id'];
-    orderAmount = json['order_amount'].toDouble();
-    couponDiscountAmount = json['coupon_discount_amount'].toDouble();
+    orderAmount = JsonReader.toDouble(json['order_amount']);
+    couponDiscountAmount = JsonReader.toDouble(json['coupon_discount_amount']);
     couponDiscountTitle = json['coupon_discount_title'];
     paymentStatus = json['payment_status'];
     orderStatus = json['order_status'];
-    totalTaxAmount = json['total_tax_amount'].toDouble();
+    totalTaxAmount = JsonReader.toDouble(json['total_tax_amount']);
     paymentMethod = json['payment_method'];
     couponCode = json['coupon_code'];
     orderNote = json['order_note'];
     orderType = json['order_type'];
     createdAt = json['created_at'];
     updatedAt = json['updated_at'];
-    deliveryCharge = json['delivery_charge'].toDouble();
+    deliveryCharge = JsonReader.toDouble(json['delivery_charge']);
     scheduleAt = json['schedule_at'];
     otp = json['otp'];
     pending = json['pending'];
@@ -221,7 +249,7 @@ class OrderModel {
     refundRequested = json['refund_requested'];
     refunded = json['refunded'];
     scheduled = json['scheduled'];
-    storeDiscountAmount = json['store_discount_amount'].toDouble();
+    storeDiscountAmount = JsonReader.toDouble(json['store_discount_amount']);
     failed = json['failed'];
     detailsCount = json['details_count'];
     if (json['order_attachment_full_url'] != null) {
@@ -237,7 +265,9 @@ class OrderModel {
     deliveryAddress = json['delivery_address'] != null ? AddressModel.fromJson(json['delivery_address']) : null;
     receiverDetails = json['receiver_details'] != null ? AddressModel.fromJson(json['receiver_details']) : null;
     parcelCategory = json['parcel_category'] != null ? ParcelCategoryModel.fromJson(json['parcel_category']) : null;
-    dmTips = json['dm_tips'].toDouble();
+    parcelWeight = OrderParcelMeasurement.weightFrom(json['weight']);
+    parcelDimension = OrderParcelMeasurement.dimensionFrom(json['dimension']);
+    dmTips = JsonReader.toDouble(json['dm_tips']);
     refundCancellationNote = json['refund_cancellation_note'];
     refundCustomerNote = json['refund_customer_note'];
     refund = json['refund'] != null ? Refund.fromJson(json['refund']) : null;
@@ -245,6 +275,7 @@ class OrderModel {
     taxStatus = json['tax_status'] == 'included' ? true : false;
     cancellationReason = json['cancellation_reason'];
     processingTime = json['processing_time'];
+    eta = json['eta'] is Map<String, dynamic> ? OrderEta.fromJson(json['eta'] as Map<String, dynamic>) : null;
     cutlery = json['cutlery'];
     unavailableItemNote = json['unavailable_item_note'];
     deliveryInstruction = json['delivery_instruction'];
@@ -303,6 +334,7 @@ class OrderModel {
     }
     itemCount = json['item_count'];
     moduleId = json['module_id'];
+    isBogo = json['is_bogo'] != null ? TypeConverterHelper.getBool(json['is_bogo']) : null;
   }
 
   Map<String, dynamic> toJson() {
@@ -356,6 +388,12 @@ class OrderModel {
     if (parcelCategory != null) {
       data['parcel_category'] = parcelCategory!.toJson();
     }
+    if (parcelWeight != null) {
+      data['weight'] = parcelWeight!.toJson();
+    }
+    if (parcelDimension != null) {
+      data['dimension'] = parcelDimension!.toJson();
+    }
     data['dm_tips'] = dmTips;
     data['refund_cancellation_note'] = refundCancellationNote;
     data['refund_customer_note'] = refundCustomerNote;
@@ -364,6 +402,9 @@ class OrderModel {
     }
     data['prescription_order'] = prescriptionOrder;
     data['processing_time'] = processingTime;
+    if (eta != null) {
+      data['eta'] = eta!.toJson();
+    }
     data['cutlery'] = cutlery;
     data['unavailable_item_note'] = unavailableItemNote;
     data['delivery_instruction'] = deliveryInstruction;
@@ -401,10 +442,96 @@ class OrderModel {
     }
     data['module_id'] = moduleId;
     data['item_count'] = itemCount;
+    data['is_bogo'] = isBogo;
     return data;
   }
 }
 
+
+/// The estimated delivery window the API attaches to an order.
+///
+/// The platform only produces one where an admin configured an ETA for the
+/// order's (zone, module) pair, and only for an unfinished `delivery` order — so
+/// `null` is a normal answer, not an error, and the UI must render nothing at
+/// all rather than a placeholder time.
+///
+/// Display [text], never [min]/[max]: those are **always minutes**, while [text]
+/// is the scaled, ready-to-print label (`"25 - 40 min"`, `"2 - 3 hr"`,
+/// `"3 - 5 days"`), and becomes `"Any minute now"` with no numbers once
+/// [overdue].
+class OrderEta {
+  /// Near end of the window, always in minutes.
+  int? min;
+  /// Far end of the window, always in minutes.
+  int? max;
+  String? unit;
+  /// Ready-to-print, already scaled to the right unit.
+  String? text;
+  /// The whole window has passed. Additive — style the row from this rather than
+  /// comparing [toAt] against the clock.
+  bool? overdue;
+  String? from;
+  String? to;
+  /// Clock range, e.g. `04:37 PM - 04:52 PM`; one time when both ends match.
+  String? window;
+  /// ISO 8601 with offset — use these for arithmetic, not [from] / [to].
+  String? fromAt;
+  String? toAt;
+  String? timezone;
+  /// `before_processing` while a buffer stands in for the store's own prep time,
+  /// `processing` once the store has reported one.
+  String? stage;
+
+  OrderEta({this.min, this.max, this.unit, this.text, this.overdue, this.from, this.to,
+    this.window, this.fromAt, this.toAt, this.timezone, this.stage,
+  });
+
+  OrderEta.fromJson(Map<String, dynamic> json) {
+    min = JsonReader.toInt(json['min']);
+    max = JsonReader.toInt(json['max']);
+    unit = json['unit']?.toString();
+    text = json['text']?.toString();
+    overdue = json['overdue'] is bool ? json['overdue'] as bool : json['overdue'] == 1;
+    from = json['from']?.toString();
+    to = json['to']?.toString();
+    window = json['window']?.toString();
+    fromAt = json['from_at']?.toString();
+    toAt = json['to_at']?.toString();
+    timezone = json['timezone']?.toString();
+    stage = json['stage']?.toString();
+  }
+
+  /// True when there is actually something to show. The API can send the object
+  /// with an empty label, and an empty row is worse than none.
+  bool get hasWindow => (text?.trim().isNotEmpty ?? false) || (window?.trim().isNotEmpty ?? false);
+
+  /// The local calendar day [window] falls on, or null when the API sent no
+  /// timestamp to derive one from.
+  ///
+  /// Read from [fromAt] / [toAt], never from [window] — that carries clock times
+  /// only, which is exactly why a scheduled order's headline needed a date
+  /// beside it. Both are ISO 8601 **with offset**, so they go through
+  /// `apiStringToDateOrNull` (a `tryParse`) rather than
+  /// `DateConverter.isoStringToLocalDate`, whose fixed `yyyy-MM-ddTHH:mm:ss.SSS`
+  /// pattern an offset does not match.
+  ///
+  /// `.toLocal()` matters: a timestamp carrying `+06:00` or `Z` parses to a UTC
+  /// instant, and comparing that against the device's calendar day would name
+  /// the wrong day either side of midnight.
+  DateTime? get windowDate {
+    final DateTime? parsed = DateConverter.apiStringToDateOrNull(fromAt)
+        ?? DateConverter.apiStringToDateOrNull(toAt);
+    return parsed?.toLocal();
+  }
+
+  DateTime? get windowEndDate => DateConverter.apiStringToDateOrNull(toAt)?.toLocal();
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'min': min, 'max': max, 'unit': unit, 'text': text, 'overdue': overdue,
+    'from': from, 'to': to, 'window': window, 'from_at': fromAt, 'to_at': toAt,
+    'timezone': timezone, 'stage': stage,
+  };
+}
 
 class DeliveryMan {
   int? id;
@@ -449,7 +576,7 @@ class DeliveryMan {
     zoneId = json['zone_id'];
     active = json['active'];
     available = json['available'];
-    avgRating = json['avg_rating'].toDouble();
+    avgRating = JsonReader.toDouble(json['avg_rating']);
     ratingCount = json['rating_count'];
     lat = json['lat'];
     lng = json['lng'];
@@ -720,18 +847,22 @@ class Reviews {
   });
 
   Reviews.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
-    itemId = json['item_id'];
-    userId = json['user_id'];
+    id = JsonReader.toInt(json['id']);
+    itemId = JsonReader.toInt(json['item_id']);
+    userId = JsonReader.toInt(json['user_id']);
     comment = json['comment'];
     attachment = json['attachment'];
-    rating = json['rating'];
-    orderId = json['order_id'];
+    // `rating` arrives as a whole number one order and a double the next, and every
+    // one of these fields is assigned straight into a typed field — so a single
+    // mismatch throws out of the loop above and takes the whole order with it, which
+    // is how a rated order stopped opening at all.
+    rating = JsonReader.toInt(json['rating']);
+    orderId = JsonReader.toInt(json['order_id']);
     createdAt = json['created_at'];
     updatedAt = json['updated_at'];
-    status = json['status'];
-    moduleId = json['module_id'];
-    reviewId = json['review_id'];
+    status = JsonReader.toInt(json['status']);
+    moduleId = JsonReader.toInt(json['module_id']);
+    reviewId = JsonReader.toStr(json['review_id']);
   }
 
   Map<String, dynamic> toJson() {

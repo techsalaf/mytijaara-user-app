@@ -3,6 +3,7 @@ import 'package:sixam_mart/features/store/domain/models/cart_suggested_item_mode
 import 'package:sixam_mart/features/store/domain/models/store_category_item_model.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 import 'package:sixam_mart/common/models/module_model.dart';
+import 'package:sixam_mart/features/bogo_offer/domain/models/bogo_offer_model.dart';
 import 'package:sixam_mart/features/store/domain/models/recommended_product_model.dart';
 import 'package:sixam_mart/features/store/domain/models/store_banner_model.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
@@ -26,6 +27,7 @@ abstract class StoreServiceInterface {
   Future<StoreModel?> getNearbyStores({int offset, int limit, int? moduleId, String name});
   Future<StoreModel?> getVerifiedStores({int offset, int limit, String? type});
   Future<StoreCategoryItemModel?> getStoreCategoryItems(int storeId);
+  Future<StoreBogoOfferListModel?> getStoreBogoOffers(int? storeId, {int offset = 1, int limit = 10, Store? store});
   List<Modules> moduleList();
   String filterRestaurantLinkUrl(String slug, Store store);
 }

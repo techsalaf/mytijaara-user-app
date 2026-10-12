@@ -9,6 +9,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart';
+import 'package:sixam_mart/api/api_client.dart';
+import 'package:sixam_mart/common/enums/data_source_enum.dart';
 import 'package:sixam_mart/common/widgets/no_internet_screen.dart';
 import 'package:sixam_mart/common/widgets/zone_warning_dialog.dart';
 import 'package:sixam_mart/features/cart/controllers/cart_controller.dart';
@@ -32,6 +34,7 @@ import 'package:sixam_mart/features/location/widgets/module_dialog_widget.dart';
 import 'package:sixam_mart/features/rental_module/rental_cart_screen/controllers/taxi_cart_controller.dart';
 import 'package:sixam_mart/features/store/controllers/store_controller.dart';
 import 'package:sixam_mart/helper/address_helper.dart';
+import 'package:sixam_mart/helper/notification_topic_helper.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
@@ -57,6 +60,15 @@ class LocationController extends GetxController implements GetxService {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
+  /// True while `saveAddressAndNavigate` is resolving the picked address into a
+  /// zone (connectivity check + `getZone`) before it can move on. Deliberately
+  /// separate from [loading]/[isLoading] — those track the camera-move/
+  /// current-location flow and are already false by the time the customer taps
+  /// Confirm, so the button showed no feedback at all for however long this
+  /// network round-trip took.
+  bool _isConfirmingAddress = false;
+  bool get isConfirmingAddress => _isConfirmingAddress;
+
   String? _address = '';
   String? get address => _address;
 
@@ -65,6 +77,10 @@ class LocationController extends GetxController implements GetxService {
 
   bool _inZone = false;
   bool get inZone => _inZone;
+
+  // Until a zone answer is in, `_inZone` is only a default, not a verdict.
+  bool _zoneChecked = false;
+  bool get zoneChecked => _zoneChecked;
 
   int _zoneID = 0;
   int get zoneID => _zoneID;
@@ -186,6 +202,7 @@ class LocationController extends GetxController implements GetxService {
     }
     ZoneResponseModel responseModel = await locationServiceInterface.getZone(lat, lng, handleError: handleError);
     _inZone = responseModel.isSuccess;
+    _zoneChecked = true;
     print('====in zone: $_inZone');
 
       _zoneID = responseModel.zoneIds.isNotEmpty ? responseModel.zoneIds[0] : 0;
@@ -194,6 +211,7 @@ class LocationController extends GetxController implements GetxService {
         if(address != null) {
           address.zoneData = responseModel.zoneData;
           AddressHelper.saveUserAddressInSharedPref(address);
+          NotificationTopicHelper.syncCustomerTopic();
         }
       }
 
@@ -229,6 +247,8 @@ class LocationController extends GetxController implements GetxService {
         address.areaIds = [];
         address.areaIds!.addAll(response.areaIds);
         await AddressHelper.saveUserAddressInSharedPref(address);
+    // A new address can mean a new zone, and the broadcast topic is scoped to it.
+    NotificationTopicHelper.syncCustomerTopic();
       }
     }
     update();
@@ -267,6 +287,8 @@ class LocationController extends GetxController implements GetxService {
   }
 
   void saveAddressAndNavigate(AddressModel? address, bool fromSignUp, String? route, bool canRoute, bool isDesktop) {
+    _isConfirmingAddress = true;
+    update();
     _prepareZoneData(address!, fromSignUp, route, canRoute, isDesktop);
   }
 
@@ -274,6 +296,8 @@ class LocationController extends GetxController implements GetxService {
 
     bool hasInternet = await checkInternet();
     if (!hasInternet) {
+      _isConfirmingAddress = false;
+      update();
       return;
     }
 
@@ -281,14 +305,22 @@ class LocationController extends GetxController implements GetxService {
       if (response.isSuccess) {
         Get.find<CartController>().getAllCarts();
 
-        if(Get.find<SplashController>().moduleList != null) {
-          for (var module in Get.find<SplashController>().moduleList!) {
-            if(module.moduleType == AppConstants.ride) {
-              ZoneResponseModel rideZoneModel = await Get.find<SearchLocationController>().getRideZone(address.latitude ?? '', address.longitude ?? '');
-              address.zoneId = rideZoneModel.zoneId != null ? int.tryParse(rideZoneModel.zoneId??'') : null;
-              address.rideZoneId = rideZoneModel.zoneId != null ? int.tryParse(rideZoneModel.zoneId??'') : null;
-              break;
-            }
+
+        final Map<String, String> zoneScopedHeader =
+            Map<String, String>.from(Get.find<ApiClient>().getHeader())
+              ..[AppConstants.zoneId] = jsonEncode(response.zoneIds);
+
+        await Get.find<SplashController>().getModules(
+          headers: zoneScopedHeader,
+          dataSource: DataSourceEnum.client,
+        );
+
+        for (final ModuleModel module in Get.find<SplashController>().moduleList ?? <ModuleModel>[]) {
+          if(module.moduleType == AppConstants.ride) {
+            ZoneResponseModel rideZoneModel = await Get.find<SearchLocationController>().getRideZone(address.latitude ?? '', address.longitude ?? '');
+            address.zoneId = rideZoneModel.zoneId != null ? int.tryParse(rideZoneModel.zoneId??'') : null;
+            address.rideZoneId = rideZoneModel.zoneId != null ? int.tryParse(rideZoneModel.zoneId??'') : null;
+            break;
           }
         }
 
@@ -301,15 +333,26 @@ class LocationController extends GetxController implements GetxService {
         autoNavigate(address, fromSignUp, route, canRoute, isDesktop);
       } else {
         if (response.statusCode == 404) {
-          Get.toNamed(RouteHelper.getPickMapRoute(route, false));
+          _routeToPickMap(route);
         } else {
           Get.back();
           showCustomSnackBar(response.message);
-          if(route == 'splash') {
-            Get.toNamed(RouteHelper.getPickMapRoute(route, false));
-          }
+          // Every entry point, not only the splash one. A customer whose current
+          // location has no service still needs somewhere to choose a different
+          // one: onboarding used to leave them on the onboarding screen with a
+          // snackbar and no way forward, because `route` there is the onboarding
+          // route rather than 'splash'.
+          _routeToPickMap(route);
         }
       }
+      // Covers only this round-trip (connectivity + getZone) — the dominant,
+      // previously-silent wait. autoNavigate()/_saveDataAndFirebaseConfig() run
+      // on from here and are fire-and-forget by the same design this method
+      // already used before this change; by the time they're doing their work
+      // the app is either mid-navigation or showing its own dialog/screen, both
+      // of which are already a visible sign of progress on their own.
+      _isConfirmingAddress = false;
+      update();
     });
   }
 
@@ -335,6 +378,8 @@ class LocationController extends GetxController implements GetxService {
     await _handleTaxiModuleCart(address);
 
     await AddressHelper.saveUserAddressInSharedPref(address);
+    // A new address can mean a new zone, and the broadcast topic is scoped to it.
+    NotificationTopicHelper.syncCustomerTopic();
 
     print('======here calling for zone check and config data: ${address.zoneIds} // ${Get.find<StoreController>().store?.zoneId} // ${Get.currentRoute.startsWith(RouteHelper.store)} // ${Get.find<SplashController>().module?.id} //');
     print('======here calling for zone check and config data: ${Get.currentRoute.startsWith(RouteHelper.initial)}  // ${Get.find<SplashController>().module?.id} //');
@@ -562,6 +607,28 @@ class LocationController extends GetxController implements GetxService {
     }
   }
 
+  /// Opens the map picker so the customer can choose a serviceable location.
+  ///
+  /// Guarded against stacking: `PickMapScreen`'s own confirm button routes back
+  /// through [saveAddressAndNavigate], so an unserviceable pick made *on* the
+  /// map would otherwise push a second map over the first. Mirrors the
+  /// already-there check in `RouteHelper.openCart`.
+  ///
+  /// [route] is passed through unchanged, matching what [_checkPermission]
+  /// already sends when permission is refused or the device has no fix — so
+  /// wherever the customer lands after picking is decided the same way.
+  void _routeToPickMap(String? route) {
+    if(!shouldRouteToPickMap(Get.currentRoute)) {
+      return;
+    }
+    Get.toNamed(RouteHelper.getPickMapRoute(route, false));
+  }
+
+  /// Whether a failed zone check should push the map picker, given where the
+  /// customer already is. False only when that is the picker itself.
+  static bool shouldRouteToPickMap(String currentRoute) =>
+      !currentRoute.startsWith(RouteHelper.pickMap);
+
   void _checkPermission(String page) async {
 
     bool hasInternet = await checkInternet();
@@ -682,3 +749,8 @@ class LocationController extends GetxController implements GetxService {
   }
 
 }
+
+// SUMMARY
+// Holds the location state used for picking and saving an address: the map position and
+// its geocoded address, place predictions, the zone lookup that decides whether a picked
+// point can be served, and the save-and-navigate flow that follows a confirmed address.

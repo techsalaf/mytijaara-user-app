@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:sixam_mart/api/api_client.dart';
 import 'package:sixam_mart/common/widgets/custom_snackbar.dart';
 import 'package:sixam_mart/features/loyalty/domain/services/loyalty_service_interface.dart';
 import 'package:sixam_mart/common/models/transaction_model.dart';
@@ -58,7 +59,10 @@ class LoyaltyController extends GetxController implements GetxService {
     _isLoading = true;
     update();
     Response response = await loyaltyServiceInterface.pointToWallet(point: point);
-    if (response.statusCode == 200) {
+    // The conversion is a mutation: this API answers `default_update_200` on the
+    // customer route today, but its create/update responses are 2xx generally, so
+    // match any of them rather than 200 alone.
+    if (ApiClient.isSuccessCode(response.statusCode)) {
       Get.back();
       getLoyaltyTransactionList('1', true);
       Get.find<ProfileController>().getUserInfo();

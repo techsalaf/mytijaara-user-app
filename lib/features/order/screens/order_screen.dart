@@ -104,6 +104,13 @@ class OrderScreenState extends State<OrderScreen> with TickerProviderStateMixin 
   }
 
   @override
+  void dispose() {
+    _tabController?.dispose();
+    scrollController?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     _isLoggedIn = AuthHelper.isLoggedIn();
     return Scaffold(

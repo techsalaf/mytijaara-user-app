@@ -30,7 +30,7 @@ abstract class OrderServiceInterface {
   Future<List<OrderDetailsModel>?> getOrderDetails(String orderID, String? guestId);
   Future<List<CancellationData>?> getCancelReasons();
   Future<List<String?>?> getRefundReasons();
-  Future<void> submitRefundRequest(int selectedReasonIndex, List<String?>? refundReasons, String note, String? orderId, XFile? refundImage);
+  Future<bool> submitRefundRequest(int selectedReasonIndex, List<String?>? refundReasons, String note, String? orderId, XFile? refundImage);
   Future<Response> trackOrder(String? orderID, String? guestId, {String? contactNumber});
   Future<bool> cancelOrder({required String orderID, String? reason, String? guestId, required bool isParcel, List<String>? reasons, String? comment});
   Future<bool> deleteOrder(int orderId);

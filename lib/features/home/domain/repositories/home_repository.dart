@@ -1,6 +1,7 @@
 import 'package:get/get_connect/http/src/response/response.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sixam_mart/api/api_client.dart';
+import 'package:sixam_mart/api/response_parser.dart';
 import 'package:sixam_mart/features/home/domain/models/cashback_model.dart';
 import 'package:sixam_mart/features/home/domain/models/top_offer_model.dart';
 import 'package:sixam_mart/util/app_constants.dart';
@@ -35,9 +36,9 @@ class HomeRepository implements HomeRepositoryInterface {
     Response response = await apiClient.getData(AppConstants.cashBackOfferListUri);
     if(response.statusCode == 200) {
       cashBackModelList = [];
-      response.body.forEach((data) {
-        cashBackModelList!.add(CashBackModel.fromJson(data));
-      });
+      for (final dynamic data in ResponseParser.listOrEmpty(response.body)) {
+        cashBackModelList.add(CashBackModel.fromJson(data));
+      }
     }
     return cashBackModelList;
   }

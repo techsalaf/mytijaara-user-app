@@ -3,7 +3,7 @@ import 'package:sixam_mart/features/review/domain/models/review_body_model.dart'
 import 'package:sixam_mart/features/review/domain/models/review_model.dart';
 
 abstract class ReviewServiceInterface {
-  Future<List<ReviewModel>?> getStoreReviewList(String? storeID);
+  Future<StoreReviewModel?> getStoreReviewList(String? storeID, {int? offset});
   Future<ResponseModel> submitReview(ReviewBodyModel reviewBody);
   Future<ResponseModel> submitDeliveryManReview(ReviewBodyModel reviewBody);
 }

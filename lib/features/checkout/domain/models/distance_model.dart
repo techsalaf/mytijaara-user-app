@@ -1,3 +1,4 @@
+import 'package:sixam_mart/api/json_reader.dart';
 class DistanceModel {
   List<String>? destinationAddresses;
   List<String>? originAddresses;
@@ -92,7 +93,7 @@ class Distance {
 
   Distance.fromJson(Map<String, dynamic> json) {
     text = json['text'];
-    value = json['value'].toDouble();
+    value = JsonReader.toDouble(json['value']);
   }
 
   Map<String, dynamic> toJson() {

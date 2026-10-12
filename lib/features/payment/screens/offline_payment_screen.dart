@@ -80,6 +80,13 @@ class _OfflinePaymentScreenState extends State<OfflinePaymentScreen> {
   }
 
   @override
+  void dispose() {
+    _customerNoteController.dispose();
+    _customerNoteNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     bool isDesktop = ResponsiveHelper.isDesktop(context);
     return Scaffold(

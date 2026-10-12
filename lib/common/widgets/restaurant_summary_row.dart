@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sixam_mart/common/models/restaurant_offer_chip.dart';
 import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/common/widgets/custom_ink_well.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/gaps.dart';
 import 'package:sixam_mart/util/images.dart';
@@ -76,7 +77,12 @@ class _RestaurantLogo extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(clipBehavior: Clip.none, children: <Widget>[
       ClipOval(
-        child: CustomImage(image: restaurantLogoUrl, fit: BoxFit.cover, placeholder: Images.placeholder, height: 60, width: 60),
+        child: CustomImage(
+          image: restaurantLogoUrl, fit: BoxFit.cover, placeholder: Images.placeholder, height: 60, width: 60,
+          // Width axis only — see RestaurantItemCard: two axes force an exact square
+          // decode and stretch a non-square logo.
+          cacheWidth: ImageCacheHelper.pixels(context, 60),
+        ),
       ),
       if (badgeText != null && badgeText!.isNotEmpty)Positioned(left: 0, bottom: -2, right: 0,
         child: Container(

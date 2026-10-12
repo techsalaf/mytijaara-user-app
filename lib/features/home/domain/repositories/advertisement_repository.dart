@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:get/get.dart';
 import 'package:sixam_mart/api/api_client.dart';
+import 'package:sixam_mart/api/response_parser.dart';
 import 'package:sixam_mart/api/local_client.dart';
 import 'package:sixam_mart/common/enums/data_source_enum.dart';
 import 'package:sixam_mart/features/home/domain/models/advertisement_model.dart';
@@ -22,11 +23,12 @@ class AdvertisementRepository implements AdvertisementRepositoryInterface {
       case DataSourceEnum.client:
         Response response = await apiClient.getData(AppConstants.advertisementListUri);
         if(response.statusCode == 200) {
+          final List<dynamic> adsJson = ResponseParser.listOrEmpty(response.body);
           advertisementList = [];
-          response.body.forEach((data) {
-            advertisementList?.add(AdvertisementModel.fromJson(data));
-          });
-          LocalClient.organize(source, cacheId, jsonEncode(response.body), apiClient.getHeader());
+          for (final dynamic data in adsJson) {
+            advertisementList.add(AdvertisementModel.fromJson(data));
+          }
+          LocalClient.organize(source, cacheId, jsonEncode(adsJson), apiClient.getHeader());
         }
 
       case DataSourceEnum.local:

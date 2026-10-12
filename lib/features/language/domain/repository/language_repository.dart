@@ -1,9 +1,9 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sixam_mart/api/api_client.dart';
 import 'package:sixam_mart/features/address/domain/models/address_model.dart';
 import 'package:sixam_mart/features/language/domain/repository/language_repository_interface.dart';
+import 'package:sixam_mart/helper/address_helper.dart';
 import 'package:sixam_mart/util/app_constants.dart';
 
 class LanguageRepository implements LanguageRepositoryInterface {
@@ -12,15 +12,7 @@ class LanguageRepository implements LanguageRepositoryInterface {
   LanguageRepository({required this.apiClient, required this.sharedPreferences});
 
   @override
-  AddressModel? getAddressFormSharedPref() {
-    AddressModel? addressModel;
-    try {
-      addressModel = AddressModel.fromJson(jsonDecode(sharedPreferences.getString(AppConstants.userAddress)!));
-    }catch(e) {
-      debugPrint('Did not get shared Preferences address: $e');
-    }
-    return addressModel;
-  }
+  AddressModel? getAddressFormSharedPref() => AddressHelper.getUserAddressFromSharedPref();
 
   @override
   void updateHeader(AddressModel? addressModel, Locale locale, int? moduleId) {

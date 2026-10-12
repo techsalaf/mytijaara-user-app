@@ -17,9 +17,6 @@ class TodaysDealsSectionWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final double viewportWidth = MediaQuery.sizeOf(context).width;
     final double cardWidth = math.max(100, viewportWidth * 0.35);
-    // FoodItemCard = square image (height == cardWidth) + a fixed info block below
-    // it. Derive the list height from the card width (so the image never clips as
-    // the card scales) plus the info block, which grows with the text scale.
     final double textScale = MediaQuery.textScalerOf(context).scale(1.0);
     final double cardHeight = cardWidth + Dimensions.paddingSizeDefault + 130 * textScale;
 
@@ -33,8 +30,6 @@ class TodaysDealsSectionWidget extends StatelessWidget {
         return const SizedBox.shrink();
       }
 
-      // Warm "deals" wash that fades to transparent. Light mode keeps the cream
-      // tint; dark mode uses a subtle amber glow so it doesn't show as a bright band.
       final bool isDark = Theme.of(context).brightness == Brightness.dark;
       final Color tint = isDark ? const Color(0xFFFFC107) : const Color(0xFFFFFBEB);
       final List<Color> dealsGradient = isDark

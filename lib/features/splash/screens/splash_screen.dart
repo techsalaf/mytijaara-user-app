@@ -65,9 +65,9 @@ class SplashScreenState extends State<SplashScreen> {
 
   @override
   void dispose() {
-    super.dispose();
 
     _onConnectivityChanged?.cancel();
+    super.dispose();
   }
 
   void _route() {

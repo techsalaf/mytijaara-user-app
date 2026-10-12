@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:sixam_mart/features/chat/enums/user_type_enum.dart';
+import 'package:sixam_mart/features/chat/widgets/chat_avatar_widget.dart';
 import 'package:sixam_mart/features/chat/widgets/image_file_view_widget.dart';
 import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
 import 'package:sixam_mart/features/chat/domain/models/conversation_model.dart';
@@ -29,13 +31,7 @@ class MessageBubbleWidget extends StatelessWidget {
 
         Row(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.start, children: [
 
-          ClipRRect(
-            borderRadius: BorderRadius.circular(20.0),
-            child: CustomImage(
-              fit: BoxFit.cover, width: 40, height: 40,
-              image: '${user != null ? user!.imageFullUrl : ''}',
-            ),
-          ),
+          ChatAvatarWidget(isAdmin: userType == UserType.admin.name, imageUrl: user?.imageFullUrl),
           const SizedBox(width: 10),
 
           Flexible(

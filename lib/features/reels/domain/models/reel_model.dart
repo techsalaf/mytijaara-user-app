@@ -1,3 +1,4 @@
+import 'package:sixam_mart/common/models/pagination_model.dart';
 import 'package:sixam_mart/util/app_constants.dart';
 
 class ReelModel {
@@ -251,9 +252,12 @@ class ReelListModel {
   ReelListModel({this.totalSize, this.limit, this.offset, this.reels});
 
   ReelListModel.fromJson(Map<String, dynamic> json) {
-    totalSize = ReelModel._readInt(json['total_size']);
-    limit = json['limit']?.toString();
-    offset = ReelModel._readInt(json['offset']);
+    // Flat `total_size`/`limit`/`offset` on the legacy format, nested under
+    // `pagination` now. The list key below was already tolerant of both.
+    final PaginationModel pagination = PaginationModel.fromJson(json);
+    totalSize = pagination.totalSize;
+    limit = pagination.limit?.toString();
+    offset = pagination.offset;
 
     final dynamic rawList = json['reels'] ?? json['data'] ?? json['content'] ?? json['items'];
     if(rawList is List) {

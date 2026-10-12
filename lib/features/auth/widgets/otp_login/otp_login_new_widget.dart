@@ -10,6 +10,7 @@ import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/helper/validate_check.dart';
+import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/styles.dart';
 
@@ -32,7 +33,7 @@ class OtpLoginNewWidget extends StatelessWidget {
         padding: EdgeInsets.symmetric(horizontal: isDesktop ? Dimensions.paddingSizeLarge : 0),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
           Text('login_with_phone'.tr, style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeExtraLarge)) ,
-          Text('use_your_registered_email_phone_number_to_get_otp'.tr, 
+          Text('use_your_registered_phone_number_to_get_otp'.tr,
           style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).disabledColor)) ,
           const SizedBox(height: Dimensions.paddingSizeLarge),
 
@@ -110,7 +111,7 @@ class OtpLoginNewWidget extends StatelessWidget {
 
           if (Get.find<SplashController>().configModel!.centralizeLoginSetup!.manualLoginStatus!)
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Text('new_to_mytijaara'.tr, style: robotoRegular.copyWith(color: Theme.of(context).hintColor)),
+              Text('new_to_6amMart'.trParams({'appName': AppConstants.appName}), style: robotoRegular.copyWith(color: Theme.of(context).hintColor)),
 
               InkWell(
                 onTap: authController.isLoading ? null : () {

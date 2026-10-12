@@ -44,6 +44,8 @@ class _OnBoardingNewScreenState extends State<OnBoardingNewScreen> {
     ),
   ];
 
+  static final int _lastPageIndex = _onBoardingText.length - 1;
+
   @override
   void initState() {
     super.initState();
@@ -67,12 +69,9 @@ class _OnBoardingNewScreenState extends State<OnBoardingNewScreen> {
           init: _onBoardingController,
           global: false,
           builder: (onBoardingController) {
-            bool showIndicatorAndButton = onBoardingController.selectedIndex < onBoardingController.onBoardingList.length - 1;
-            bool isLastOnBoardingPage = onBoardingController.selectedIndex >= onBoardingController.onBoardingList.length - 2;
-            int displayIndex = onBoardingController.selectedIndex;
-            if (displayIndex >= _onBoardingText.length) {
-              displayIndex = _onBoardingText.length - 1;
-            }
+            final int pageIndex = onBoardingController.selectedIndex.clamp(0, _lastPageIndex);
+            // The last page continues instead of skipping, so it carries no skip button.
+            final bool showSkip = pageIndex < _lastPageIndex;
             return onBoardingController.onBoardingList.isNotEmpty
               ? Center(child: SizedBox(width: Dimensions.webMaxWidth,
                   child: Column(children: [
@@ -84,23 +83,13 @@ class _OnBoardingNewScreenState extends State<OnBoardingNewScreen> {
                         ),
                         child: Stack(children: [
                           PageView.builder(
-                            itemCount: onBoardingController.onBoardingList.length,
+                            itemCount: _onBoardingText.length,
                             controller: _pageController,
-                            itemBuilder: (context, index) {
-                              if (index >= _onBoardingText.length) {
-                                return const SizedBox.expand();
-                              }
-                              return _OnBoardingImage(image: _onBoardingText[index].image);
-                            },
-                            onPageChanged: (index) {
-                              onBoardingController.changeSelectIndex(index);
-                              if (onBoardingController.selectedIndex == 3) {
-                                _configureToRouteInitialPage();
-                              }
-                            },
+                            itemBuilder: (context, index) => _OnBoardingImage(image: _onBoardingText[index].image),
+                            onPageChanged: onBoardingController.changeSelectIndex,
                           ),
 
-                          if (showIndicatorAndButton && !isLastOnBoardingPage)
+                          if (showSkip)
                             Positioned(
                               top: Dimensions.paddingSizeLarge,
                               right: Dimensions.paddingSizeExtremeLarge,
@@ -110,59 +99,56 @@ class _OnBoardingNewScreenState extends State<OnBoardingNewScreen> {
                       ),
                     ),
 
-                    if (showIndicatorAndButton)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 42, 24, 28),
-                        child: Column(mainAxisSize: MainAxisSize.min, children: [
-                          Text(
-                            _onBoardingText[displayIndex].title.tr,
-                            style: robotoBold.copyWith(fontSize: Dimensions.fontSizeExtraLarge,
-                            ),
-                            textAlign: TextAlign.center, maxLines: 2,
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 42, 24, 28),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        Text(
+                          _onBoardingText[pageIndex].title.tr,
+                          style: robotoBold.copyWith(fontSize: Dimensions.fontSizeExtraLarge,
                           ),
-                          const SizedBox(height: 12),
+                          textAlign: TextAlign.center, maxLines: 2,
+                        ),
+                        const SizedBox(height: 12),
 
-                          Text(_onBoardingText[displayIndex].description.tr,
-                            style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).disabledColor),
-                            textAlign: TextAlign.center,
+                        Text(_onBoardingText[pageIndex].description.tr,
+                          style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).disabledColor),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 34),
+
+                        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          _CircleArrowButton(
+                            icon: Icons.arrow_back,
+                            backgroundColor: Theme.of(context).cardColor,
+                            iconColor: Theme.of(context).textTheme.bodyLarge!.color!.withValues(alpha: 0.6),
+                            onTap: () {
+                              if (pageIndex == 0) {
+                                Get.back();
+                              } else {
+                                _pageController.previousPage(
+                                  duration: const Duration(milliseconds: 450),
+                                  curve: Curves.easeInOut,
+                                );
+                              }
+                            },
                           ),
-                          const SizedBox(height: 34),
-
-                          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                            _CircleArrowButton(
-                              icon: Icons.arrow_back,
-                              backgroundColor: Theme.of(context).cardColor,
-                              iconColor: Theme.of(context).textTheme.bodyLarge!.color!.withValues(alpha: 0.6),
-                              onTap: () {
-                                if (onBoardingController.selectedIndex == 0) {
-                                  Get.back();
-                                }
-                                if (onBoardingController.selectedIndex > 0) {
-                                  _pageController.previousPage(
-                                    duration: const Duration(milliseconds: 450),
-                                    curve: Curves.easeInOut,
-                                  );
-                                }
-                              },
-                            ),
-                            const SizedBox(width: 22),
-                            _NextArrowButton(
-                              progress: (displayIndex + 1) / _onBoardingText.length,
-                              onTap: () {
-                                if (onBoardingController.selectedIndex != 2) {
-                                  _pageController.nextPage(
-                                    duration: const Duration(milliseconds: 450),
-                                    curve: Curves.easeInOut,
-                                  );
-                                } else {
-                                  _configureToRouteInitialPage();
-                                }
-                              },
-                            ),
-                          ]),
+                          const SizedBox(width: 22),
+                          _NextArrowButton(
+                            progress: (pageIndex + 1) / _onBoardingText.length,
+                            onTap: () {
+                              if (pageIndex < _lastPageIndex) {
+                                _pageController.nextPage(
+                                  duration: const Duration(milliseconds: 450),
+                                  curve: Curves.easeInOut,
+                                );
+                              } else {
+                                _configureToRouteInitialPage();
+                              }
+                            },
+                          ),
                         ]),
-                      )
-                    else const SizedBox(height: 250),
+                      ]),
+                    ),
                   ]),
                 )) : const SizedBox();
           },
@@ -171,14 +157,30 @@ class _OnBoardingNewScreenState extends State<OnBoardingNewScreen> {
     );
   }
 
-  void _configureToRouteInitialPage() async {
+  Future<void> _configureToRouteInitialPage() async {
     Get.find<SplashController>().disableIntro();
-    await Get.find<AuthController>().guestLogin();
+    final AuthController authController = Get.find<AuthController>();
+
     if (AddressHelper.getUserAddressFromSharedPref() != null) {
+      // Nothing is shown before home on this path, so the guest session is worth
+      // waiting for — home's first requests need it.
+      await authController.guestLogin();
       Get.offNamed(RouteHelper.getInitialRoute(fromSplash: true));
-    } else {
-      Get.find<LocationController>().navigateToLocationScreen(RouteHelper.onBoarding, offNamed: true)
-          .then((v) {_pageController.jumpToPage(_onBoardingController.onBoardingList.length - 2);});
+      return;
+    }
+
+    // The permission prompt is the very next thing the customer sees, so it must
+    // not queue behind the guest-login round trip — awaiting it here is what made
+    // the prompt arrive a beat after the tap. The session lands on its own while
+    // the customer is still choosing a location.
+    authController.guestLogin();
+
+    await Get.find<LocationController>().navigateToLocationScreen(RouteHelper.onBoarding, offNamed: true);
+
+    // Only reached when the customer came back without picking an address; once
+    // the screen has been routed away the controller has no clients to drive.
+    if (mounted && _pageController.hasClients) {
+      _pageController.jumpToPage(_lastPageIndex);
     }
   }
 }

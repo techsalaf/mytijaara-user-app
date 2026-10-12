@@ -30,7 +30,7 @@ class _StoreHeaderBannerState extends State<StoreHeaderBanner> {
       itemBuilder: (context, index, realIndex) => InkWell(
         onTap: () => _handleBannerTap(banners[index]),
         child: SizedBox.expand(
-          child: CustomImage(image: banners[index].imageFullUrl ?? '', fit: BoxFit.cover),
+          child: CustomImage(image: banners[index].imageFullUrl ?? '', fit: BoxFit.fill),
         ),
       ),
       options: CarouselOptions(

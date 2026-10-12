@@ -5,11 +5,12 @@ import 'package:sixam_mart/common/widgets/cart_count_view.dart';
 import 'package:sixam_mart/common/widgets/custom_asset_image_widget.dart';
 import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/common/widgets/custom_ink_well.dart';
+import 'package:sixam_mart/common/widgets/offer_card_widget.dart';
 import 'package:sixam_mart/common/widgets/store_verified_avatar.dart';
 import 'package:sixam_mart/features/item/controllers/item_controller.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
-import 'package:sixam_mart/common/widgets/offer_card_widget.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/images.dart';
@@ -57,10 +58,15 @@ class _LeftSection extends StatelessWidget {
       startingPrice, discount: item.discount, discountType: item.discountType,
     );
     final String originalPrice = hasDiscount ? PriceConverter.convertPrice(startingPrice) : '';
-    double discount = item.discount ?? 0;
-    String discountType = item.discountType ?? '';
-    bool isRightSide = Get.find<SplashController>().configModel!.currencySymbolDirection == 'right';
-    String currencySymbol = Get.find<SplashController>().configModel!.currencySymbol!;
+    final double discount = item.discount ?? 0;
+    final String discountType = item.discountType ?? '';
+    // One container lookup instead of one per field: this runs for every tile in a
+    // list, and again for all visible tiles on each controller update.
+    final SplashController splashController = Get.find<SplashController>();
+    final bool isRightSide = splashController.configModel!.currencySymbolDirection == 'right';
+    final String currencySymbol = splashController.configModel!.currencySymbol!;
+
+    final Color mutedColor = Theme.of(context).disabledColor;
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: <Widget>[
       Row(children: <Widget>[
@@ -71,7 +77,7 @@ class _LeftSection extends StatelessWidget {
         ),
         const SizedBox(width: Dimensions.paddingSizeExtraSmall),
         Expanded(child: Text(item.storeName ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
-          style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).disabledColor),
+          style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: mutedColor),
         )),
       ]),
       const SizedBox(height: Dimensions.paddingSizeExtraSmall),
@@ -94,7 +100,7 @@ class _LeftSection extends StatelessWidget {
               Text(
                 '${item.avgRating?.toStringAsFixed(1)?? '0.0'} (${item.ratingCount} ${'reviews'.tr})',
                 style: robotoMedium.copyWith(
-                  fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).disabledColor,
+                  fontSize: Dimensions.fontSizeSmall, color: mutedColor,
                 ),
               ),
             ]),
@@ -111,8 +117,8 @@ class _LeftSection extends StatelessWidget {
           ),
           if (originalPrice.isNotEmpty)
             Text(originalPrice, maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).disabledColor,
-                  decoration: TextDecoration.lineThrough, decorationColor: Theme.of(context).disabledColor),
+              style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: mutedColor,
+                  decoration: TextDecoration.lineThrough, decorationColor: mutedColor),
             ),
       ]),
       const SizedBox(height: Dimensions.paddingSizeSmall),
@@ -152,7 +158,10 @@ class _ImageSection extends StatelessWidget {
       child: Stack(children: <Widget>[
         Positioned.fill(child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: CustomImage(image: item.imageFullUrl ?? '', fit: BoxFit.cover, placeholder: Images.placeholder),
+          child: CustomImage(
+            image: item.imageFullUrl ?? '', fit: BoxFit.cover, placeholder: Images.placeholder,
+            cacheWidth: ImageCacheHelper.pixels(context, 115),
+          ),
         )),
         if (showHalal)
           const Positioned(top: 8, left: 8,
@@ -179,7 +188,7 @@ class _ImageSection extends StatelessWidget {
                 color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(8),
                 boxShadow: <BoxShadow>[BoxShadow(color: Theme.of(context).disabledColor.withValues(alpha: 0.2), blurRadius: 6, offset: const Offset(0, 2))],
               ),
-              child: const Icon(Icons.add, size: 22, color: Colors.black),
+              child: Icon(Icons.add, size: 22, color: Theme.of(context).textTheme.bodyLarge?.color),
             ),
           ),
         ),

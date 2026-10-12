@@ -22,8 +22,15 @@ class ModuleHelper {
     return Get.find<SplashController>().getModuleConfig(moduleType);
   }
 
+  // Nothing is registered while a unit test exercises a label on its own, and a label is
+  // never worth throwing over — it falls back to the wording that fits every module.
+  static String? _activeModuleType() {
+    if(!Get.isRegistered<SplashController>()) return null;
+    return getModule()?.moduleType ?? getCacheModule()?.moduleType;
+  }
+
   static String proMinSpendLabel({String? moduleType, required String fallbackKey}) {
-    final String? type = moduleType ?? getModule()?.moduleType ?? getCacheModule()?.moduleType;
+    final String? type = moduleType ?? _activeModuleType();
     switch (type) {
       case AppConstants.parcel:
         return 'min_delivery_fee'.tr;
@@ -38,11 +45,28 @@ class ModuleHelper {
     }
   }
 
+  // A food store is a restaurant to the customer; every other module sells from a store.
+  static String storeDiscountAppliedLabel({String? moduleType}) {
+    final String? type = moduleType ?? _activeModuleType();
+    return type == AppConstants.food ? 'restaurant_discount_applied'.tr : 'store_discount_applied'.tr;
+  }
+
   /// True when the module books rather than orders — service copy reads
   /// "booking" wherever store copy reads "order". Single source of truth so
   /// every pro/checkout surface words itself the same way.
   static bool isBookingModule({String? moduleType}) =>
-      (moduleType ?? getModule()?.moduleType ?? getCacheModule()?.moduleType) == AppConstants.service;
+      (moduleType ?? _activeModuleType()) == AppConstants.service;
+
+  /// Single source of truth for whether the product-bundle feature is live for
+  /// a module — admin's `product_bundle_status` switch plus its per-module
+  /// allow-list, both on [ConfigModel]. Every bundle fetch call site checks
+  /// this before hitting the API; the bundle widgets themselves already
+  /// self-hide on empty data, so gating the fetch is enough to make them inert.
+  static bool isBundleEnabled({String? moduleType}) {
+    final ConfigModel? config = Get.find<SplashController>().configModel;
+    final String? type = moduleType ?? getModule()?.moduleType ?? getCacheModule()?.moduleType;
+    return (config?.productBundleStatus ?? false) && type != null && (config?.productBundleModuleTypes?.contains(type) ?? false);
+  }
 
   static ModuleModel? getModuleByType(String moduleType) {
     final List<ModuleModel> modules = Get.find<SplashController>().moduleList ?? [];

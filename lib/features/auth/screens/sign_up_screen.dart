@@ -115,11 +115,7 @@ class SignUpScreenState extends State<SignUpScreen> {
                                         Get.back();
                                         Get.dialog(const Center(child: AuthDialogWidget(exitFromApp: false, backFromThis: false)));
                                       }else{
-                                        if(Get.currentRoute == RouteHelper.signUp) {
-                                          Get.back();
-                                        } else {
-                                          Get.toNamed(RouteHelper.getSignInRoute(RouteHelper.signUp));
-                                        }
+                                        RouteHelper.openSignInFromSignUp();
                                       }
                                     },
                                   ),
@@ -444,13 +440,7 @@ class _SignUpSliverHeaderDelegate extends SliverPersistentHeaderDelegate {
             TextSpan(
               text: 'login'.tr,
               style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Colors.blueAccent, decoration: TextDecoration.underline),
-              recognizer: TapGestureRecognizer()..onTap = () {
-                if(Get.currentRoute == RouteHelper.signUp) {
-                  Get.back();
-                } else {
-                  Get.toNamed(RouteHelper.getSignInRoute(RouteHelper.signUp));
-                }
-              },
+              recognizer: TapGestureRecognizer()..onTap = RouteHelper.openSignInFromSignUp,
             ),
             TextSpan(
               text: ' now.',
@@ -512,3 +502,7 @@ class _SignUpSliverHeaderDelegate extends SliverPersistentHeaderDelegate {
     return oldDelegate.onBackOrClose != onBackOrClose;
   }
 }
+
+// SUMMARY
+// Sign-up page with a collapsible header on mobile and a centered card on desktop. Hosts the
+// registration form and links back to login.

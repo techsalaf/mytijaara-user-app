@@ -1,3 +1,4 @@
+import 'package:sixam_mart/api/json_reader.dart';
 import 'package:sixam_mart/helper/type_converter_helper.dart';
 
 class ProActiveOfferModel {
@@ -49,17 +50,17 @@ class ProActiveBenefit {
   ProActiveBenefit.fromJson(Map<String, dynamic> json) {
     // common
     type = ProBenefitType.fromString(json['type']);
-    subscriptionId = json['subscription_id'];
-    planId = json['plan_id'];
+    subscriptionId = JsonReader.toInt(json['subscription_id']);
+    planId = JsonReader.toInt(json['plan_id']);
     // discount
-    percentage = json['percentage']?.toDouble();
-    maxAmount = json['max_amount']?.toDouble();
+    percentage = JsonReader.toDouble(json['percentage']);
+    maxAmount = JsonReader.toDouble(json['max_amount']);
     minOrderStatus = TypeConverterHelper.getBool(json['min_order_status']);
-    minOrderAmount = json['min_order_amount']?.toDouble();
+    minOrderAmount = JsonReader.toDouble(json['min_order_amount']);
     // coupon
     // delivery
     offerType = ProOfferType.fromString(json['offer_type']);
-    chargeDiscountPercentage = json['charge_discount_percentage']?.toDouble();
+    chargeDiscountPercentage = JsonReader.toDouble(json['charge_discount_percentage']);
   }
 
   Map<String, dynamic> toJson() {
@@ -94,11 +95,11 @@ class ProActivePlanDetails {
 
   ProActivePlanDetails.fromJson(Map<String, dynamic> json) {
     planName = json['plan_name'];
-    totalSaved = json['total_saved']?.toDouble();
-    totalOrders = json['total_orders'];
+    totalSaved = JsonReader.toDouble(json['total_saved']);
+    totalOrders = JsonReader.toInt(json['total_orders']);
     startAt = json['start_at'];
     endAt = json['end_at'];
-    daysRemaining = json['days_remaining'];
+    daysRemaining = JsonReader.toInt(json['days_remaining']);
     paidBy = json['paid_by'];
   }
 

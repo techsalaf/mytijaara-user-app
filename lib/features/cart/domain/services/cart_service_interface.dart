@@ -1,3 +1,4 @@
+import 'package:get/get_connect.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 import 'package:sixam_mart/common/models/module_model.dart';
 import 'package:sixam_mart/features/cart/domain/models/all_carts_model.dart';
@@ -17,7 +18,12 @@ abstract class CartServiceInterface {
   int? getCartId(int cartIndex, List<CartModel> cartList);
   int decideItemQuantity(bool isIncrement, List<CartModel> cartList, int cartIndex, int? stock, int ? quantityLimit, bool moduleStock);
   Future<double> calculateDiscountedPrice(CartModel cartModel, int quantity, bool isFoodVariation);
-  Future<bool> updateCartQuantityOnline(int cartId, double price, int quantity, {int? storeId});
+  /// Takes the whole row, not just its id: `customer/cart/update` validates the
+  /// cart line it is posted, so a quantity change has to carry the variation and
+  /// add-ons with it or the endpoint rejects it.
+  Future<bool> updateCartQuantityOnline(CartModel cart, double price, int quantity, {int? storeId});
+  OnlineCart buildOnlineCart(CartModel cart, {double? price, int? quantity});
+  List<OrderVariation> selectedFoodVariations(CartModel cart);
   Future<List<OnlineCartModel>?> getCartDataOnline({int? storeId});
   List<CartModel> formatOnlineCartToLocalCart({required List<OnlineCartModel> onlineCartModel});
   Future<List<OnlineCartModel>?> updateCartOnline(OnlineCart cart, {int? storeId});
@@ -30,4 +36,10 @@ abstract class CartServiceInterface {
   String cartVariant(int itemId, List<CartModel> cartList);
   Future<List<AllCartsModel>?> getAllCarts();
   Future<bool> removeStoreCart(int storeId);
+  Future<Response> addBogoToCartOnline(int bogoId, int quantity, String? guestId, {String? contactPersonNumber, int? moduleId});
+  Future<Response> updateBogoBundleQuantityOnline(String bogoGroupId, int quantity, String? guestId, {int? moduleId});
+  Future<bool> removeBogoBundleItemOnline(String bogoGroupId, String? guestId, {required int storeId});
+  Future<Response> addBundleToCartOnline(int bundleId, int quantity, String? guestId);
+  Future<Response> updateBundleQuantityOnline(String bundleGroupId, int quantity, String? guestId);
+  Future<bool> removeBundleItemOnline(String bundleGroupId, String? guestId);
 }

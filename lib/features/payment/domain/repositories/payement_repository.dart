@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:get/get_connect/connect.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sixam_mart/api/api_client.dart';
+import 'package:sixam_mart/api/response_parser.dart';
 import 'package:sixam_mart/features/payment/domain/models/offline_method_model.dart';
 import 'package:sixam_mart/features/payment/domain/repositories/payment_repository_interface.dart';
 import 'package:sixam_mart/util/app_constants.dart';
@@ -37,7 +38,9 @@ class PaymentRepository implements PaymentRepositoryInterface {
     Response response = await apiClient.getData(AppConstants.offlineMethodListUri);
     if (response.statusCode == 200) {
       offlineMethodList = [];
-      response.body.forEach((method) => offlineMethodList!.add(OfflineMethodModel.fromJson(method)));
+      for (final dynamic method in ResponseParser.listOrEmpty(response.body)) {
+        offlineMethodList.add(OfflineMethodModel.fromJson(method));
+      }
     }
     return offlineMethodList;
   }
@@ -45,7 +48,8 @@ class PaymentRepository implements PaymentRepositoryInterface {
   @override
   Future<bool> saveOfflineInfo(String data, String? guestId) async {
     Response response = await apiClient.postData('${AppConstants.offlinePaymentSaveInfoUri}${guestId != null ? '?guest_id=$guestId' : ''}', jsonDecode(data));
-    return (response.statusCode == 200);
+    // This endpoint answers `201 Created` — `== 200` reported a saved payment as failed.
+    return ApiClient.isSuccessCode(response.statusCode);
   }
 
   @override

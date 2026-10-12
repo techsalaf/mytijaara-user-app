@@ -117,14 +117,16 @@ class ActiveProducts {
     sold = json['sold'];
     availableStock = json['available_stock'];
     discountType = json['discount_type'];
-    discount = json['discount']?.toDouble();
-    discountAmount = json['discount_amount'].toDouble();
-    price = json['price'].toDouble();
+    discount = _toDouble(json['discount']) ?? _toDouble(json['item']?['discount']);
+    discountAmount = _toDouble(json['discount_amount']);
+    price = _toDouble(json['price']) ?? _toDouble(json['item']?['price']);
     status = json['status'];
     createdAt = json['created_at'];
     updatedAt = json['updated_at'];
     item = json['item'] != null ? Item.fromJson(json['item']) : null;
   }
+
+  int get remainingStock => availableStock ?? 0;
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = <String, dynamic>{};
@@ -313,3 +315,16 @@ class Unit {
     return data;
   }
 }
+
+/// Tolerant numeric read — these fields arrive as num, String, or absent
+/// depending on the endpoint and API version.
+double? _toDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  return double.tryParse(value.toString());
+}
+
+// SUMMARY
+// Models for a flash sale and its products. Holds the sale's window, discounts and
+// translations, and per product the item, its sale price and the allocation sold
+// against it, including how much of that allocation is left.

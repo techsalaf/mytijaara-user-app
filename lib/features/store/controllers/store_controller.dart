@@ -16,6 +16,7 @@ import 'package:sixam_mart/features/review/domain/models/review_model.dart';
 import 'package:sixam_mart/features/location/domain/models/zone_response_model.dart';
 import 'package:sixam_mart/features/checkout/controllers/checkout_controller.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
+import 'package:sixam_mart/features/bogo_offer/domain/models/bogo_offer_model.dart';
 import 'package:sixam_mart/helper/address_helper.dart';
 import 'package:sixam_mart/helper/date_converter.dart';
 import 'package:get/get.dart';
@@ -63,9 +64,6 @@ class StoreController extends GetxController implements GetxService {
 
   int _categoryIndex = 0;
   int get categoryIndex => _categoryIndex;
-
-  int _categoryScrollIndex = 0;
-  int get categoryScrollIndex => _categoryScrollIndex;
 
   List<CategoryModel>? _categoryList;
   List<CategoryModel>? get categoryList => _categoryList;
@@ -117,6 +115,15 @@ class StoreController extends GetxController implements GetxService {
 
   List<Store>? _recommendedStoreList;
   List<Store>? get recommendedStoreList => _recommendedStoreList;
+
+  StoreBogoOfferListModel? _bogoOfferListModel;
+  List<StoreBogoOfferModel>? get bogoOfferList => _bogoOfferListModel?.offers;
+
+  Future<void> getStoreBogoOffers(int? storeId) async {
+    _bogoOfferListModel = null;
+    _bogoOfferListModel = await storeServiceInterface.getStoreBogoOffers(storeId, store: _store);
+    update();
+  }
 
   StoreModel? _quickDeliveryStoreList;
   StoreModel? get quickDeliveryStoreList => _quickDeliveryStoreList;
@@ -191,6 +198,14 @@ class StoreController extends GetxController implements GetxService {
   double _upperLimit = 99999;
   double get getUpperLimit => _upperLimit;
 
+  /// Divisions for the price filter's slider.
+  ///
+  /// RangeSlider asserts this is greater than zero. The widget used to pass the
+  /// upper limit itself, which was safe only while that limit was the fixed
+  /// 99999 placeholder — a store whose items top out below 1.00 would have
+  /// asserted. Measuring the span keeps the step at roughly one unit either way.
+  int get priceDivisions => (_upperLimit - _lowerLimit).round().clamp(1, 100000);
+
   double getRestaurantDistance(LatLng storeLatLng){
     double distance = 0;
     if(AddressHelper.getUserAddressFromSharedPref() != null) {
@@ -231,11 +246,6 @@ class StoreController extends GetxController implements GetxService {
     _currentState = false;
   }
 
-  void setCategoryScrollIndex(int index) {
-    _categoryScrollIndex = index;
-    update();
-  }
-
   void setCategoryIndexOnly(int index) {
     _categoryIndex = index;
     update();
@@ -248,10 +258,20 @@ class StoreController extends GetxController implements GetxService {
     });
   }
 
+  // Request tokens for the two big per-store fetches. A late response whose token no
+  // longer matches is dropped: either the screen was disposed (clearStoreCategoryItems
+  // resets the tokens) or a newer store's request superseded this one. Mirrors the
+  // moduleScoped/499 staleness guard in ApiClient, scoped to a store instead of a module.
+  int? _categoryItemsRequestId;
+  int? _recommendedItemsRequestId;
+
   Future<void> getStoreCategoryItems(int storeId, {bool notify = true}) async {
     _storeCategoryItemsModel = null;
+    _categoryItemsRequestId = storeId;
     if (notify) update();
-    _storeCategoryItemsModel = await storeServiceInterface.getStoreCategoryItems(storeId);
+    final StoreCategoryItemModel? model = await storeServiceInterface.getStoreCategoryItems(storeId);
+    if (_categoryItemsRequestId != storeId) return;
+    _storeCategoryItemsModel = model;
     update();
   }
 
@@ -262,6 +282,10 @@ class StoreController extends GetxController implements GetxService {
   void clearStoreCategoryItems() {
     _storeCategoryItemsModel = null;
     _recommendedItemModel = null;
+    // Drop the tokens too, so a response still in flight can't resurrect the data
+    // this method exists to free.
+    _categoryItemsRequestId = null;
+    _recommendedItemsRequestId = null;
   }
 
   Future<void> getRestaurantRecommendedItemList(int? storeId, bool reload) async {
@@ -269,7 +293,9 @@ class StoreController extends GetxController implements GetxService {
       _storeModel = null;
       update();
     }
+    _recommendedItemsRequestId = storeId;
     RecommendedItemModel? recommendedItemModel = await storeServiceInterface.getStoreRecommendedItemList(storeId);
+    if (_recommendedItemsRequestId != storeId) return;
     if (recommendedItemModel != null) {
       _recommendedItemModel = recommendedItemModel;
     }
@@ -336,6 +362,27 @@ class StoreController extends GetxController implements GetxService {
   void resetStoreData() {
     _filterType = 'all';
     _storeType = 'all';
+  }
+
+  /// Drops every store list that is scoped to the active module, so a module switch
+  /// cannot leave the previous module's stores on screen.
+  ///
+  /// This used to be unnecessary: the old module load refetched all of these within
+  /// 350ms of the switch. Now that each section fetches only when it scrolls into
+  /// view, a stale list would sit there until the user reached it. Nulling them puts
+  /// each section back on its shimmer until its own fetch lands.
+  ///
+  /// [_featuredStoreList] is deliberately left alone — it is shared with the Home
+  /// tab, which refetches its own copy with the home header on entry.
+  void clearModuleStoreLists() {
+    _storeModel = null;
+    _popularStoreList = null;
+    _latestStoreList = null;
+    _topOfferStoreList = null;
+    _verifiedStoreList = null;
+    _visitAgainStoreList = null;
+    _recommendedStoreList = null;
+    _quickDeliveryStoreList = null;
   }
 
   Future<void> getPopularStoreList(bool reload, String type, bool notify, {DataSourceEnum dataSource = DataSourceEnum.local, bool fromRecall = false}) async {
@@ -457,20 +504,42 @@ class StoreController extends GetxController implements GetxService {
 
   void _prepareFeaturedStore(List<Store>? stores) {
     if (stores != null) {
-      _featuredStoreList = [];
-      List<Modules> moduleList = [];
-      moduleList.addAll(storeServiceInterface.moduleList());
-      for (Store store in stores) {
-        for (var module in moduleList) {
-          if(module.id == store.moduleId){
-            if(module.pivot!.zoneId == store.zoneId){
-              _featuredStoreList!.add(store);
-            }
-          }
-        }
-      }
+      _featuredStoreList = _storesInUserZone(stores);
     }
     update();
+  }
+
+  /// Keeps only stores whose module the user's address zone actually serves.
+  ///
+  /// The store list payloads (`stores/get-stores/all?featured=1`,
+  /// `customer/visit-again`) no longer send `zone_id` — the request is already
+  /// zone-scoped by the `zoneId` header — so `module.pivot.zoneId == store.zoneId`
+  /// compared a real zone against null for *every* store and filtered the entire
+  /// list away, leaving the Featured and Visit Again sections rendering nothing.
+  ///
+  /// A store that omits the field is now accepted on its module match alone; one
+  /// that still reports a zone is matched on it, so a backend still sending
+  /// `zone_id` behaves exactly as before.
+  ///
+  /// Fails open when the zone's module list is unavailable (no cached address
+  /// yet): dropping every store because zone data hadn't loaded is worse than
+  /// trusting the scoping the API already applied.
+  List<Store> _storesInUserZone(List<Store> stores) {
+    final List<Modules> moduleList = storeServiceInterface.moduleList();
+    if (moduleList.isEmpty) return stores;
+    final List<Store> storesInZone = <Store>[];
+    for (final Store store in stores) {
+      for (final Modules module in moduleList) {
+        if (module.id != store.moduleId) continue;
+        if (store.zoneId != null && module.pivot?.zoneId != store.zoneId) continue;
+        storesInZone.add(store);
+        // moduleList is flattened across every zone of the address, so the same
+        // module id can appear more than once — stop at the first match or the
+        // store gets added twice.
+        break;
+      }
+    }
+    return storesInZone;
   }
 
   Future<void> getVerifiedStoreList({bool reload = false, bool notify = true, int limit = 10}) async {
@@ -503,18 +572,8 @@ class StoreController extends GetxController implements GetxService {
 
   void _prepareVisitAgainStore(List<Store>? stores) {
     if (stores != null) {
-      _visitAgainStoreList = [];
-      List<Modules> moduleList = [];
-      moduleList.addAll(storeServiceInterface.moduleList());
-      for (var store in stores) {
-        for (var module in moduleList) {
-          if(module.id == store.moduleId){
-            if(module.pivot!.zoneId == store.zoneId){
-              _visitAgainStoreList!.add(store);
-            }
-          }
-        }
-      }
+      // Same payload family as the featured list — see [_storesInUserZone].
+      _visitAgainStoreList = _storesInUserZone(stores);
     }
     update();
   }
@@ -524,7 +583,7 @@ class StoreController extends GetxController implements GetxService {
       _categoryList = [];
       _categoryList!.add(CategoryModel(id: 0, name: 'all'.tr));
       for (var category in Get.find<CategoryController>().categoryList!) {
-        if(_store!.categoryIds!.contains(category.id)) {
+        if((_store!.categoryIds ?? const <int>[]).contains(category.id)) {
           _categoryList!.add(category);
         }
       }
@@ -535,6 +594,10 @@ class StoreController extends GetxController implements GetxService {
     _categoryIndex = 0;
     if(store.name != null) {
       _store = store;
+      // This branch skips the network call, so the span has to be reset here
+      // too — the controller is a singleton and would otherwise keep the
+      // previously opened store's price range.
+      applyPriceRange(store);
     }else {
       _isLoading = true;
       _store = null;
@@ -542,18 +605,31 @@ class StoreController extends GetxController implements GetxService {
           ModuleHelper.getModule(), ModuleHelper.getCacheModule()?.id, ModuleHelper.getModule()?.id);
       if (storeDetails != null) {
         _store = storeDetails;
+        applyPriceRange(storeDetails);
         Get.find<CheckoutController>().initializeTimeSlot(_store!);
         if(!fromCart && slug.isEmpty && calculateDistance){
-          Get.find<CheckoutController>().getDistanceInKM(
-            LatLng(
-              double.parse(AddressHelper.getUserAddressFromSharedPref()?.latitude??'0'),
-              double.parse(AddressHelper.getUserAddressFromSharedPref()?.longitude??'0'),
-            ),
-            LatLng(double.parse(_store!.latitude!), double.parse(_store!.longitude!)),
-          );
+          // stores/details no longer returns latitude/longitude; skip the distance
+          // call rather than throwing on a null parse.
+          final double? storeLat = double.tryParse(_store!.latitude ?? '');
+          final double? storeLng = double.tryParse(_store!.longitude ?? '');
+          if (storeLat != null && storeLng != null) {
+            Get.find<CheckoutController>().getDistanceInKM(
+              LatLng(
+                double.parse(AddressHelper.getUserAddressFromSharedPref()?.latitude??'0'),
+                double.parse(AddressHelper.getUserAddressFromSharedPref()?.longitude??'0'),
+              ),
+              LatLng(storeLat, storeLng),
+            );
+          }
         }
         if(slug.isNotEmpty){
-          await Get.find<LocationController>().setStoreAddressToUserAddress(LatLng(double.parse(_store!.latitude!), double.parse(_store!.longitude!)));
+          // Deep-link entry: same missing coordinates, so only adopt the store's
+          // address when it actually has one.
+          final double? lat = double.tryParse(_store!.latitude ?? '');
+          final double? lng = double.tryParse(_store!.longitude ?? '');
+          if (lat != null && lng != null) {
+            await Get.find<LocationController>().setStoreAddressToUserAddress(LatLng(lat, lng));
+          }
         }
         if(fromModule) {
           HomeScreen.loadData(true);
@@ -561,8 +637,12 @@ class StoreController extends GetxController implements GetxService {
           Get.find<CheckoutController>().clearPrevData();
         }*/
       }
+      // `delivery` was dropped from stores/details, so it is null rather than a
+      // bool. Force-unwrapping threw here — before the update() below — and left
+      // the page on its loader. Unknown falls back to 'delivery', matching the
+      // behaviour this already had when the store itself was null.
       Get.find<CheckoutController>().setOrderType(
-        _store != null ? _store!.delivery! ? 'delivery' : 'take_away' : 'delivery', notify: false,
+        (_store?.delivery ?? true) ? 'delivery' : 'take_away', notify: false,
       );
       _isLoading = false;
       update();
@@ -784,12 +864,14 @@ class StoreController extends GetxController implements GetxService {
     }
     ItemModel? storeItemModel = await storeServiceInterface.getStoreItemList(
       storeID: storeID, offset: offset,
-      categoryID: (_store != null && _store!.categoryIds!.isNotEmpty && _categoryIndex != 0) ? _categoryList![_categoryIndex].id : 0,
+      categoryID: (_store != null && (_store!.categoryIds?.isNotEmpty ?? false) && _categoryIndex != 0) ? _categoryList![_categoryIndex].id : 0,
       type: type,
       filter: _filter,
       rating: _rating == -1 ? null : _rating,
-      lowerValue: _lowerValue == 0 ? null : _lowerValue,
-      upperValue: _upperValue == 0 ? null : _upperValue,
+      // Only narrow the query once the user has actually moved a thumb inward;
+      // sitting on the limits means "no price filter", as 0/0 used to.
+      lowerValue: _lowerValue <= _lowerLimit ? null : _lowerValue,
+      upperValue: _upperValue >= _upperLimit ? null : _upperValue,
     );
     if (storeItemModel != null) {
       if (offset == 1) {
@@ -861,6 +943,14 @@ class StoreController extends GetxController implements GetxService {
     if(!active) {
       return true;
     }
+    // The store payloads stopped carrying `schedules`, so this is null rather
+    // than a list — `schedules!.length` threw and took the whole store page and
+    // the checkout schedule sheet down with it. With no schedule to consult the
+    // store is not knowably closed, so let the caller fall back to the `open`
+    // flag the API computes for us.
+    if(schedules == null) {
+      return false;
+    }
     DateTime date = DateTime.now();
     if(!today) {
       date = date.add(const Duration(days: 1));
@@ -869,7 +959,7 @@ class StoreController extends GetxController implements GetxService {
     if(weekday == 7) {
       weekday = 0;
     }
-    for(int index=0; index<schedules!.length; index++) {
+    for(int index=0; index<schedules.length; index++) {
       if(weekday == schedules[index].day) {
         return false;
       }
@@ -881,11 +971,14 @@ class StoreController extends GetxController implements GetxService {
     if(isStoreClosed(true, active, schedules)) {
       return false;
     }
+    if(schedules == null) {
+      return active;
+    }
     int weekday = DateTime.now().weekday;
     if(weekday == 7) {
       weekday = 0;
     }
-    for(int index=0; index<schedules!.length; index++) {
+    for(int index=0; index<schedules.length; index++) {
       if(weekday == schedules[index].day
           && DateConverter.isAvailable(schedules[index].openingTime, schedules[index].closingTime)) {
         return true;
@@ -894,7 +987,21 @@ class StoreController extends GetxController implements GetxService {
     return false;
   }
 
-  bool isOpenNow(Store store) => store.open == 1 && store.active!;
+  bool isOpenNow(Store store) => store.open == 1 && (store.active ?? false);
+
+  /// Whether [store] is open right now, from whichever of the two signals the
+  /// payload actually carries.
+  ///
+  /// A store that still sends `schedules` is judged against them, exactly as
+  /// before. `stores/details` no longer does, and for those the API's own
+  /// `open` flag is the answer — the same signal every store card already uses.
+  bool isStoreOpen(Store store) {
+    final bool active = store.active ?? true;
+    if(store.schedules == null) {
+      return active && store.open == 1;
+    }
+    return isStoreOpenNow(active, store.schedules);
+  }
 
   double? getDiscount(Store store) => store.discount != null ? store.discount!.discount : 0;
 
@@ -964,12 +1071,38 @@ class StoreController extends GetxController implements GetxService {
     if(reload) update();
   }
 
+  /// Sets the price slider to the span this store's items actually cover.
+  ///
+  /// Called for every store `getStoreDetails` resolves, including the branch
+  /// that short-circuits without a network call.
+  ///
+  /// `stores/details` reports it as `price_range`; the slider used to sit
+  /// between 0 and a 99999 placeholder with both thumbs pinned at 0, so it
+  /// could not be dragged to anything meaningful. The controller is a
+  /// singleton, so a store without a range has to restore the placeholder
+  /// rather than inherit the previously opened store's span.
+  void applyPriceRange(Store store) {
+    final double? min = store.minPrice;
+    final double? max = store.maxPrice;
+    if (min != null && max != null && max > min) {
+      _lowerLimit = min;
+      _upperLimit = max;
+    } else {
+      _lowerLimit = 0;
+      _upperLimit = 99999;
+    }
+    _lowerValue = _lowerLimit;
+    _upperValue = _upperLimit;
+  }
+
   void resetFilter({bool isUpdate = true}) {
     _isAvailableItems = false;
     _isDiscountedItems = false;
     _rating = -1;
-    _lowerValue = 0;
-    _upperValue = 0;
+    // Back to the full span, not to zero — RangeSlider asserts when its values
+    // fall outside [min, max], and the minimum is no longer always 0.
+    _lowerValue = _lowerLimit;
+    _upperValue = _upperLimit;
     _filter = [];
     if(isUpdate) {
       update();

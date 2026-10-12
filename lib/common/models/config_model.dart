@@ -1,3 +1,5 @@
+import 'package:sixam_mart/api/json_reader.dart';
+import 'package:sixam_mart/common/models/measurement_unit_model.dart';
 import 'package:sixam_mart/common/models/module_model.dart';
 import 'package:sixam_mart/helper/type_converter_helper.dart';
 
@@ -37,6 +39,20 @@ class ConfigModel {
   int? digitAfterDecimalPoint;
   double? parcelPerKmShippingCharge;
   double? parcelMinimumShippingCharge;
+  MeasurementUnitModel? distanceUnit;
+
+  /// Flat `distance_unit_label` — `km` or `mi`. Reports the same setting as
+  /// [distanceUnit], and is the key the platform sends today.
+  String? distanceUnitLabel;
+
+  /// The suffix to render beside a distance or a per-unit rate. The flat key
+  /// decides so the suffix can never disagree with the unit word beside it.
+  String get distanceUnitSuffix {
+    final String? label = distanceUnitLabel ?? distanceUnit?.label;
+    return (label != null && label.trim().isNotEmpty) ? label.trim() : 'km';
+  }
+  MeasurementUnitModel? weightUnit;
+  MeasurementUnitModel? dimensionUnit;
   ModuleModel? module;
   ModuleConfig? moduleConfig;
   LandingPageSettings? landingPageSettings;
@@ -133,6 +149,8 @@ class ConfigModel {
   int? systemTaxIncludeStatus;
   ServiceModuleConfig? serviceModule;
   bool? verifiedStoreStatus;
+  bool? productBundleStatus;
+  List<String>? productBundleModuleTypes;
 
   ConfigModel({
     this.businessName,
@@ -172,6 +190,10 @@ class ConfigModel {
     this.moduleConfig,
     this.parcelPerKmShippingCharge,
     this.parcelMinimumShippingCharge,
+    this.distanceUnit,
+    this.distanceUnitLabel,
+    this.weightUnit,
+    this.dimensionUnit,
     this.landingPageSettings,
     this.socialMedia,
     this.footerText,
@@ -264,6 +286,8 @@ class ConfigModel {
     this.systemTaxIncludeStatus,
     this.serviceModule,
     this.verifiedStoreStatus,
+    this.productBundleStatus,
+    this.productBundleModuleTypes,
   });
 
   ConfigModel.fromJson(Map<String, dynamic> json) {
@@ -309,6 +333,13 @@ class ConfigModel {
     moduleConfig = json['module_config'] != null ? ModuleConfig.fromJson(json['module_config']) : null;
     parcelPerKmShippingCharge = json['parcel_per_km_shipping_charge']?.toDouble();
     parcelMinimumShippingCharge = json['parcel_minimum_shipping_charge']?.toDouble();
+    distanceUnitLabel = json['distance_unit_label'];
+    final dynamic units = json['units'];
+    if (units is Map) {
+      distanceUnit = MeasurementUnitModel.maybeFrom(units['distance']);
+      weightUnit = MeasurementUnitModel.maybeFrom(units['weight']);
+      dimensionUnit = MeasurementUnitModel.maybeFrom(units['dimension']);
+    }
     landingPageSettings = json['landing_page_settings'] != null ? LandingPageSettings.fromJson(json['landing_page_settings']) : null;
     if (json['social_media'] != null) {
       socialMedia = <SocialMedia>[];
@@ -395,7 +426,7 @@ class ConfigModel {
     popularTips = json['popular_tips'];
     if(json['ride_search_radius'] != null){
       try{
-        searchRadius = json['ride_search_radius'].toDouble();
+        searchRadius = JsonReader.toDouble(json['ride_search_radius']);
       }catch(e){
         searchRadius = double.parse(json['ride_search_radius'].toString());
       }
@@ -417,7 +448,7 @@ class ConfigModel {
     referralEarningStatus = int.tryParse(json['rider_referral_earning_status'].toString());
     if(json['rider_completion_radius'] != null){
       try{
-        completionRadius = json['rider_completion_radius'].toDouble();
+        completionRadius = JsonReader.toDouble(json['rider_completion_radius']);
       }catch(e){
         completionRadius = double.parse(json['rider_completion_radius'].toString());
       }
@@ -433,6 +464,13 @@ class ConfigModel {
     systemTaxIncludeStatus = json['system_tax_include_status'];
     serviceModule = json['service_module'] != null ? ServiceModuleConfig.fromJson(json['service_module']) : null;
     verifiedStoreStatus = TypeConverterHelper.getBool(json['verified_store_status']);
+    productBundleStatus = TypeConverterHelper.getBool(json['product_bundle_status']);
+    if (json['product_bundle_module_types'] != null) {
+      productBundleModuleTypes = <String>[];
+      json['product_bundle_module_types'].forEach((v) {
+        productBundleModuleTypes!.add(v.toString());
+      });
+    }
   }
 
   Map<String, dynamic> toJson() {
@@ -564,6 +602,10 @@ class ConfigModel {
       data['service_module'] = serviceModule!.toJson();
     }
     data['verified_store_status'] = verifiedStoreStatus;
+    data['product_bundle_status'] = productBundleStatus;
+    if (productBundleModuleTypes != null) {
+      data['product_bundle_module_types'] = productBundleModuleTypes;
+    }
     return data;
   }
 }

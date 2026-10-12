@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:sixam_mart/api/api_client.dart';
 import 'package:sixam_mart/common/models/ongoing_order_model.dart';
 import 'package:sixam_mart/common/widgets/custom_snackbar.dart';
 import 'package:sixam_mart/features/checkout/domain/models/payment_model.dart';
@@ -31,7 +32,10 @@ class OrderService implements OrderServiceInterface {
 
   @override
   Future<List<LastOrderModel>?> getLastOrders({required bool isHome, int? storeId}) async {
-    return await orderRepositoryInterface.getLastOrders(isHome: isHome, storeId: storeId);
+    final List<LastOrderModel>? orders = await orderRepositoryInterface.getLastOrders(isHome: isHome, storeId: storeId);
+    // The section exists to repeat an order, so one the backend refuses to repeat has
+    // nothing to offer there.
+    return orders?.where((LastOrderModel order) => order.canReorder ?? false).toList();
   }
 
   @override
@@ -142,22 +146,30 @@ class OrderService implements OrderServiceInterface {
   }
 
   @override
-  Future<void> submitRefundRequest(int selectedReasonIndex, List<String?>? refundReasons, String note, String? orderId, XFile? refundImage) async {
+  Future<bool> submitRefundRequest(int selectedReasonIndex, List<String?>? refundReasons, String note, String? orderId, XFile? refundImage) async {
     if(selectedReasonIndex == -1) {
       showCustomSnackBar('please_select_reason'.tr);
-    } else {
-      Map<String, String> body = {};
-      body.addAll(<String, String>{
-        'customer_reason': refundReasons![selectedReasonIndex]!,
-        'order_id': orderId!,
-        'customer_note': note,
-      });
-      Response response = await orderRepositoryInterface.submitRefundRequest(body, refundImage);
-      if (response.statusCode == 200) {
-        showCustomSnackBar(response.body['message'], isError: false);
-        Get.offAllNamed(RouteHelper.getInitialRoute());
-      }
+      return false;
     }
+    Map<String, String> body = {};
+    body.addAll(<String, String>{
+      'customer_reason': refundReasons![selectedReasonIndex]!,
+      'order_id': orderId!,
+      'customer_note': note,
+    });
+    Response response = await orderRepositoryInterface.submitRefundRequest(body, refundImage);
+    // The request CREATES a refund request, so the API answers `201 Created`. Testing
+    // for 200 alone read a filed request as a failure, and since the failure path is
+    // handled upstream by ApiChecker there was nothing left to show — the button
+    // submitted the request and then appeared to do nothing at all.
+    if (!ApiClient.isSuccessCode(response.statusCode)) {
+      return false;
+    }
+    // The envelope keeps its `message` beside a null `content`, so it survives the
+    // unwrap; `statusText` carries it for the shapes where `content` is filled.
+    final dynamic message = response.body is Map ? response.body['message'] : null;
+    showCustomSnackBar(message is String ? message : response.statusText, isError: false);
+    return true;
   }
 
   @override

@@ -17,28 +17,24 @@ class CouponSection extends StatelessWidget {
   final int? storeId;
   final CheckoutController checkoutController;
   final double total;
-  final double price;
+  final double subTotal;
   final double discount;
-  final double addOns;
   final double deliveryCharge;
-  final double variationPrice;
   const CouponSection({
     super.key,
     this.storeId,
     required this.checkoutController,
     required this.total,
-    required this.price,
+    required this.subTotal,
     required this.discount,
-    required this.addOns,
     required this.deliveryCharge,
-    required this.variationPrice,
   });
 
   Future<bool> _applyCoupon(String code) async {
     final couponCtrl = Get.find<CouponController>();
     final couponDiscount = await couponCtrl.applyCoupon(
       code,
-      (price - discount) + addOns + variationPrice,
+      subTotal - discount,
       deliveryCharge,
       Get.find<StoreController>().store!.id,
     );

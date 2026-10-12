@@ -46,6 +46,12 @@ class _BrandsItemScreenState extends State<BrandsItemScreen> {
   }
 
   @override
+  void dispose() {
+    scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
 
     bool isDesktop = ResponsiveHelper.isDesktop(context);

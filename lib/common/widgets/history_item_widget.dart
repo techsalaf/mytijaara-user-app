@@ -29,8 +29,11 @@ class HistoryItemWidget extends StatelessWidget {
                 const SizedBox(width: Dimensions.paddingSizeExtraSmall),
             
                 Text(data![index].transactionType == 'order_place' || data![index].transactionType == 'partial_payment' || data![index].transactionType == 'ride_booking' || data![index].transactionType == 'service_booking' || data![index].transactionType == 'pro_subscription'
-                    ? '- ${PriceConverter.convertPrice(data![index].debit! + data![index].adminBonus!)}'
-                    : '+ ${PriceConverter.convertPrice(data![index].credit! + data![index].adminBonus!)}',
+                    // `admin_bonus` is only sent on wallet rows and `credit`/`debit` can be
+                    // absent too, so default rather than force-unwrap — a null here threw
+                    // while building the row and took the whole history down.
+                    ? '- ${PriceConverter.convertPrice((data![index].debit ?? 0) + (data![index].adminBonus ?? 0))}'
+                    : '+ ${PriceConverter.convertPrice((data![index].credit ?? 0) + (data![index].adminBonus ?? 0))}',
                   style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeDefault), maxLines: 1, overflow: TextOverflow.ellipsis, textDirection: TextDirection.ltr,
                 ),
               ]) : Row(children: [
@@ -38,8 +41,8 @@ class HistoryItemWidget extends StatelessWidget {
                 data![index].transactionType == 'point_to_wallet'? Image.asset(Images.debitIcon, height: 13, width: 13) : Image.asset(Images.creditIcon, height: 13, width: 13),
                 const SizedBox(width: Dimensions.paddingSizeExtraSmall),
             
-                Text(data![index].transactionType == 'point_to_wallet'? '-${data![index].debit!.toStringAsFixed(0)}'
-                    : '+${data![index].credit!.toStringAsFixed(0)}',
+                Text(data![index].transactionType == 'point_to_wallet'? '-${(data![index].debit ?? 0).toStringAsFixed(0)}'
+                    : '+${(data![index].credit ?? 0).toStringAsFixed(0)}',
                     style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeDefault), maxLines: 1, overflow: TextOverflow.ellipsis),
                 const SizedBox(width: Dimensions.paddingSizeExtraSmall),
             
@@ -48,14 +51,14 @@ class HistoryItemWidget extends StatelessWidget {
               const SizedBox(height: Dimensions.paddingSizeExtraSmall),
             
               Text(
-                data![index].transactionType == 'add_fund' ? '${'added_via'.tr} ${data![index].reference!.replaceAll('_', ' ')} ${data![index].adminBonus != 0 ? '(${'bonus'.tr} = ${data![index].adminBonus})' : '' }'
+                data![index].transactionType == 'add_fund' ? '${'added_via'.tr} ${(data![index].reference ?? '').replaceAll('_', ' ')} ${(data![index].adminBonus ?? 0) != 0 ? '(${'bonus'.tr} = ${data![index].adminBonus})' : '' }'
                     : data![index].transactionType == 'partial_payment' ? '${'spend_on_order'.tr} # ${data![index].reference}'
                     : data![index].transactionType == 'loyalty_point' ? 'converted_from_loyalty_point'.tr
                     : data![index].transactionType == 'referrer' ? 'earned_by_referral'.tr
                     : data![index].transactionType == 'order_place' ? '${'order_place'.tr} # ${data![index].reference}'
                     : data![index].transactionType == 'ride_booking' ? 'ride_booking'.tr
                     : data![index].transactionType == 'service_booking' ? 'service_booking'.tr
-                    : data![index].transactionType!.tr,
+                    : (data![index].transactionType ?? '').tr,
                 style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeExtraSmall,color: Theme.of(context).hintColor),
                 maxLines: 2, overflow: TextOverflow.ellipsis,
               ),
@@ -65,7 +68,8 @@ class HistoryItemWidget extends StatelessWidget {
 
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text(
-              DateConverter.dateToDateAndTimeAm(data![index].createdAt!),
+              // `created_at` can be missing or unparseable; render nothing rather than throw.
+              data![index].createdAt != null ? DateConverter.dateToDateAndTimeAm(data![index].createdAt!) : '',
               style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall,color: Theme.of(context).hintColor),
               maxLines: 1, overflow: TextOverflow.ellipsis,
             ),

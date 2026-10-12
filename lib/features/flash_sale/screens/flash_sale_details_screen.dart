@@ -30,8 +30,8 @@ class _FlashSaleDetailsScreenState extends State<FlashSaleDetailsScreen> {
 
   @override
   void dispose() {
-    super.dispose();
     _scrollController.dispose();
+    super.dispose();
   }
 
   @override

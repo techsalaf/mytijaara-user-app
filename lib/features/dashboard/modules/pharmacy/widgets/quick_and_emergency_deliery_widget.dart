@@ -9,6 +9,7 @@ import 'package:sixam_mart/common/widgets/title_widget.dart';
 import 'package:sixam_mart/features/store/controllers/store_controller.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 import 'package:sixam_mart/features/store/screens/store_screen.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
@@ -132,6 +133,7 @@ class _StoreBundleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final int? decodeWidth = ImageCacheHelper.pixels(context, 40);
     return CustomInkWell(
       onTap: _openStore,
       child: Container(
@@ -161,7 +163,7 @@ class _StoreBundleCard extends StatelessWidget {
               padding: const EdgeInsets.all(Dimensions.paddingSizeSmall),
               child: Row(children: [
                 ClipOval(
-                  child: CustomImage(image: store.logoFullUrl ?? '', height: 40, width: 40),
+                  child: CustomImage(image: store.logoFullUrl ?? '', height: 40, width: 40, cacheWidth: decodeWidth,),
                 ),
                 const SizedBox(width: Dimensions.paddingSizeSmall),
 
@@ -211,8 +213,10 @@ class _StoreBundleCard extends StatelessWidget {
   String _deliveryInfo() {
     final String time = store.deliveryTime ?? '';
     final double? km = store.distanceKm;
-    if(km == null) return time;
-    final String distance = '${km.toStringAsFixed(1)} km';
+    // The API's label already carries the platform's configured distance unit;
+    // the hardcoded "km" is only the fallback for a backend without it.
+    final String? distance = store.distanceLabel ?? (km != null ? '${km.toStringAsFixed(1)} km' : null);
+    if(distance == null) return time;
     return time.isEmpty ? distance : '$time ($distance)';
   }
 }
@@ -253,6 +257,7 @@ class _TopItemTile extends StatelessWidget {
     final bool hasDiscount = (item.discount ?? 0) > 0;
     // Reserve two lines for the name so the prices line up across tiles.
     final double nameHeight = Dimensions.fontSizeSmall * 1.3 * 2 * MediaQuery.textScalerOf(context).scale(1.0);
+    final int? decodeWidth = ImageCacheHelper.pixels(context, tileWidth);
     return SizedBox(
       width: tileWidth,
       child: Column(
@@ -268,7 +273,7 @@ class _TopItemTile extends StatelessWidget {
             padding: const EdgeInsets.all(1),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(Dimensions.radiusDefault - 2),
-              child: CustomImage(image: item.imageFullUrl ?? '', fit: BoxFit.cover),
+              child: CustomImage(image: item.imageFullUrl ?? '', fit: BoxFit.cover, cacheWidth: decodeWidth),
             ),
           ),
           const SizedBox(height: Dimensions.paddingSizeSmall),

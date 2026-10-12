@@ -1,21 +1,36 @@
+import 'package:sixam_mart/api/response_parser.dart';
 class SearchSuggestionModel {
   List<Items>? items;
   List<Stores>? stores;
 
   SearchSuggestionModel({this.items, this.stores});
 
+  /// The suggestion body carries **two** lists side by side, and only the item one
+  /// was renamed:
+  ///
+  /// - `items/item-or-store-search`         → `{data: [...], stores: [...], pagination}`
+  /// - `service/item-or-store-search`       → `{items: [...], stores: [...]}`
+  ///
+  /// Reading only `items` therefore returned null on every mart module, so the
+  /// suggestion dropdown showed store matches and silently dropped the item matches.
+  ///
+  /// `items` is still checked first, which keeps the service module and any legacy
+  /// backend byte-identical. `stores` must go through [ResponseParser.namedListOf] —
+  /// `listOf` falls back to `data`, which here holds the *items* and would hand the
+  /// store list the wrong rows.
   SearchSuggestionModel.fromJson(Map<String, dynamic> json) {
-    if (json['items'] != null) {
+    final List<dynamic>? itemEntries = ResponseParser.listOf(json, legacyKey: 'items');
+    if (itemEntries != null) {
       items = <Items>[];
-      json['items'].forEach((v) {
+      for (final dynamic v in itemEntries) {
         items!.add(Items.fromJson(v));
-      });
+      }
     }
     if (json['stores'] != null) {
       stores = <Stores>[];
-      json['stores'].forEach((v) {
+      for (final dynamic v in ResponseParser.namedListOf(json, 'stores')) {
         stores!.add(Stores.fromJson(v));
-      });
+      }
     }
   }
 

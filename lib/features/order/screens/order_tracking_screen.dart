@@ -126,11 +126,11 @@ class OrderTrackingScreenState extends State<OrderTrackingScreen> with WidgetsBi
 
   @override
   void dispose() {
-    super.dispose();
     _controller?.dispose();
     _timer?.cancel();
     PusherHelper().pusherDisconnectPusher();
     WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   void onEntered(bool isHovered) {

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:sixam_mart/common/widgets/lazy_sliver.dart';
 import 'package:sixam_mart/common/widgets/title_widget.dart';
 import 'package:sixam_mart/features/banner/controllers/banner_controller.dart';
+import 'package:sixam_mart/features/bogo_offer/controllers/bogo_offer_controller.dart';
+import 'package:sixam_mart/features/bundle/controllers/bundle_controller.dart';
+import 'package:sixam_mart/features/bundle/widgets/bundle_section_widget.dart';
 import 'package:sixam_mart/features/brands/controllers/brands_controller.dart';
 import 'package:sixam_mart/features/brands/widgets/brand_section_widget.dart';
 import 'package:sixam_mart/features/category/controllers/category_controller.dart';
@@ -9,6 +13,7 @@ import 'package:sixam_mart/features/dashboard/modules/pharmacy/widgets/quick_and
 import 'package:sixam_mart/features/dashboard/modules/shop/widgets/shop_flash_sale_header_widget.dart';
 import 'package:sixam_mart/features/dashboard/modules/shop/widgets/shop_upto_offer.dart';
 import 'package:sixam_mart/features/dashboard/widgets/banner_slider.dart';
+import 'package:sixam_mart/features/dashboard/widgets/bogo_offer_card_widget.dart';
 import 'package:sixam_mart/features/dashboard/widgets/category_section.dart';
 import 'package:sixam_mart/features/dashboard/widgets/explore_restaurant_section.dart';
 import 'package:sixam_mart/features/dashboard/widgets/featured_restaurant.dart';
@@ -23,14 +28,18 @@ import 'package:sixam_mart/features/dashboard/widgets/top_picks_near_you_widget.
 import 'package:sixam_mart/features/flash_sale/controllers/flash_sale_controller.dart';
 import 'package:sixam_mart/features/home/controllers/advertisement_controller.dart';
 import 'package:sixam_mart/features/home/controllers/home_controller.dart';
+import 'package:sixam_mart/features/home/widgets/views/promotional_banner_view.dart';
+import 'package:sixam_mart/features/item/controllers/campaign_controller.dart';
 import 'package:sixam_mart/features/item/controllers/item_controller.dart';
 import 'package:sixam_mart/features/order/controllers/order_controller.dart';
 import 'package:sixam_mart/features/reels/controllers/reels_controller.dart';
 import 'package:sixam_mart/features/reels/widgets/reels_section_widget.dart';
+import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/store/controllers/store_controller.dart';
+import 'package:sixam_mart/helper/auth_helper.dart';
+import 'package:sixam_mart/helper/module_helper.dart';
 import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/dimensions.dart';
-import 'package:sixam_mart/features/home/widgets/views/promotional_banner_view.dart';
 import 'package:sliver_tools/sliver_tools.dart';
 
 class GroceryModuleScreen extends StatefulWidget {
@@ -45,16 +54,6 @@ class GroceryModuleScreen extends StatefulWidget {
 }
 
 class _GroceryModuleScreenState extends State<GroceryModuleScreen> {
-
-  @override
-  void initState() {
-
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_){
-      Get.find<OrderController>().getLastOrders(isHome: false);
-      Get.find<HomeController>().getTopOffer(notify: false);
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -102,119 +101,190 @@ class _GroceryModuleScreenState extends State<GroceryModuleScreen> {
       }),
 
       // Section: flash sale
-      GetBuilder<FlashSaleController>(builder: (controller) {
-        final visible = controller.flashSaleModel == null || (controller.flashSaleModel!.activeProducts?.isNotEmpty ?? false);
-        return _conditionalSection(visible: visible, slivers: [
-          sliverGepY(value: Dimensions.paddingSizeLarge),
-          const SliverToBoxAdapter(child: ShopFlashSaleHeaderWidget()),
-        ]);
-      }),
+      LazySliver(
+        onReveal: () => Get.find<FlashSaleController>().getFlashSale(true, false),
+        sliver: GetBuilder<FlashSaleController>(builder: (controller) {
+          final visible = controller.flashSaleModel == null || (controller.flashSaleModel!.activeProducts?.isNotEmpty ?? false);
+          return _conditionalSection(visible: visible, slivers: [
+            sliverGepY(value: Dimensions.paddingSizeLarge),
+            const SliverToBoxAdapter(child: ShopFlashSaleHeaderWidget()),
+          ]);
+        }),
+      ),
 
       // Section: today's deals
-      GetBuilder<ItemController>(builder: (controller) {
-        final visible = controller.discountedItemList == null || controller.discountedItemList!.isNotEmpty;
-        return _conditionalSection(visible: visible, slivers: [
-          const SliverToBoxAdapter(child: TodaysDealsSectionWidget()),
-          sliverGepY(value: Dimensions.paddingSizeSmall),
-        ]);
-      }),
+      LazySliver(
+        onReveal: () => Get.find<ItemController>().getDiscountedItemList(offset: '1', firstTimeCategoryLoad: true),
+        sliver: GetBuilder<ItemController>(builder: (controller) {
+          final visible = controller.discountedItemList == null || controller.discountedItemList!.isNotEmpty;
+          return _conditionalSection(visible: visible, slivers: [
+            const SliverToBoxAdapter(child: TodaysDealsSectionWidget()),
+            sliverGepY(value: Dimensions.paddingSizeSmall),
+          ]);
+        }),
+      ),
 
       // reels
-      GetBuilder<ReelsController>(builder: (controller) {
-        final visible = (controller.reelsList == null && controller.isLoading)
-            || (controller.reelsList != null && controller.reelsList!.isNotEmpty);
-        return _conditionalSection(visible: visible, slivers: [
-          const SliverToBoxAdapter(child: ReelsSectionWidget()),
-          sliverGepY(value: Dimensions.paddingSizeDefault),
-        ]);
-      }),
+      LazySliver(
+        onReveal: () => Get.find<ReelsController>().getReelsList(offset: 1),
+        sliver: GetBuilder<ReelsController>(builder: (controller) {
+          final visible = (controller.reelsList == null && controller.isLoading)
+              || (controller.reelsList != null && controller.reelsList!.isNotEmpty);
+          return _conditionalSection(visible: visible, slivers: [
+            const SliverToBoxAdapter(child: ReelsSectionWidget()),
+            sliverGepY(value: Dimensions.paddingSizeDefault),
+          ]);
+        }),
+      ),
+
+      // Section: BOGO offers — the whole block hides itself when no offer is live
+      LazySliver(
+        onReveal: () => Get.find<BogoOfferController>().getBogoHomeData(),
+        sliver: GetBuilder<BogoOfferController>(builder: (controller) {
+          return _conditionalSection(visible: controller.showHomeCard, slivers: [
+            const SliverToBoxAdapter(child: BogoOfferCardWidget()),
+          ]);
+        }),
+      ),
 
       // Section: Recommended For You
-      GetBuilder<StoreController>(builder: (controller) {
-        final visible = controller.recommendedStoreList == null || controller.recommendedStoreList!.isNotEmpty;
-        return _conditionalSection(visible: visible, slivers: [
-          SliverToBoxAdapter(
-            child: TopPicksNearYouWidget(title: "recommended_for_you".tr, isRecommended: true,),
-          ),
-        ]);
-      }),
+      LazySliver(
+        onReveal: () => Get.find<StoreController>().getRecommendedStoreList(),
+        sliver: GetBuilder<StoreController>(builder: (controller) {
+          final visible = controller.recommendedStoreList == null || controller.recommendedStoreList!.isNotEmpty;
+          return _conditionalSection(visible: visible, slivers: [
+            SliverToBoxAdapter(
+              child: TopPicksNearYouWidget(title: "recommended_for_you".tr, isRecommended: true,),
+            ),
+          ]);
+        }),
+      ),
 
       // Section: just for you (self-collapses when there are no campaigns)
-      const SliverToBoxAdapter(child: JustForYouSection()),
+      LazySliver(
+        onReveal: () {
+          Get.find<CampaignController>().getBasicCampaignList(true);
+          Get.find<CampaignController>().getItemCampaignList(true);
+        },
+        sliver: const SliverToBoxAdapter(child: JustForYouSection()),
+      ),
       sliverGepY(value: Dimensions.paddingSizeLarge),
 
+      // Section: bundle items — the block hides itself when the module has no
+      // bundles, which is also what the endpoint returns when the feature is off.
+      LazySliver(
+        onReveal: () {
+          if(ModuleHelper.isBundleEnabled(moduleType: AppConstants.grocery)) {
+            Get.find<BundleController>().getBundleHome();
+          }
+        },
+        sliver: GetBuilder<BundleController>(builder: (controller) {
+          return _conditionalSection(visible: controller.homeBundles?.isNotEmpty ?? false, slivers: [
+            const SliverToBoxAdapter(child: BundleSectionWidget()),
+          ]);
+        }),
+      ),
+
       // Section: last orders — section + gap collapse when there are no last orders
-      GetBuilder<OrderController>(builder: (controller) {
-        final visible = controller.lastOrders?.isNotEmpty ?? false;
-        return _conditionalSection(visible: visible, slivers: [
-          sliverGepY(value: Dimensions.paddingSizeDefault),
-          const SliverToBoxAdapter(child: LastOrdersSectionWidget(moduleType: AppConstants.grocery)),
-          sliverGepY(value: Dimensions.paddingSizeDefault),
-        ]);
-      }),
+      LazySliver(
+        onReveal: () {
+          if(AuthHelper.isLoggedIn() && Get.find<SplashController>().configModel?.repeatOrderOption == 1) {
+            Get.find<OrderController>().getLastOrders(isHome: false);
+          }
+        },
+        sliver: GetBuilder<OrderController>(builder: (controller) {
+          final visible = controller.lastOrders == null || controller.lastOrders!.isNotEmpty;
+          return _conditionalSection(visible: visible, slivers: [
+            const SliverToBoxAdapter(child: LastOrdersSectionWidget(moduleType: AppConstants.grocery)),
+            sliverGepY(value: Dimensions.paddingSizeDefault),
+          ]);
+        }),
+      ),
 
       // Section: last visited store (self-collapses when there is nothing to show)
-      const SliverToBoxAdapter(child: LastVisitedStoreSection()),
+      LazySliver(
+        onReveal: () {
+          if(AuthHelper.isLoggedIn() && Get.find<SplashController>().configModel?.repeatOrderOption == 1) {
+            Get.find<StoreController>().getVisitAgainStoreList(fromModule: true);
+          }
+        },
+        sliver: const SliverToBoxAdapter(child: LastVisitedStoreSection()),
+      ),
       sliverGepY(value: Dimensions.paddingSizeDefault),
 
       // top brands
-      GetBuilder<BrandsController>(builder: (controller) {
-        final visible = controller.brandList == null || controller.brandList!.isNotEmpty;
-        return _conditionalSection(visible: visible, slivers: [
-          const SliverToBoxAdapter(child: BrandSectionWidget(showLabel: true, showItemCount: true)),
-          sliverGepY(value: Dimensions.paddingSizeLarge),
-        ]);
-      }),
+      LazySliver(
+        onReveal: () => Get.find<BrandsController>().getBrandList(),
+        sliver: GetBuilder<BrandsController>(builder: (controller) {
+          final visible = controller.brandList == null || controller.brandList!.isNotEmpty;
+          return _conditionalSection(visible: visible, slivers: [
+            const SliverToBoxAdapter(child: BrandSectionWidget(showLabel: true, showItemCount: true)),
+            sliverGepY(value: Dimensions.paddingSizeLarge),
+          ]);
+        }),
+      ),
 
       // Section: featured stores list
-      GetBuilder<AdvertisementController>(builder: (controller) {
-        final visible = controller.advertisementList == null || controller.advertisementList!.isNotEmpty;
-        return _conditionalSection(visible: visible, slivers: [
-          sliverPadX(child: const FeaturedRestaurant()),
-          sliverGepY(value: Dimensions.paddingSizeDefault),
-        ]);
-      }),
+      LazySliver(
+        onReveal: () => Get.find<AdvertisementController>().getAdvertisementList(),
+        sliver: GetBuilder<AdvertisementController>(builder: (controller) {
+          final visible = controller.advertisementList == null || controller.advertisementList!.isNotEmpty;
+          return _conditionalSection(visible: visible, slivers: [
+            sliverPadX(child: const FeaturedRestaurant()),
+            sliverGepY(value: Dimensions.paddingSizeDefault),
+          ]);
+        }),
+      ),
 
       // Section: quick & emergency delivery — collapse the whole gradient block + gap when empty
-      GetBuilder<StoreController>(builder: (controller) {
-        final stores = controller.quickDeliveryStoreList?.stores;
-        final visible = controller.quickDeliveryStoreList == null || (stores != null && stores.isNotEmpty);
-        // Warm "express delivery" wash. Light mode keeps the cream tint; dark mode
-        // uses a subtle amber glow fading to transparent so it isn't a bright band.
-        final bool isDark = Theme.of(context).brightness == Brightness.dark;
-        final Color tint = isDark ? const Color(0xFFFFC107) : const Color(0xFFFFF1C2);
-        final List<Color> expressGradient = isDark
-            ? [
-                tint.withValues(alpha: 0.18),
-                tint.withValues(alpha: 0.18),
-                tint.withValues(alpha: 0.10),
-                tint.withValues(alpha: 0.10),
-                tint.withValues(alpha: 0.0),
-              ]
-            : [
-                const Color(0xFFFFF1C2),
-                const Color(0xFFFFF1C2),
-                const Color(0xFFFFF1C2).withValues(alpha: 0.5),
-                const Color(0xFFFFF1C2).withValues(alpha: 0.5),
-                const Color(0xFFFFFBEB).withValues(alpha: 0.01),
-              ];
-        return _conditionalSection(visible: visible, slivers: [
-          SliverToBoxAdapter(child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: expressGradient, begin: Alignment.bottomCenter, end: Alignment.topCenter),
-            ),
-            padding: const EdgeInsets.symmetric(vertical: Dimensions.paddingSizeDefault),
-            child: QuickAndEmergencyDeliveryWidget(isQuick: true, title: "express_delivery".tr, subTitle: 'fastest_delivery_store'.tr,),
-          )),
-          sliverGepY(value: Dimensions.paddingSizeDefault),
-        ]);
-      }),
+      LazySliver(
+        onReveal: () => Get.find<StoreController>().getQuickDeliveryStoreList(reload: true),
+        sliver: GetBuilder<StoreController>(builder: (controller) {
+          final stores = controller.quickDeliveryStoreList?.stores;
+          final visible = controller.quickDeliveryStoreList == null || (stores != null && stores.isNotEmpty);
+          // Warm "express delivery" wash. Light mode keeps the cream tint; dark mode
+          // uses a subtle amber glow fading to transparent so it isn't a bright band.
+          final bool isDark = Theme.of(context).brightness == Brightness.dark;
+          final Color tint = isDark ? const Color(0xFFFFC107) : const Color(0xFFFFF1C2);
+          final List<Color> expressGradient = isDark
+              ? [
+                  tint.withValues(alpha: 0.18),
+                  tint.withValues(alpha: 0.18),
+                  tint.withValues(alpha: 0.10),
+                  tint.withValues(alpha: 0.10),
+                  tint.withValues(alpha: 0.0),
+                ]
+              : [
+                  const Color(0xFFFFF1C2),
+                  const Color(0xFFFFF1C2),
+                  const Color(0xFFFFF1C2).withValues(alpha: 0.5),
+                  const Color(0xFFFFF1C2).withValues(alpha: 0.5),
+                  const Color(0xFFFFFBEB).withValues(alpha: 0.01),
+                ];
+          return _conditionalSection(visible: visible, slivers: [
+            SliverToBoxAdapter(child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: expressGradient, begin: Alignment.bottomCenter, end: Alignment.topCenter),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: Dimensions.paddingSizeDefault),
+              child: QuickAndEmergencyDeliveryWidget(isQuick: true, title: "express_delivery".tr, subTitle: 'fastest_delivery_store'.tr,),
+            )),
+            sliverGepY(value: Dimensions.paddingSizeDefault),
+          ]);
+        }),
+      ),
 
       // Section: items you will love (self-collapses; no trailing gap)
-      SliverToBoxAdapter(child: ItemsYouWillLoveSectionWidget(title: 'top_picks'.tr, subTitle: 'based_on_your_recent_activity'.tr)),
+      LazySliver(
+        onReveal: () => Get.find<ItemController>().getPopularItemList(offset: '1', firstTimeCategoryLoad: true),
+        sliver: SliverToBoxAdapter(child: ItemsYouWillLoveSectionWidget(title: 'top_picks'.tr, subTitle: 'based_on_your_recent_activity'.tr)),
+      ),
 
       // Section: promotional banner
-      const PromotionalBannerSliver(),
+      LazySliver(
+        onReveal: () => Get.find<BannerController>().getPromotionalBannerList(true),
+        sliver: const PromotionalBannerSliver(),
+      ),
       sliverGepY(value: Dimensions.paddingSizeDefault),
 
       SliverToBoxAdapter(child: Container(
@@ -223,7 +293,10 @@ class _GroceryModuleScreenState extends State<GroceryModuleScreen> {
       sliverGepY(value: Dimensions.paddingSizeDefault),
 
       // Section: explore restaurants
-      ExploreRestaurantSection(exploreRestaurantKey: widget.exploreRestaurantKey, scrollController: widget.scrollController, title: 'explore_stores'.tr,),
+      LazySliver(
+        onReveal: () => Get.find<StoreController>().getStoreList(1, true),
+        sliver: ExploreRestaurantSection(exploreRestaurantKey: widget.exploreRestaurantKey, scrollController: widget.scrollController, title: 'explore_stores'.tr,),
+      ),
     ]
     );
   }

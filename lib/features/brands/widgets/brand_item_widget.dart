@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sixam_mart/common/widgets/custom_image.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/styles.dart';
 
@@ -15,6 +16,10 @@ class BrandItemWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Square box painted with BoxFit.cover: hint the width axis only so the decoder
+    // derives the height from the source and keeps its aspect ratio — hinting both
+    // forces an exact square decode and stretches the logo.
+    final int? decodeWidth = ImageCacheHelper.pixels(context, 72);
     return SizedBox(
       width: 75,
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: <Widget>[
@@ -25,7 +30,10 @@ class BrandItemWidget extends StatelessWidget {
             borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
             border: Border.all(color: Theme.of(context).disabledColor.withAlpha(80)),
           ) : null,
-          child: ClipRRect(borderRadius: BorderRadius.circular(Dimensions.radiusDefault), child: CustomImage(image: image ?? '', fit: BoxFit.cover,)),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
+            child: CustomImage(image: image ?? '', fit: BoxFit.cover, cacheWidth: decodeWidth),
+          ),
         ),
         const SizedBox(height: Dimensions.paddingSizeExtraSmall),
 

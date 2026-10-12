@@ -1,5 +1,7 @@
 import 'package:get/get.dart';
+import 'package:sixam_mart/api/api_client.dart';
 import 'package:sixam_mart/common/models/transaction_model.dart';
+import 'package:sixam_mart/common/widgets/custom_snackbar.dart';
 import 'package:sixam_mart/features/wallet/domain/models/wallet_filter_body_model.dart';
 import 'package:sixam_mart/features/wallet/domain/models/fund_bonus_model.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
@@ -116,14 +118,18 @@ class WalletController extends GetxController implements GetxService {
     _isLoading = true;
     update();
     Response response = await walletServiceInterface.addFundToWallet(amount, paymentMethod);
-    if (response.statusCode == 200) {
-      String redirectUrl = response.body['redirect_link'];
-      Get.back();
-      if(GetPlatform.isWeb) {
-
-        html.window.open(redirectUrl,"_self");
-      } else{
-        Get.toNamed(RouteHelper.getPaymentRoute('0', 0, '', 0, false, '', addFundUrl: redirectUrl, guestId: ''));
+    // The gateway link comes back on a 201, which a 200-only test dropped silently.
+    if (ApiClient.isSuccessCode(response.statusCode)) {
+      final String redirectUrl = response.body is Map ? '${response.body['redirect_link'] ?? ''}' : '';
+      if(redirectUrl.isEmpty) {
+        showCustomSnackBar('something_went_wrong'.tr);
+      } else {
+        Get.back();
+        if(GetPlatform.isWeb) {
+          html.window.open(redirectUrl,"_self");
+        } else{
+          Get.toNamed(RouteHelper.getPaymentRoute('0', 0, '', 0, false, '', addFundUrl: redirectUrl, guestId: ''));
+        }
       }
     }
     _isLoading = false;
@@ -162,3 +168,8 @@ class WalletController extends GetxController implements GetxService {
   }
 
 }
+
+// SUMMARY
+// Wallet state. Holds the transaction list and its filters, the wallet bonus offers and
+// the selected payment method, and starts an add-fund payment by handing the gateway
+// link it gets back to the payment screen.

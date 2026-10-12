@@ -65,7 +65,7 @@ class _ItemViewAllScreenState extends State<ItemViewAllScreen> {
 
       if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 300 && items != null && !itemController.isLoading) {
 
-        int pageSize = (itemController.pageSize! / 10).ceil();
+        int pageSize = ((itemController.pageSizeFor(isPopular: widget.isPopular, isSpecial: widget.isSpecial) ?? 0) / 10).ceil();
         if (itemController.offset < pageSize) {
           itemController.setOffset(itemController.offset + 1);
           debugPrint('end of the page, offset: ${itemController.offset}');
@@ -83,6 +83,12 @@ class _ItemViewAllScreenState extends State<ItemViewAllScreen> {
       }
     });
 
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -194,7 +200,7 @@ class _ItemViewAllScreenState extends State<ItemViewAllScreen> {
                 child: Row(children: [
         
                   Text(widget.isPopular ? isShop ? 'most_popular_products'.tr : 'most_popular_items'.tr : widget.isSpecial ? 'special_offer'.tr : 'best_reviewed_item'.tr, style: robotoBold),
-                  Text(' (${itemController.pageSize ?? 0})', style: robotoBold),
+                  Text(' (${itemController.pageSizeFor(isPopular: widget.isPopular, isSpecial: widget.isSpecial) ?? 0})', style: robotoBold),
                   const Spacer(),
 
                   InkWell(

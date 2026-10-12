@@ -1,3 +1,4 @@
+import 'package:sixam_mart/api/response_parser.dart';
 
 class ParcelOtherBannerModel {
   String? promotionalBannerUrl;
@@ -13,11 +14,15 @@ class ParcelOtherBannerModel {
   ParcelOtherBannerModel.fromJson(Map<String, dynamic> json) {
     promotionalBannerUrl = json['promotional_banner_url'];
     promotionalBanners3Url = json['promotional_banner_s3_url'];
-    if (json['banners'] != null) {
+    // `/other-banners` is polymorphic: for a store module it returns the flat
+    // `{bottom_section_banner_full_url}` object, for parcel a paginated list.
+    // That list is under `data` now; `banners` was the legacy key.
+    final List<dynamic>? entries = ResponseParser.listOf(json, legacyKey: 'banners');
+    if (entries != null) {
       banners = <ParcelBanner>[];
-      json['banners'].forEach((v) {
+      for (final dynamic v in entries) {
         banners!.add(ParcelBanner.fromJson(v));
-      });
+      }
     }
   }
 

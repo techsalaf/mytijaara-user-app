@@ -1,3 +1,5 @@
+import 'package:sixam_mart/api/response_parser.dart';
+import 'package:sixam_mart/common/models/pagination_model.dart';
 class TopCategoryModel {
   int? totalSize;
   int? limit;
@@ -7,12 +9,22 @@ class TopCategoryModel {
   TopCategoryModel({this.totalSize, this.limit, this.offset, this.categories});
 
   TopCategoryModel.fromJson(Map<String, dynamic> json) {
-    totalSize = json['total_size'];
-    limit = json['limit'] is String ? int.tryParse(json['limit']) : json['limit'];
-    offset = json['offset'] is String ? int.tryParse(json['offset']) : json['offset'];
-    if (json['categories'] != null) {
+    // Paging arrives flat (`total_size`/`limit`/`offset`) on the legacy format
+    // and nested under `pagination` now. Property names are unchanged, so no
+    // caller needs an edit.
+    final PaginationModel _pg = PaginationModel.fromJson(json);
+    totalSize = _pg.totalSize;
+    limit = _pg.limit;
+    offset = _pg.offset;
+    // The list moved to `data` in the new API format. `listOf` checks the legacy
+    // key first, so a backend still answering with `categories` parses exactly as
+    // before and only the new shape is newly understood.
+    final List<dynamic>? categoryEntries = ResponseParser.listOf(json, legacyKey: 'categories');
+    if (categoryEntries != null) {
       categories = <TopCategory>[];
-      json['categories'].forEach((v) => categories!.add(TopCategory.fromJson(v)));
+      for (final dynamic v in categoryEntries) {
+        categories!.add(TopCategory.fromJson(v));
+      }
     }
   }
 

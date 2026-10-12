@@ -4,6 +4,7 @@ import 'package:get/get_navigation/src/extension_navigation.dart';
 import 'package:get/get_utils/src/extensions/internacionalization.dart';
 import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/features/category/domain/models/category_model.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/styles.dart';
 
@@ -23,6 +24,8 @@ class FoodModuleCategoryScreen extends StatefulWidget {
 }
 
 class _FoodModuleCategoryScreenState extends State<FoodModuleCategoryScreen> {
+  static const double _categoryIconSize = 60;
+
   final TextEditingController _searchController = TextEditingController();
 
   List<CategoryModel> get _filteredCategories {
@@ -43,108 +46,112 @@ class _FoodModuleCategoryScreenState extends State<FoodModuleCategoryScreen> {
   @override
   Widget build(BuildContext context) {
     final List<CategoryModel> filteredCategories = _filteredCategories;
+    final int? iconPx = ImageCacheHelper.pixels(context, _categoryIconSize);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        BottomSheetHeaderWidget(showDragHandler: true, isAtMaxExtent: widget.isAtMaxExtent,),
-
-        if(widget.showAsFullPage) ...[
-          Padding(
-            padding: EdgeInsets.fromLTRB(Dimensions.paddingSizeDefault, widget.isAtMaxExtent ? Dimensions.paddingSizeSmall : 0, Dimensions.paddingSizeDefault, 0),
-            child: TextField(
-              controller: _searchController,
-              textInputAction: TextInputAction.search,
-              onChanged: (_) => setState(() {}),
-              style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeDefault),
-              decoration: InputDecoration(
-                isDense: true,
-                hintText: 'search_by_category_name'.tr,
-                hintStyle: robotoRegular.copyWith(color: Theme.of(context).disabledColor, fontSize: Dimensions.fontSizeDefault),
-                suffixIcon: _searchController.text.isNotEmpty ? IconButton(
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() {});
-                  },
-                  padding: EdgeInsets.zero,
-                  icon: const Icon(Icons.close_rounded),
-                ) : const Icon(Icons.search_rounded),
-                filled: true,
-                fillColor: Theme.of(context).disabledColor.withValues(alpha: 0.08),
-                contentPadding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault,),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(Dimensions.radiusExtraLarge),
-                  borderSide: BorderSide(color: Theme.of(context).disabledColor.withValues(alpha: 0.18)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(Dimensions.radiusExtraLarge),
-                  borderSide: BorderSide(color: Theme.of(context).disabledColor.withValues(alpha: 0.18)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(Dimensions.radiusExtraLarge),
-                  borderSide: BorderSide(color: Theme.of(context).disabledColor),
+    return Container(
+      color: Theme.of(context).cardColor,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          BottomSheetHeaderWidget(showDragHandler: true, isAtMaxExtent: widget.isAtMaxExtent,),
+      
+          if(widget.showAsFullPage) ...[
+            Padding(
+              padding: EdgeInsets.fromLTRB(Dimensions.paddingSizeDefault, widget.isAtMaxExtent ? Dimensions.paddingSizeSmall : 0, Dimensions.paddingSizeDefault, 0),
+              child: TextField(
+                controller: _searchController,
+                textInputAction: TextInputAction.search,
+                onChanged: (_) => setState(() {}),
+                style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeDefault),
+                decoration: InputDecoration(
+                  isDense: true,
+                  hintText: 'search_by_category_name'.tr,
+                  hintStyle: robotoRegular.copyWith(color: Theme.of(context).disabledColor, fontSize: Dimensions.fontSizeDefault),
+                  suffixIcon: _searchController.text.isNotEmpty ? IconButton(
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() {});
+                    },
+                    padding: EdgeInsets.zero,
+                    icon: const Icon(Icons.close_rounded),
+                  ) : const Icon(Icons.search_rounded),
+                  filled: true,
+                  fillColor: Theme.of(context).disabledColor.withValues(alpha: 0.08),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault,),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(Dimensions.radiusExtraLarge),
+                    borderSide: BorderSide(color: Theme.of(context).disabledColor.withValues(alpha: 0.18)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(Dimensions.radiusExtraLarge),
+                    borderSide: BorderSide(color: Theme.of(context).disabledColor.withValues(alpha: 0.18)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(Dimensions.radiusExtraLarge),
+                    borderSide: BorderSide(color: Theme.of(context).disabledColor),
+                  ),
                 ),
               ),
             ),
+            const SizedBox(height: Dimensions.paddingSizeSmall),
+          ],
+      
+          Expanded(
+            child: filteredCategories.isEmpty ? Center(
+              child: Text(
+                'no_category_found'.tr,
+                style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeDefault),
+              ),
+            ) : GridView.builder(
+              controller: widget.scrollController,
+              padding: const EdgeInsets.symmetric(
+                horizontal: Dimensions.paddingSizeDefault,
+                vertical: Dimensions.paddingSizeSmall,
+              ),
+              physics: widget.scrollController != null
+                  ? const AlwaysScrollableScrollPhysics()
+                  : (filteredCategories.length <= 16 ? const NeverScrollableScrollPhysics() : null),
+              itemCount: filteredCategories.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                mainAxisExtent: 100,
+                mainAxisSpacing: Dimensions.paddingSizeDefault,
+                crossAxisSpacing: Dimensions.paddingSizeSmall,
+              ),
+              itemBuilder: (context, index) {
+                final CategoryModel category = filteredCategories[index];
+                return InkWell(
+                  onTap: widget.onCategoryTap != null ? () {
+                    Get.back();
+                    widget.onCategoryTap!(category);
+                  } : null,
+                  borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
+                  child: Column(
+                    children: [
+                      SizedBox.square(
+                        dimension: _categoryIconSize,
+                        child: ClipOval(child: CustomImage(
+                          image: category.imageFullUrl ?? '', fit: BoxFit.cover,
+                          cacheWidth: iconPx,
+                        )),
+                      ),
+                      const SizedBox(height: Dimensions.paddingSizeExtraSmall),
+                      Text(
+                        category.name ?? '',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
-          const SizedBox(height: Dimensions.paddingSizeSmall),
+          const SizedBox(height: Dimensions.paddingSizeDefault,)
         ],
-
-        Expanded(
-          child: filteredCategories.isEmpty ? Center(
-            child: Text(
-              'no_category_found'.tr,
-              style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeDefault),
-            ),
-          ) : GridView.builder(
-            controller: widget.scrollController,
-            padding: const EdgeInsets.symmetric(
-              horizontal: Dimensions.paddingSizeDefault,
-              vertical: Dimensions.paddingSizeSmall,
-            ),
-            physics: widget.scrollController != null
-                ? const AlwaysScrollableScrollPhysics()
-                : (filteredCategories.length <= 16 ? const NeverScrollableScrollPhysics() : null),
-            itemCount: filteredCategories.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              mainAxisExtent: 100,
-              mainAxisSpacing: Dimensions.paddingSizeDefault,
-              crossAxisSpacing: Dimensions.paddingSizeSmall,
-            ),
-            itemBuilder: (context, index) {
-              final CategoryModel category = filteredCategories[index];
-              return InkWell(
-                onTap: widget.onCategoryTap != null ? () {
-                  Get.back();
-                  widget.onCategoryTap!(category);
-                } : null,
-                borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
-                child: Column(
-                  children: [
-                    SizedBox.square(
-                      dimension: 60,
-                      child: ClipOval(child: CustomImage(
-                        image: category.imageFullUrl ?? '', fit: BoxFit.cover,
-                        cacheWidth: 180, cacheHeight: 180,
-                      )),
-                    ),
-                    const SizedBox(height: Dimensions.paddingSizeExtraSmall),
-                    Text(
-                      category.name ?? '',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: Dimensions.paddingSizeDefault,)
-      ],
+      ),
     );
   }
 }
@@ -159,9 +166,6 @@ class BottomSheetHeaderWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Float the close button to the top-right corner only while the draggable
-    // sheet is partially open. The static sheet (no drag handle) and the
-    // fully-expanded state keep the existing in-row placement.
     final bool floatCloseTopRight = showDragHandler && !isAtMaxExtent;
 
     return AnimatedContainer(

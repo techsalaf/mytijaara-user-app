@@ -143,6 +143,11 @@ class _WebBestStoreNearbyViewWidgetState extends State<WebBestStoreNearbyViewWid
                           double distance = Get.find<StoreController>().getRestaurantDistance(
                             LatLng(double.parse(storeList[index].latitude!), double.parse(storeList[index].longitude!)),
                           );
+                          // The API's label is server-computed and already in the
+                          // platform's configured unit; the client-side haversine
+                          // above stays as the fallback for payloads without one.
+                          final String distanceText = storeList[index].distanceLabel
+                              ?? '${distance > 10 ? '10+' : distance.toStringAsFixed(1)} ${'km'.tr}';
 
                           return Padding(
                             padding: EdgeInsets.only(
@@ -252,7 +257,7 @@ class _WebBestStoreNearbyViewWidgetState extends State<WebBestStoreNearbyViewWid
                                                         Image.asset(Images.distanceLine, height: 15, width: 15),
                                                         const SizedBox(width: Dimensions.paddingSizeExtraSmall),
 
-                                                        Text('${distance > 10 ? '10+' : distance.toStringAsFixed(1)} ${'km'.tr}', style: robotoBold.copyWith(color: Theme.of(context).primaryColor, fontSize: Dimensions.fontSizeExtraSmall)),
+                                                        Text(distanceText, style: robotoBold.copyWith(color: Theme.of(context).primaryColor, fontSize: Dimensions.fontSizeExtraSmall)),
                                                         const SizedBox(width: Dimensions.paddingSizeExtraSmall),
 
                                                         Text('from_you'.tr, style: robotoRegular.copyWith(color: Theme.of(context).primaryColor, fontSize: Dimensions.fontSizeExtraSmall)),

@@ -26,6 +26,12 @@ class _FooterViewState extends State<FooterView> {
   final ConfigModel? _config = Get.find<SplashController>().configModel;
 
   @override
+  void dispose() {
+    _newsLetterController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column( mainAxisAlignment: MainAxisAlignment.start, children: [
       ConstrainedBox(

@@ -8,26 +8,36 @@ class QuantityButton extends StatelessWidget {
   final bool fromSheet;
   final bool showRemoveIcon;
   final Color? color;
-  const QuantityButton({super.key, required this.isIncrement, required this.onTap, this.fromSheet = false, this.showRemoveIcon = false, this.color});
+
+  /// Bare icon with no filled disc, for steppers that sit inside a tinted pill of their
+  /// own — the pill is the surface, so a second one per button muddies it.
+  final bool flat;
+
+  const QuantityButton({super.key,
+    required this.isIncrement, required this.onTap, this.fromSheet = false, this.showRemoveIcon = false,
+    this.color, this.flat = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final Color iconColor = flat
+        ? Theme.of(context).textTheme.bodyLarge!.color!
+        : showRemoveIcon ? Theme.of(context).colorScheme.error
+            : isIncrement ? Theme.of(context).cardColor : Theme.of(context).disabledColor;
+
     return InkWell(
       onTap: onTap as void Function()?,
       child: Container(
-        height: fromSheet ? 30 : 25, width: fromSheet ? 30 : 25,
-        margin: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeSmall),
-        decoration: BoxDecoration(
+        height: flat ? 28 : fromSheet ? 30 : 25, width: flat ? 28 : fromSheet ? 30 : 25,
+        margin: EdgeInsets.symmetric(horizontal: flat ? Dimensions.paddingSizeExtraSmall : Dimensions.paddingSizeSmall),
+        decoration: flat ? null : BoxDecoration(
           shape: BoxShape.circle,
-          // border: Border.all(width: 1, color: showRemoveIcon ? Theme.of(context).colorScheme.error.withValues(alpha: 0.1) : isIncrement ? Theme.of(context).primaryColor : Theme.of(context).disabledColor),
           color: showRemoveIcon ? Theme.of(context).colorScheme.error.withValues(alpha: 0.1) : isIncrement ? color ?? Theme.of(context).primaryColor : Theme.of(context).disabledColor.withValues(alpha: 0.2),
         ),
         alignment: Alignment.center,
-        child: showRemoveIcon ? Image.asset(Images.delete, height: 15, color: Theme.of(context).colorScheme.error) : Icon(
-          isIncrement ? Icons.add : Icons.remove,
-          size: 15,
-          color: showRemoveIcon ? Theme.of(context).colorScheme.error : isIncrement ? Theme.of(context).cardColor : Theme.of(context).disabledColor,
-        ),
+        child: showRemoveIcon
+            ? Image.asset(Images.delete, height: flat ? 18 : 15, color: iconColor)
+            : Icon(isIncrement ? Icons.add : Icons.remove, size: flat ? 20 : 15, color: iconColor),
       ),
     );
   }

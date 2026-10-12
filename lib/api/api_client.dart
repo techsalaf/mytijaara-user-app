@@ -23,8 +23,20 @@ class ApiClient extends GetxService {
   static final String noInternetMessage = 'connection_to_api_server_failed'.tr;
   final int timeoutInSeconds = 40;
 
+  /// Characters of a raw (off-isolate parsed) response body to print in debug logs.
+  static const int _rawBodyLogLimit = 1000;
+
   String? token;
   late Map<String, String> _mainHeaders;
+
+  /// Memoised parse of the `cacheModuleId` pref, keyed on the raw stored string.
+  ///
+  /// [updateHeader] has 25 call sites and re-ran `jsonDecode` + `ModuleModel.fromJson`
+  /// on every one of them. Keying the memo on the raw string means a write to the
+  /// pref invalidates it on its own — there is no separate invalidation call to
+  /// forget, and no way for the header to go stale after a module switch.
+  String? _cachedModuleIdRaw;
+  int? _cachedModuleIdValue;
 
   ApiClient({required this.appBaseUrl, required this.sharedPreferences}) {
     token = sharedPreferences.getString(AppConstants.token);
@@ -50,8 +62,9 @@ class ApiClient extends GetxService {
   }) {
     Map<String, String> header = {};
 
-    if (moduleID != null || sharedPreferences.getString(AppConstants.cacheModuleId) != null) {
-      header.addAll({AppConstants.moduleId: '${moduleID ?? ModuleModel.fromJson(jsonDecode(sharedPreferences.getString(AppConstants.cacheModuleId)!)).id}'});
+    final String? cachedModuleRaw = sharedPreferences.getString(AppConstants.cacheModuleId);
+    if (moduleID != null || cachedModuleRaw != null) {
+      header.addAll({AppConstants.moduleId: '${moduleID ?? _moduleIdFromCachePref(cachedModuleRaw!)}'});
     }
     header.addAll({
       'Content-Type': 'application/json; charset=UTF-8',
@@ -70,9 +83,23 @@ class ApiClient extends GetxService {
     return header;
   }
 
+  /// The module id inside [raw], parsed at most once per distinct stored value.
+  ///
+  /// A malformed value still throws exactly where it did before — the memo fields
+  /// are only assigned after a successful parse, so a bad write cannot poison the
+  /// cache and cannot silently turn into a `null` module id in the header.
+  int? _moduleIdFromCachePref(String raw) {
+    if (raw != _cachedModuleIdRaw) {
+      _cachedModuleIdValue = ModuleModel.fromJson(jsonDecode(raw)).id;
+      _cachedModuleIdRaw = raw;
+    }
+    return _cachedModuleIdValue;
+  }
+
   Map<String, String> getHeader() => _mainHeaders;
 
-  Future<Response> getData(String uri, {Map<String, dynamic>? query, Map<String, String>? headers, bool handleError = true, bool moduleScoped = false}) async {
+  Future<Response> getData(String uri, {Map<String, dynamic>? query, Map<String, String>? headers, bool handleError = true, bool moduleScoped = false,
+    bool rawBody = false}) async {
     try {
       final Map<String, String> requestHeaders = headers ?? _mainHeaders;
       // For module-scoped calls, remember the module this request was sent for so a
@@ -87,7 +114,7 @@ class ApiClient extends GetxService {
       if (moduleScoped && requestModuleId != _mainHeaders[AppConstants.moduleId]) {
         return const Response(statusCode: 499, statusText: 'stale module response');
       }
-      return handleResponse(response, uri, handleError);
+      return handleResponse(response, uri, handleError, rawBody: rawBody);
     } catch (e) {
       if (kDebugMode) {
         print('------------${e.toString()}');
@@ -176,6 +203,9 @@ class ApiClient extends GetxService {
       }
 
       request.fields.addAll(body);
+      debugPrint(
+        '====> API Multipart file parts: ${request.files.map((f) => '${f.field} (${f.filename}, ${f.length} bytes)').toList()}',
+      );
       http.Response response = await http.Response.fromStream(await request.send());
       return handleResponse(response, uri, handleError);
     } catch (e) {
@@ -220,15 +250,35 @@ class ApiClient extends GetxService {
   Response handleResponse(
     http.Response response,
     String uri,
-    bool handleError,
-  ) {
+    bool handleError, {
+    bool rawBody = false,
+  }) {
+    // `http.Response.body` is a *getter* that re-runs the charset decode over
+    // `bodyBytes` on every access, so reading it twice (once to parse, once for
+    // `bodyString`) UTF-8-decoded the whole payload twice per request. Read it
+    // once here and reuse it — same value, half the work.
+    final String bodyText = response.body;
     dynamic body;
-    try {
-      body = jsonDecode(response.body);
-    } catch (_) {}
+    // Opt-in: leave a successful body as the raw string so the caller can decode it
+    // on a worker isolate (JsonParseHelper) instead of blocking a frame here. Every
+    // non-2xx still decodes, so the error-shape handling below and ApiChecker are
+    // untouched — and no existing call site passes rawBody, so nothing else changes.
+    final bool skipDecode = rawBody && isSuccessCode(response.statusCode);
+    if (!skipDecode) {
+      try {
+        body = jsonDecode(bodyText);
+      } catch (_) {}
+    }
+    // The envelope carries its human-readable `message` at the top level, beside
+    // `content` rather than inside it — so unwrapping would throw away the success
+    // message that a flat response used to deliver as `body['message']`. Lift it
+    // onto `statusText` (which otherwise only holds the HTTP reason phrase) so
+    // callers still have somewhere to read it from.
+    final String? envelopeMessage = envelopeMessageOf(body, response.statusCode);
+    body = unwrapEnvelope(body, response.statusCode);
     Response response0 = Response(
-      body: body ?? response.body,
-      bodyString: response.body.toString(),
+      body: body ?? bodyText,
+      bodyString: bodyText,
       request: Request(
         headers: response.request!.headers,
         method: response.request!.method,
@@ -236,12 +286,24 @@ class ApiClient extends GetxService {
       ),
       headers: response.headers,
       statusCode: response.statusCode,
-      statusText: response.reasonPhrase,
+      statusText: envelopeMessage ?? response.reasonPhrase,
     );
-    if (response0.statusCode != 200 &&
+    if (!isSuccessCode(response0.statusCode) &&
         response0.body != null &&
         response0.body is! String) {
-      if (response0.body.toString().startsWith('{errors: [{code:')) {
+      // The new envelope leads with `identical_code` and carries its
+      // human-readable reason at the top level, so none of the legacy `startsWith`
+      // shapes below match it — the user was shown the bare HTTP reason phrase
+      // ("Unprocessable Content") instead of what actually failed ("The dm tips
+      // must be a number."). Checked first, and typed rather than by string prefix.
+      final String? envelopeError = envelopeErrorMessageOf(response0.body);
+      if (envelopeError != null) {
+        response0 = Response(
+          statusCode: response0.statusCode,
+          body: response0.body,
+          statusText: envelopeError,
+        );
+      } else if (response0.body.toString().startsWith('{errors: [{code:')) {
         ErrorResponse errorResponse = ErrorResponse.fromJson(response0.body);
         response0 = Response(
           statusCode: response0.statusCode,
@@ -259,17 +321,21 @@ class ApiClient extends GetxService {
       }else if (response0.body.toString().startsWith('{message')) {
         response0 = Response(statusCode: response0.statusCode, body: response0.body, statusText: response0.body['message']);
       }
-    } else if (response0.statusCode != 200 && response0.body == null) {
+    } else if (!isSuccessCode(response0.statusCode) && response0.body == null) {
       response0 = Response(statusCode: 0, statusText: noInternetMessage);
     }
     if (kDebugMode) {
       log('====> API Response: [${response0.statusCode}] $uri');
-      if (!ResponsiveHelper.isWeb() || response.statusCode != 500) {
+      if (skipDecode) {
+        final String raw = response0.bodyString ?? '';
+        log('====> API Response Body: [${raw.length} chars, decoded off-isolate] '
+            '${raw.length > _rawBodyLogLimit ? '${raw.substring(0, _rawBodyLogLimit)}…<truncated>' : raw}');
+      } else if (!ResponsiveHelper.isWeb() || response.statusCode != 500) {
         log('====> API Response Body: ${response0.body}');
       }
     }
     if (handleError) {
-      if (response0.statusCode == 200) {
+      if (isSuccessCode(response0.statusCode)) {
         return response0;
       } else {
         ApiChecker.checkApi(response0);
@@ -278,6 +344,78 @@ class ApiClient extends GetxService {
     } else {
       return response0;
     }
+  }
+
+  /// Any 2xx counts as success. The API returns `201 Created` on several endpoints
+  /// (`auth/guest/request`, `customer/cart/add`, `customer/address/add`,
+  /// `customer/order/offline-payment`, `service/requested-services`); treating only
+  /// `200` as success swallowed those responses and showed the user an error snackbar.
+  static bool isSuccessCode(int? statusCode) =>
+      statusCode != null && statusCode >= 200 && statusCode < 300;
+
+  /// The API wraps successful payloads in
+  /// `{identical_code, message, content, errors}`. Unwrap it once here so every
+  /// repository keeps reading its payload straight off `response.body`.
+  ///
+  /// Deliberately conservative, so the app works against both the current and the
+  /// new backend:
+  /// - Gated on `identical_code`, which only the new format carries — a legacy
+  ///   response is returned untouched.
+  /// - Only unwraps a 2xx. Error bodies keep the envelope so the `errors` handling
+  ///   in [handleResponse] and [ApiChecker] still see the shape they expect.
+  /// - Only unwraps a non-null `content`. When `content` is null the envelope is
+  ///   left in place, because its top-level `message` sits exactly where the old
+  ///   flat `{"message": …}` body had it, so callers reading `body['message']`
+  ///   keep working.
+  static dynamic unwrapEnvelope(dynamic body, int? statusCode) {
+    if (!isSuccessCode(statusCode) || body is! Map) return body;
+    if (!body.containsKey('identical_code') || body['content'] == null) return body;
+    return body['content'];
+  }
+
+  /// The envelope's top-level `message` for a response [unwrapEnvelope] will
+  /// unwrap, or null for anything else — including errors, whose message is left
+  /// to the error-shape handling in [handleResponse] and [ApiChecker].
+  static String? envelopeMessageOf(dynamic body, int? statusCode) {
+    if (!isSuccessCode(statusCode) || body is! Map) return null;
+    if (!body.containsKey('identical_code') || body['content'] == null) return null;
+    final dynamic message = body['message'];
+    return message is String ? message : null;
+  }
+
+  /// The new envelope's human-readable failure reason, or null when [body] isn't a
+  /// new-format error body (so every legacy shape falls through to the handling in
+  /// [handleResponse] untouched).
+  ///
+  /// Prefers the top-level `message`. Falls back to `errors`, which arrives in two
+  /// shapes: the legacy `[{code, message}]` list, and — on validation failures like
+  /// `customer/order/place` — a map keyed by field, `{"dm_tips": ["The dm tips must
+  /// be a number."]}`.
+  /// `errors` first, `message` only as a fallback. The envelope's `message` is a
+  /// category ("Permission denied"); the entry inside `errors` is the sentence written
+  /// for the customer ("You can only use this offer 3 more times") — showing the former
+  /// told them nothing about what actually stopped them.
+  static String? envelopeErrorMessageOf(dynamic body) {
+    if (body is! Map || !body.containsKey('identical_code')) return null;
+
+    final dynamic errors = body['errors'];
+    if (errors is List && errors.isNotEmpty) {
+      final dynamic first = errors.first;
+      if (first is Map && first['message'] is String && (first['message'] as String).isNotEmpty) {
+        return first['message'] as String;
+      }
+    } else if (errors is Map && errors.isNotEmpty) {
+      final dynamic first = errors.values.first;
+      if (first is List) {
+        if (first.isNotEmpty) return first.first?.toString();
+      } else if (first != null) {
+        return first.toString();
+      }
+    }
+
+    final dynamic message = body['message'];
+    if (message is String && message.isNotEmpty) return message;
+    return null;
   }
 }
 

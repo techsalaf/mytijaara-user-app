@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sixam_mart/common/models/transaction_model.dart';
 import 'package:sixam_mart/api/api_client.dart';
+import 'package:sixam_mart/api/response_parser.dart';
 import 'package:sixam_mart/features/wallet/domain/models/fund_bonus_model.dart';
 import 'package:sixam_mart/features/wallet/domain/repositories/wallet_repository_interface.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
@@ -76,9 +77,9 @@ class WalletRepository implements WalletRepositoryInterface{
     Response response = await apiClient.getData(AppConstants.walletBonusUri);
     if (response.statusCode == 200) {
       fundBonusList = [];
-      response.body.forEach((value){
-        fundBonusList!.add(FundBonusModel.fromJson(value));
-      });
+      for (final dynamic value in ResponseParser.listOrEmpty(response.body)) {
+        fundBonusList.add(FundBonusModel.fromJson(value));
+      }
     }
     return fundBonusList;
   }

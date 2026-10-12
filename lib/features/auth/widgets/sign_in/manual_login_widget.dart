@@ -11,6 +11,7 @@ import 'package:sixam_mart/features/verification/screens/forget_pass_screen.dart
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/helper/validate_check.dart';
+import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/images.dart';
 import 'package:sixam_mart/util/styles.dart';
@@ -193,7 +194,7 @@ class ManualLoginNewWidget extends StatelessWidget {
 
 
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Text('new_to_mytijaara'.tr, style: robotoRegular.copyWith(color: Theme.of(context).hintColor)),
+          Text('new_to_6amMart'.trParams({'appName': AppConstants.appName}), style: robotoRegular.copyWith(color: Theme.of(context).hintColor)),
 
           InkWell(
             onTap: authController.isLoading ? null : () {
@@ -336,7 +337,7 @@ class ManualLoginNewWidget extends StatelessWidget {
             onlyManualLoginEnable ? Padding(
               padding: const EdgeInsets.only(top: Dimensions.paddingSizeSmall),
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text('new_to_mytijaara'.tr, style: robotoRegular.copyWith(color: Theme.of(context).hintColor)),
+                Text('new_to_6amMart'.trParams({'appName': AppConstants.appName}), style: robotoRegular.copyWith(color: Theme.of(context).hintColor)),
 
                 InkWell(
                   onTap: () {

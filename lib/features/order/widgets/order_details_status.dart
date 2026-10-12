@@ -18,10 +18,15 @@ class _OrderDetailsStatus extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isFood = order.moduleType == 'food';
-    final showTimer = isFood  && ongoing  && DateConverter.isBeforeTime(order.scheduleAt)
+    // to the real delivery window.
+    final bool hasEta = order.eta?.hasWindow ?? false;
+    final showTimer = isFood  && ongoing  && !hasEta  && DateConverter.isBeforeTime(order.scheduleAt)
         && (Get.find<SplashController>().getModuleConfig(order.moduleType).newVariation ?? false);
 
     final bool isParcel = order.orderType == 'parcel';
+    //     appears at precisely the moment it used to.
+    final bool isScheduledAhead = order.scheduled == 1 && order.scheduleAt != null
+        && ongoing && !DateConverter.isBeforeTime(order.scheduleAt);
     final _StatusContent content = _StatusContent.resolve(order.orderType, order.orderStatus);
 
     return Container(
@@ -38,14 +43,22 @@ class _OrderDetailsStatus extends StatelessWidget {
               SizedBox(
                 width: order.orderStatus == 'pending' || (order.orderStatus == 'processing' && order.moduleType == 'food') ? 80 : 60,
                 height: order.orderStatus == 'pending' || (order.orderStatus == 'processing' && order.moduleType == 'food') ? 80 : 60,
-                child: Image.asset(_StatusBannerImage.resolve(order.moduleType, order.orderStatus),
-                fit: order.orderStatus == 'pending' ? BoxFit.cover : BoxFit.contain),
+                child: Image.asset(
+                  _StatusBannerImage.resolve(order.moduleType, order.orderStatus),
+                  fit: order.orderStatus == 'pending' ? BoxFit.cover : BoxFit.contain,
+                  cacheWidth: ImageCacheHelper.pixels(context, order.orderStatus == 'pending' || (order.orderStatus == 'processing' && order.moduleType == 'food') ? 80 : 60),
+                  cacheHeight: ImageCacheHelper.pixels(context, order.orderStatus == 'pending' || (order.orderStatus == 'processing' && order.moduleType == 'food') ? 80 : 60),
+                ),
               ),
               SizedBox(width: order.orderStatus == 'pending'  ? 0 : Dimensions.paddingSizeDefault),
 
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  if (showTimer)
+                  if (hasEta)
+                    _OrderEtaHeadline(eta: order.eta!)
+                  else if (isScheduledAhead)
+                    _ScheduledHeadline(scheduleAt: order.scheduleAt!)
+                  else if (showTimer)
                     _RestaurantTimer(order: order)
                   else if (order.orderStatus == 'pending' && !isParcel)
                     const SizedBox.shrink()
@@ -64,6 +77,7 @@ class _OrderDetailsStatus extends StatelessWidget {
                       color: Theme.of(context).disabledColor,
                     ),
                   ),
+
                 ]),
               ),
 
@@ -77,6 +91,82 @@ class _OrderDetailsStatus extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _OrderEtaHeadline extends StatelessWidget {
+  final OrderEta eta;
+
+  const _OrderEtaHeadline({required this.eta});
+
+  @override
+  Widget build(BuildContext context) {
+    final bool overdue = eta.overdue ?? false;
+    final String window = eta.window?.trim() ?? '';
+    final String text = eta.text?.trim() ?? '';
+    final bool showingWindow = window.isNotEmpty;
+    final String label = showingWindow ? window : text;
+    if (label.isEmpty) return const SizedBox.shrink();
+    final DateTime? date = eta.windowDate;
+    final DateTime? endDate = eta.windowEndDate;
+    final bool spansDays = date != null && endDate != null && !DateUtils.isSameDay(date, endDate);
+    final bool showDate = showingWindow && date != null && (spansDays || !DateConverter.isSameCalendarDay(date));
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+      Text(
+        label,
+        style: robotoBold.copyWith(
+          fontSize: Dimensions.fontSizeExtraLarge,
+          color: overdue ? Theme.of(context).colorScheme.error : null,
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1, overflow: TextOverflow.ellipsis,
+      ),
+
+      if (showDate)
+        Text(
+          spansDays
+              ? '${DateConverter.dateToTodayTomorrowLabel(date)} - ${DateConverter.dateToTodayTomorrowLabel(endDate)}'
+              : DateConverter.dateToTodayTomorrowLabel(date),
+          style: robotoRegular.copyWith(
+            fontSize: Dimensions.fontSizeSmall,
+            color: Theme.of(context).disabledColor,
+          ),
+          maxLines: 1, overflow: TextOverflow.ellipsis,
+        ),
+    ]);
+  }
+}
+
+class _ScheduledHeadline extends StatelessWidget {
+  final String scheduleAt;
+
+  const _ScheduledHeadline({required this.scheduleAt});
+
+  @override
+  Widget build(BuildContext context) {
+    if (DateConverter.apiStringToDateOrNull(scheduleAt) == null) {
+      return const SizedBox.shrink();
+    }
+    final String slot = DateConverter.dateTimeStringToDateTime(scheduleAt);
+    if (slot.isEmpty) return const SizedBox.shrink();
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+      Text(
+        'scheduled_at'.tr,
+        style: robotoRegular.copyWith(
+          fontSize: Dimensions.fontSizeSmall,
+          color: Theme.of(context).disabledColor,
+        ),
+      ),
+
+      Text(
+        slot,
+        style: robotoBold.copyWith(fontSize: Dimensions.fontSizeLarge),
+        textDirection: TextDirection.ltr,
+        maxLines: 1, overflow: TextOverflow.ellipsis,
+      ),
+    ]);
   }
 }
 
@@ -105,8 +195,6 @@ class _RestaurantTimer extends StatelessWidget {
 
 class _StatusBannerImage {
   static String resolve(String? moduleType, String? status) {
-    print('==========>> status: [$status],  moduleType: [$moduleType] <<==========');
-
     if (status == 'pending') {
       return Images.pendingOrderDetails;
     } else if (status == 'confirmed' || status == 'accepted') {

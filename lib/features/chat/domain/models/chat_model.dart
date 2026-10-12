@@ -1,3 +1,5 @@
+import 'package:sixam_mart/api/response_parser.dart';
+import 'package:sixam_mart/common/models/pagination_model.dart';
 import 'package:sixam_mart/features/chat/domain/models/conversation_model.dart';
 
 class ChatModel {
@@ -11,16 +13,23 @@ class ChatModel {
   ChatModel({this.totalSize, this.limit, this.offset, this.status, this.conversation, this.messages});
 
   ChatModel.fromJson(Map<String, dynamic> json) {
-    totalSize = json['total_size'];
-    limit = json['limit'];
-    offset = json['offset'];
+    // Paging arrives flat on the legacy format and nested under `pagination`
+    // now. Property names are unchanged, so no caller needs an edit.
+    final PaginationModel _pg = PaginationModel.fromJson(json);
+    totalSize = _pg.totalSize;
+    limit = _pg.limit;
+    offset = _pg.offset;
     status = json['status'];
     conversation = json['conversation'] != null ? Conversation.fromJson(json['conversation']) : null;
-    if (json['messages'] != null) {
+    // The list moved to `data` in the new API format. `listOf` checks the legacy
+    // key first, so a backend still answering with `messages` parses exactly as before
+    // and only the new shape is newly understood.
+    final List<dynamic>? messageEntries = ResponseParser.listOf(json, legacyKey: 'messages');
+    if (messageEntries != null) {
       messages = <Message>[];
-      json['messages'].forEach((v) {
+      for (final dynamic v in messageEntries) {
         messages!.add(Message.fromJson(v));
-      });
+      }
     }
   }
 

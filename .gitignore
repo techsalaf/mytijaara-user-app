@@ -3,8 +3,6 @@
 *.log
 *.pyc
 *.swp
-*.jks
-*.keystore
 .DS_Store
 .atom/
 .buildlog/
@@ -49,6 +47,8 @@ rental_module.zip
 git.sh
 sync-branch.sh
 ios/Runner.xcworkspace/xcshareddata/swiftpm/
+/docs/
+*.md
 
 # Web related
 
@@ -62,3 +62,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Keystores and signing keys
+*.jks
+*.keystore
+key.properties

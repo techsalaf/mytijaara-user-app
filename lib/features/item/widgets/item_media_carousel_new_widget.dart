@@ -5,6 +5,7 @@ import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/features/item/controllers/item_controller.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 import 'package:sixam_mart/features/item/widgets/item_image_view_widget.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
@@ -119,9 +120,16 @@ class _ItemMediaCarouselNewWidgetState extends State<ItemMediaCarouselNewWidget>
                 width: MediaQuery.of(context).size.width,
                 height: widget.mainHeight,
                 isDesktop: false,
-              ) : CustomImage(image: url, height: widget.mainHeight, width: double.infinity, fit: BoxFit.cover);
+              ) : CustomImage(
+                image: url, height: widget.mainHeight, width: double.infinity, fit: BoxFit.cover,
+                cacheHeight: ImageCacheHelper.pixels(context, widget.mainHeight),
+              );
             },
-          ) : CustomImage(image: '', height: widget.mainHeight, width: double.infinity, fit: BoxFit.cover),
+          ) : CustomImage(
+            image: '', height: widget.mainHeight, width: double.infinity, fit: BoxFit.cover,
+            cacheHeight: ImageCacheHelper.pixels(context, widget.mainHeight),
+            cacheWidth: ImageCacheHelper.pixels(context, MediaQuery.of(context).size.width),
+          ),
         ),
 
         if(widget.showThumbnails && mediaList.length > 1) MediaThumbStripWidget(
@@ -171,7 +179,10 @@ class MediaThumbStripWidget extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(Dimensions.radiusDefault - 2),
                   child: Stack(fit: StackFit.expand, children: [
-                    CustomImage(image: thumbUrl, fit: BoxFit.cover, width: 60, height: 60),
+                    CustomImage(
+                      image: thumbUrl, fit: BoxFit.cover, width: 60, height: 60,
+                      cacheWidth: ImageCacheHelper.pixels(context, 60), cacheHeight: ImageCacheHelper.pixels(context, 60),
+                    ),
                     if(ItemMediaCarouselNewWidget.isVideoMedia(url)) Container(
                       color: Colors.black.withValues(alpha: 0.35),
                       alignment: Alignment.center,

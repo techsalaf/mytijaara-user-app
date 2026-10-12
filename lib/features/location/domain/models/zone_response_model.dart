@@ -1,3 +1,5 @@
+import 'package:sixam_mart/api/json_reader.dart';
+
 class ZoneResponseModel {
   final bool _isSuccess;
   final List<int> _zoneIds;
@@ -149,12 +151,14 @@ class Modules {
   int? allZoneService;
   bool? additionalDeliveryOptionStatus;
   List<DeliveryOptions>? deliveryOptions;
+  ZoneFreeDelivery? freeDelivery;
   Pivot? pivot;
 
   Modules({
     this.id, this.moduleName, this.moduleType, this.thumbnail, this.status,
     this.storesCount, this.createdAt, this.updatedAt, this.icon, this.themeId,
-    this.description, this.allZoneService, this.additionalDeliveryOptionStatus, this.deliveryOptions, this.pivot,
+    this.description, this.allZoneService, this.additionalDeliveryOptionStatus, this.deliveryOptions,
+    this.freeDelivery, this.pivot,
   });
 
   Modules.fromJson(Map<String, dynamic> json) {
@@ -177,6 +181,7 @@ class Modules {
         deliveryOptions!.add(DeliveryOptions.fromJson(v));
       });
     }
+    freeDelivery = json['free_delivery'] != null ? ZoneFreeDelivery.fromJson(json['free_delivery']) : null;
     pivot = json['pivot'] != null ? Pivot.fromJson(json['pivot']) : null;
   }
 
@@ -198,9 +203,34 @@ class Modules {
     if (deliveryOptions != null) {
       data['delivery_options'] = deliveryOptions!.map((v) => v.toJson()).toList();
     }
+    if (freeDelivery != null) {
+      data['free_delivery'] = freeDelivery!.toJson();
+    }
     if (pivot != null) {
       data['pivot'] = pivot!.toJson();
     }
+    return data;
+  }
+}
+
+class ZoneFreeDelivery {
+  bool? status;
+  String? type;
+  double? minimumOrderAmount;
+
+  ZoneFreeDelivery({this.status, this.type, this.minimumOrderAmount});
+
+  ZoneFreeDelivery.fromJson(Map<String, dynamic> json) {
+    status = json['status'] == true || json['status'] == 1;
+    type = json['type']?.toString();
+    minimumOrderAmount = JsonReader.toDouble(json['minimum_order_amount']);
+  }
+
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data['status'] = status;
+    data['type'] = type;
+    data['minimum_order_amount'] = minimumOrderAmount;
     return data;
   }
 }

@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get_utils/src/extensions/internacionalization.dart';
+import 'package:sixam_mart/common/widgets/bogo_item_group_widget.dart';
+import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/features/order/domain/models/order_details_model.dart';
 import 'package:sixam_mart/features/order/widgets/collapsible_header.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/styles.dart';
+
+const double _thumbSize = 52;
 
 class ItemInfoSection extends StatefulWidget {
   final List<OrderDetailsModel> orderDetails;
@@ -93,8 +98,6 @@ class _OrderItemRowState extends State<_OrderItemRow> {
     return od.addOns!.map((a) => '${a.name} (${a.quantity})').join(',  ');
   }
 
-  // The single-line "collapsed" representation: both categories joined with a
-  // separator when both are present, so collapsing always means exactly one line.
   List<InlineSpan> _buildCollapsedSpans({required String variationText, required String addOnText, required Color color}) {
     final TextStyle labelStyle = robotoMedium.copyWith(fontSize: Dimensions.fontSizeSmall, color: color);
     final List<InlineSpan> spans = [];
@@ -112,8 +115,6 @@ class _OrderItemRowState extends State<_OrderItemRow> {
     return spans;
   }
 
-  // Whether the given spans would wrap past one line at maxWidth — used to decide
-  // if the toggle is needed at all (nothing to collapse to if it already fits).
   bool _spansOverflowOneLine(BuildContext context, List<InlineSpan> spans, Color color, double maxWidth) {
     final TextPainter painter = TextPainter(
       text: TextSpan(style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: color), children: spans),
@@ -127,6 +128,20 @@ class _OrderItemRowState extends State<_OrderItemRow> {
   @override
   Widget build(BuildContext context) {
     final od = widget.orderDetails;
+    if (od.isBogoBundle) {
+      return _BogoBundleItemRow(orderDetails: od);
+    }
+    if (od.isBundle) {
+      final OrderBundleDetailsModel bundle = od.bundleDetails!;
+      return BundleOrderItemRow(
+        name: bundle.name ?? '',
+        totalPrice: bundle.totalPrice ?? 0,
+        images: (bundle.items ?? const <OrderBundleItemModel>[]).map((item) => item.imageFullUrl ?? '').toList(),
+        itemCount: bundle.items?.length ?? 0,
+        quantity: od.quantity ?? bundle.quantity,
+      );
+    }
+
     final disabled = Theme.of(context).disabledColor;
     final imageUrl = od.imageFullUrl ?? '';
     final discountedPrice = od.price ?? 0;
@@ -141,12 +156,13 @@ class _OrderItemRowState extends State<_OrderItemRow> {
       ClipRRect(
         borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
         child: imageUrl.isEmpty
-        ? Container(width: 52, height: 52,
+        ? Container(width: _thumbSize, height: _thumbSize,
             color: disabled.withValues(alpha: 0.15),
             child: Icon(Icons.fastfood, color: disabled),
           )
-        : Image.network(imageUrl, width: 52, height: 52, fit: BoxFit.cover,
-            errorBuilder: (context, error, stack) => Container(width: 52, height: 52,
+        : Image.network(imageUrl, width: _thumbSize, height: _thumbSize, fit: BoxFit.cover,
+            cacheWidth: ImageCacheHelper.pixels(context, _thumbSize),
+            errorBuilder: (context, error, stack) => Container(width: _thumbSize, height: _thumbSize,
               color: disabled.withValues(alpha: 0.15),
               child: Icon(Icons.fastfood, color: disabled),
             ),
@@ -193,19 +209,19 @@ class _OrderItemRowState extends State<_OrderItemRow> {
               return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Expanded(
                   child: _additionalExpanded
-                      ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          if (variationText.isNotEmpty)
-                            _LabeledNote(label: 'variations'.tr, value: variationText, color: disabled),
-                          if (variationText.isNotEmpty && addOnText.isNotEmpty)
-                            const SizedBox(height: 2),
-                          if (addOnText.isNotEmpty)
-                            _LabeledNote(label: 'addons'.tr, value: addOnText, color: disabled),
-                        ])
-                      : RichText(
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          text: TextSpan(style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: disabled), children: collapsedSpans),
-                        ),
+                  ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      if (variationText.isNotEmpty)
+                        _LabeledNote(label: 'variations'.tr, value: variationText, color: disabled),
+                      if (variationText.isNotEmpty && addOnText.isNotEmpty)
+                        const SizedBox(height: 2),
+                      if (addOnText.isNotEmpty)
+                        _LabeledNote(label: 'addons'.tr, value: addOnText, color: disabled),
+                    ])
+                  : RichText(
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      text: TextSpan(style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: disabled), children: collapsedSpans),
+                    ),
                 ),
                 if (needsToggle)
                   InkWell(
@@ -238,6 +254,163 @@ class _OrderItemRowState extends State<_OrderItemRow> {
         ),
       ),
     ]);
+  }
+}
+
+class _BogoBundleItemRow extends StatelessWidget {
+  final OrderDetailsModel orderDetails;
+  const _BogoBundleItemRow({required this.orderDetails});
+
+  static List<String> _thumbnailsOf(List<OrderBogoItemModel>? items) {
+    return (items ?? const <OrderBogoItemModel>[]).map((item) => item.imageFullUrl ?? '').where((url) => url.isNotEmpty).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final OrderBogoDetailsModel bogo = orderDetails.bogoDetails!;
+    final Color disabled = Theme.of(context).disabledColor;
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            BogoItemGroupWidget(label: 'buying_item'.tr, thumbnails: _thumbnailsOf(bogo.buyItems)),
+            const SizedBox(width: Dimensions.paddingSizeExtraLarge),
+            BogoItemGroupWidget(label: 'free_item'.tr, thumbnails: _thumbnailsOf(bogo.freeItems)),
+          ]), 
+        ),
+        const SizedBox(width: Dimensions.paddingSizeSmall),
+
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeSmall, vertical: Dimensions.paddingSizeExtraSmall),
+          decoration: BoxDecoration(
+            color: disabled.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
+          ),
+          child: Text(
+            '${'qty'.tr} : ${orderDetails.quantity ?? bogo.quantity ?? 0}',
+            style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeDefault),
+          ),
+        ),
+      ]),
+      const SizedBox(height: Dimensions.paddingSizeSmall),
+      Text(
+        bogo.offerTitle ?? 'bogo_offer'.tr,
+        style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeDefault),
+        maxLines: 2, overflow: TextOverflow.ellipsis,
+      ),
+      Text(
+        PriceConverter.convertPrice(bogo.totalPrice ?? 0),
+        style: robotoBold.copyWith(fontSize: Dimensions.fontSizeLarge), textDirection: TextDirection.ltr,
+      ),
+    ]);
+  }
+}
+
+class BundleOrderItemRow extends StatelessWidget {
+  final String name;
+  final double totalPrice;
+  final List<String> images;
+  final int itemCount;
+
+  /// Null where the row has no count to state — a service booking's bundle does not
+  /// carry one — and the chip is then left off rather than printed as zero.
+  final int? quantity;
+
+  const BundleOrderItemRow({super.key, required this.name, required this.totalPrice, required this.images,
+    required this.itemCount, this.quantity,
+  });
+
+  static const int _visibleThumbnails = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+      Text(
+        name,
+        maxLines: 1, overflow: TextOverflow.ellipsis,
+        style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeDefault),
+      ),
+      const SizedBox(height: Dimensions.paddingSizeSmall),
+
+      Row(children: [
+        BundleThumbnailStrip(images: images, totalCount: itemCount, maxVisible: _visibleThumbnails),
+        const SizedBox(width: Dimensions.paddingSizeSmall),
+
+        Expanded(child: Text(
+          PriceConverter.convertPrice(totalPrice),
+          style: robotoBold.copyWith(fontSize: Dimensions.fontSizeDefault),
+        )),
+
+        if(quantity != null) Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: Dimensions.paddingSizeSmall, vertical: Dimensions.paddingSizeExtraSmall,
+          ),
+          decoration: BoxDecoration(
+            color: Theme.of(context).disabledColor.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
+          ),
+          child: Text(
+            '${'qty'.tr} : $quantity',
+            style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeDefault),
+          ),
+        ),
+      ]),
+    ]);
+  }
+}
+
+class BundleThumbnailStrip extends StatelessWidget {
+  final List<String> images;
+  final int totalCount;
+  final int maxVisible;
+
+  static const double _size = 48;
+  static const double _overlap = 15;
+
+  const BundleThumbnailStrip({super.key, required this.images, required this.totalCount, required this.maxVisible});
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    final List<String> shown = images.isEmpty ? const [''] : images;
+    final int visibleCount = shown.length < maxVisible ? shown.length : maxVisible;
+    final int hiddenCount = totalCount - visibleCount;
+    final bool showCounter = hiddenCount > 0;
+    final int circleCount = visibleCount + (showCounter ? 1 : 0);
+    const double step = _size - _overlap;
+
+    return SizedBox(
+      height: _size,
+      width: _size + step * (circleCount - 1),
+      child: Stack(children: List.generate(circleCount, (index) {
+        final bool isCounter = showCounter && index == visibleCount;
+
+        return Positioned(
+          left: step * index,
+          child: Material(
+            borderRadius: BorderRadius.circular(_size / 2),
+            child: Container(
+              height: _size, width: _size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: theme.disabledColor.withAlpha(50),
+                border: isCounter ? null : Border.all(color: theme.cardColor, width: 1.5),
+              ),
+              alignment: Alignment.center,
+              clipBehavior: Clip.antiAlias,
+              child: isCounter ? Text(
+                '+$hiddenCount',
+                style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeExtraSmall),
+              ) : ClipOval(child: CustomImage(image: shown[index], height: _size, width: _size, fit: BoxFit.fill)),
+            ),
+          ),
+        );
+      })),
+    );
   }
 }
 

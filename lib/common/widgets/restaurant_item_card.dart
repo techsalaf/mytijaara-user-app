@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/features/search/domain/models/food_item.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
+import 'package:sixam_mart/helper/price_converter.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/images.dart';
 import 'package:sixam_mart/util/styles.dart';
@@ -21,7 +23,15 @@ class RestaurantItemCard extends StatelessWidget {
           Container(height: width, width: width,
             decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: Theme.of(context).cardColor)),
             child: ClipRRect(borderRadius: BorderRadius.circular(12),
-              child: CustomImage(image: item.imageUrl, fit: BoxFit.cover, placeholder: Images.placeholder),
+              child: CustomImage(
+                image: item.imageUrl, fit: BoxFit.cover, placeholder: Images.placeholder,
+                // Width axis only. Hinting both makes ResizeImage decode to exactly
+                // those numbers ([ResizeImagePolicy.exact]), which drops the source
+                // aspect ratio and squashes the photo into the square instead of
+                // letting `cover` crop it. One axis lets the decoder derive the other
+                // from the source and keep the proportions.
+                cacheWidth: ImageCacheHelper.pixels(context, width),
+              ),
             ),
           ),
           const SizedBox(height: 10),
@@ -29,11 +39,11 @@ class RestaurantItemCard extends StatelessWidget {
             style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall),
           ),
           const SizedBox(height: 6),
-          Text(_formatPrice(item.price),
+          Text(PriceConverter.convertPrice(item.price),
             style: robotoBold.copyWith(fontSize: Dimensions.fontSizeLarge),
           ),
           if (item.originalPrice != null) ...<Widget>[
-            Text(_formatPrice(item.originalPrice!),
+            Text(PriceConverter.convertPrice(item.originalPrice!),
               style: robotoRegular.copyWith(fontSize: Dimensions.fontSizeSmall, color: Theme.of(context).disabledColor, decoration: TextDecoration.lineThrough, decorationColor: Theme.of(context).disabledColor),
             ),
           ],

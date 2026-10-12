@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sixam_mart/api/api_client.dart';
+import 'package:sixam_mart/api/response_parser.dart';
 import 'package:sixam_mart/features/brands/domain/models/brands_model.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 import 'package:sixam_mart/features/search/domain/models/popular_categories_model.dart';
@@ -94,9 +95,9 @@ class SearchRepository implements SearchRepositoryInterface {
     Response response = await apiClient.getData(AppConstants.suggestedItemUri);
     if (response.statusCode == 200) {
       suggestedItemList = [];
-      response.body.forEach(
-        (suggestedItem) => suggestedItemList!.add(Item.fromJson(suggestedItem)),
-      );
+      for (final dynamic suggestedItem in ResponseParser.listOrEmpty(response.body)) {
+        suggestedItemList.add(Item.fromJson(suggestedItem));
+      }
     }
     return suggestedItemList;
   }
@@ -167,9 +168,9 @@ class SearchRepository implements SearchRepositoryInterface {
     );
     if (response.statusCode == 200) {
       popularCategoryList = [];
-      response.body.forEach((category) {
-        popularCategoryList!.add(PopularCategoryModel.fromJson(category));
-      });
+      for (final dynamic category in ResponseParser.listOrEmpty(response.body)) {
+        popularCategoryList.add(PopularCategoryModel.fromJson(category));
+      }
     }
     return popularCategoryList;
   }
@@ -192,9 +193,9 @@ class SearchRepository implements SearchRepositoryInterface {
     );
     if (response.statusCode == 200) {
       brandList = [];
-      response.body.forEach(
-        (brand) => brandList!.add(BrandModel.fromJson(brand)),
-      );
+      for (final dynamic brand in ResponseParser.listOrEmpty(response.body)) {
+        brandList.add(BrandModel.fromJson(brand));
+      }
     }
     return brandList;
   }

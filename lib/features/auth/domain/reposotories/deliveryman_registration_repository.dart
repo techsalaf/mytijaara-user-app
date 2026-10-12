@@ -2,6 +2,7 @@
 import 'package:get/get_connect/http/src/response/response.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sixam_mart/api/api_client.dart';
+import 'package:sixam_mart/api/response_parser.dart';
 import 'package:sixam_mart/common/models/module_model.dart';
 import 'package:sixam_mart/features/location/domain/models/zone_data_model.dart';
 import 'package:sixam_mart/features/auth/domain/models/delivery_man_body.dart';
@@ -36,7 +37,9 @@ class DeliverymanRegistrationRepository implements DeliverymanRegistrationReposi
     Response response = await apiClient.getData(AppConstants.zoneListUri);
     if (response.statusCode == 200) {
       zoneList = [];
-      response.body.forEach((zone) => zoneList!.add(ZoneDataModel.fromJson(zone)));
+      for (final dynamic zone in ResponseParser.listOrEmpty(response.body)) {
+        zoneList.add(ZoneDataModel.fromJson(zone));
+      }
     }
     return zoneList;
   }
@@ -51,7 +54,9 @@ class DeliverymanRegistrationRepository implements DeliverymanRegistrationReposi
     );
     if (response.statusCode == 200) {
       moduleList = [];
-      response.body.forEach((storeCategory) => moduleList!.add(ModuleModel.fromJson(storeCategory)));
+      for (final dynamic storeCategory in ResponseParser.listOrEmpty(response.body)) {
+        moduleList.add(ModuleModel.fromJson(storeCategory));
+      }
     }
     return moduleList;
   }
@@ -61,7 +66,9 @@ class DeliverymanRegistrationRepository implements DeliverymanRegistrationReposi
     Response response = await apiClient.getData(AppConstants.vehiclesUri);
     if (response.statusCode == 200) {
       vehicles = [];
-      response.body.forEach((vehicle) => vehicles!.add(DeliveryManVehicleModel.fromJson(vehicle)));
+      for (final dynamic vehicle in ResponseParser.listOrEmpty(response.body)) {
+        vehicles.add(DeliveryManVehicleModel.fromJson(vehicle));
+      }
     }
     return vehicles;
   }

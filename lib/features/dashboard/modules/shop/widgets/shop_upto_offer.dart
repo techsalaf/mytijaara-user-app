@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:sixam_mart/common/controllers/theme_controller.dart';
 import 'package:sixam_mart/features/home/controllers/home_controller.dart';
 import 'package:sixam_mart/features/home/domain/models/top_offer_model.dart';
 import 'package:sixam_mart/features/dashboard/widgets/single_deal_widget.dart';
@@ -12,9 +13,6 @@ class ShopUpToOffer extends StatelessWidget {
   final TopOfferVariant variant;
   const ShopUpToOffer({super.key, required this.variant});
 
-  // The top-offer API is loaded by the module home screens (food / grocery / shop)
-  // in their initState, alongside their other module APIs — so this widget only
-  // renders the already-fetched data.
   String get _prefixKey {
     switch(variant) {
       case TopOfferVariant.shop: return 'shop_up_to';
@@ -37,9 +35,11 @@ class ShopUpToOffer extends StatelessWidget {
           : PriceConverter.convertPrice(discount);
       final String title = '${_prefixKey.tr} $discountText ${'off'.tr}!';
 
+      final bool isDark = Get.find<ThemeController>().darkTheme;
+
       return SingleDealWidget(
-        beginColor: const Color(0xFFFFF1C2),
-        endColor: const Color(0xFFFFF1C2).withValues(alpha: 0.9),
+        beginColor: isDark ? Colors.amber.withValues(alpha: 0.18) : const Color(0xFFFFF1C2),
+        endColor: isDark ? Colors.amber.withValues(alpha: 0.10) : const Color(0xFFFFF1C2).withValues(alpha: 0.9),
         title: title,
         subTitle: 'dont_miss_out_order_favorites'.tr,
         onTap: () {

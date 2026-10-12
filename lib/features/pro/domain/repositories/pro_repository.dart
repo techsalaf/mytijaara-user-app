@@ -1,4 +1,5 @@
 import 'package:sixam_mart/api/api_client.dart';
+import 'package:sixam_mart/api/response_parser.dart';
 import 'package:sixam_mart/features/pro/domain/models/pro_active_offer_model.dart';
 import 'package:sixam_mart/features/pro/domain/models/pro_faq_model.dart';
 import 'package:sixam_mart/features/pro/domain/models/pro_plan_model.dart';
@@ -26,11 +27,11 @@ class ProRepository implements ProRepositoryInterface {
   Future<List<ProFaqModel>?> getProFaqs() async {
     List<ProFaqModel>? faqs;
     Response response = await apiClient.getData(AppConstants.proFaqsUri);
-    if (response.statusCode == 200 && response.body['faqs'] != null) {
+    if (response.statusCode == 200) {
       faqs = [];
-      response.body['faqs'].forEach((faq) {
-        faqs!.add(ProFaqModel.fromJson(faq));
-      });
+      for (final dynamic faq in ResponseParser.listOrEmpty(response.body, legacyKey: 'faqs')) {
+        faqs.add(ProFaqModel.fromJson(faq));
+      }
     }
     return faqs;
   }

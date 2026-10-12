@@ -30,6 +30,23 @@ class _RefundRequestScreenState extends State<RefundRequestScreen> {
   }
 
   @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit(OrderController orderController) async {
+    final String? orderId = widget.orderId;
+    final bool isSuccess = await orderController.submitRefundRequest(_noteController.text.trim(), orderId);
+    if(!isSuccess || orderId == null) {
+      return;
+    }
+    Get.back(closeOverlays: true);
+    await orderController.timerTrackOrder(orderId);
+    orderController.syncOrderStatusInLists(int.tryParse(orderId), orderController.trackModel?.orderStatus);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: CustomAppBar(title: 'refund_request'.tr),
@@ -173,7 +190,7 @@ class _RefundRequestScreenState extends State<RefundRequestScreen> {
                 CustomButton(
                   buttonText: 'submit_refund_request'.tr,
                   isLoading: orderController.isLoading,
-                  onPressed: () => orderController.submitRefundRequest(_noteController.text.trim(), widget.orderId),
+                  onPressed: () => _submit(orderController),
                 ),
 
               ]),

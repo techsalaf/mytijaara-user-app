@@ -13,17 +13,6 @@ class CheckoutCondition extends StatelessWidget {
   Widget build(BuildContext context) {
     bool activeRefund = Get.find<SplashController>().configModel!.refundPolicyStatus == 1;
     return Row(children: [
-      // SizedBox(
-      //   width: 24.0,
-      //   height: 24.0,
-      //   child: Checkbox(
-      //     activeColor: Theme.of(context).primaryColor,
-      //     value: isParcel ? parcelController.acceptTerms : orderController.acceptTerms,
-      //     onChanged: (bool? isChecked) => isParcel ? parcelController.toggleTerms() : orderController.toggleTerms(),
-      //   ),
-      // ),
-      // const SizedBox(width: Dimensions.paddingSizeSmall),
-
       Expanded(
         child: RichText(text: TextSpan(children: [
           TextSpan(

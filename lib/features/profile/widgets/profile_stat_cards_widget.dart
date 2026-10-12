@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
+import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/order/screens/my_order_screen.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
@@ -21,15 +22,16 @@ class ProfileStatCardsWidget extends StatelessWidget {
       }
 
       final user = profileController.userInfoModel!;
+      final config = Get.find<SplashController>().configModel!;
       final List<_StatItemData> items = [
-        _StatItemData(
+        if (config.loyaltyPointStatus == 1) _StatItemData(
           iconAsset: Images.loyaltyIcon2,
           iconBgColor: const Color(0xFFFFF4D6),
           value: (user.loyaltyPoint ?? 0).toString(),
           labelKey: 'loyalty_point',
           onTap: () => Get.toNamed(RouteHelper.getLoyaltyRoute()),
         ),
-        _StatItemData(
+        if (config.customerWalletStatus == 1) _StatItemData(
           iconAsset: Images.walletIcon2,
           iconBgColor: const Color(0xFFE6F0FF),
           value: PriceConverter.convertPrice(user.walletBalance, forMenuWallet: true),
@@ -147,3 +149,8 @@ class _StatCard extends StatelessWidget {
     );
   }
 }
+
+// SUMMARY
+// Row of profile stat cards. Shows the customer's loyalty points, wallet balance and
+// order count — each only while that feature is switched on — and opens the matching
+// screen when one is tapped.

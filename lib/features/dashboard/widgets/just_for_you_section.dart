@@ -7,6 +7,7 @@ import 'package:sixam_mart/common/widgets/title_widget.dart';
 import 'package:sixam_mart/features/item/controllers/campaign_controller.dart';
 import 'package:sixam_mart/features/item/controllers/item_controller.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 
@@ -86,6 +87,9 @@ class _JustForYouCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final BorderRadius radius = BorderRadius.circular(Dimensions.radiusLarge);
+    // Square box painted with BoxFit.cover: hint the width axis only, so the source
+    // aspect ratio survives the decode and `cover` crops the overflow.
+    final int? decodeWidth = ImageCacheHelper.pixels(context, size);
     return InkWell(
       borderRadius: radius,
       onTap: () => Get.find<ItemController>().navigateToItemPage(item, context, isCampaign: true),
@@ -97,7 +101,7 @@ class _JustForYouCard extends StatelessWidget {
           child: Stack(children: [
             CustomImage(
               image: item.imageFullUrl ?? '',
-              height: size, width: size, fit: BoxFit.cover,
+              height: size, width: size, fit: BoxFit.cover, cacheWidth: decodeWidth,
             ),
             Get.find<ItemController>().isAvailable(item) ? const SizedBox() : const NotAvailableWidget(),
           ]),

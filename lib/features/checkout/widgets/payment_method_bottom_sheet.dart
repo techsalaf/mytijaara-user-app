@@ -13,6 +13,7 @@ import 'package:sixam_mart/features/payment/widgets/offline_payment_button.dart'
 import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
@@ -92,8 +93,18 @@ class _PaymentMethodBottomSheetState extends State<PaymentMethodBottomSheet> {
   }
 
   @override
+  void dispose() {
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    bool showOfflinePay = widget.paymentModel != null ? widget.paymentModel?.partiallyPaidAmount == 0 : true;
+    // `rental/user/trip/payment` accepts only cash, wallet, digital and partial —
+    // there is no offline equivalent for a trip, so the option is hidden rather
+    // than offered and then rejected.
+    bool showOfflinePay = (widget.paymentModel != null ? widget.paymentModel?.partiallyPaidAmount == 0 : true)
+        && !CheckoutController.isTripPayment(widget.paymentModel);
     return SizedBox(
       width: 550,
       child: GetBuilder<CheckoutController>(builder: (checkoutController) {
@@ -329,7 +340,6 @@ class _PaymentMethodBottomSheetState extends State<PaymentMethodBottomSheet> {
   }
 
   Widget paymentButtonView({required String title, String? image, required bool isSelected, required Function? onTap, bool disablePayments = false, bool isDigitalPayment = false, required EdgeInsetsGeometry padding}) {
-    print('=======imammm: $image');
     return Padding(
       padding: padding,
       child: InkWell(
@@ -345,6 +355,7 @@ class _PaymentMethodBottomSheetState extends State<PaymentMethodBottomSheet> {
             image != null ? CustomImage(
               height: 15, fit: BoxFit.contain,
               image: image, color: disablePayments ? Theme.of(context).disabledColor : null,
+              cacheWidth: ImageCacheHelper.pixels(context, 300),
             ) : const SizedBox(),
             const SizedBox(width: Dimensions.paddingSizeSmall),
 

@@ -37,6 +37,12 @@ class _CancellationReasonBottomSheetState extends State<CancellationReasonBottom
   }
 
   @override
+  void dispose() {
+    commentController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
 
     bool isDesktop = ResponsiveHelper.isDesktop(context);

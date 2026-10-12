@@ -1,3 +1,10 @@
+import 'package:sixam_mart/api/json_reader.dart';
+import 'package:sixam_mart/api/response_parser.dart';
+import 'package:sixam_mart/common/models/pagination_model.dart';
+import 'package:sixam_mart/helper/date_converter.dart';
+
+/// Shared by the loyalty-point and wallet transaction histories
+/// (`customer/loyalty-point/transactions`, `customer/wallet/transactions`).
 class TransactionModel {
   int? totalSize;
   String? limit;
@@ -7,14 +14,20 @@ class TransactionModel {
   TransactionModel({this.totalSize, this.limit, this.offset, this.data});
 
   TransactionModel.fromJson(Map<String, dynamic> json) {
-    totalSize = json["total_size"];
-    limit = json["limit"].toString();
-    offset = json["offset"].toString();
-    if (json['data'] != null) {
+    // Paging moved under `pagination`; the flat `total_size`/`limit`/`offset` keys are
+    // gone, so reading them directly left `totalSize` null and the list unable to page.
+    // PaginationModel understands both shapes, and the property names here are
+    // unchanged so no caller needs an edit.
+    final PaginationModel pagination = PaginationModel.fromJson(json);
+    totalSize = pagination.totalSize;
+    limit = pagination.limit?.toString();
+    offset = pagination.offset?.toString();
+    final List<dynamic>? entries = ResponseParser.listOf(json);
+    if (entries != null) {
       data = [];
-      json['data'].forEach((v) {
+      for (final dynamic v in entries) {
         data!.add(Transaction.fromJson(v));
-      });
+      }
     }
   }
 
@@ -55,19 +68,25 @@ class Transaction {
     this.updatedAt,
   });
 
+  /// Every numeric and date field is read defensively.
+  ///
+  /// The payload has been trimmed to what the history actually renders — loyalty sends
+  /// `{credit, debit, transaction_type, reference, created_at}` and wallet adds
+  /// `admin_bonus`. `user_id`, `transaction_id`, `balance` and `updated_at` are no
+  /// longer sent at all, so `json["balance"].toDouble()` and
+  /// `DateTime.parse(json["updated_at"])` threw on the first row and took both entire
+  /// histories down with them.
   Transaction.fromJson(Map<String, dynamic> json) {
-    userId = json["user_id"];
-    transactionId = json["transaction_id"];
-    credit = json["credit"].toDouble();
-    debit = json["debit"].toDouble();
-    if (json["admin_bonus"] != null) {
-      adminBonus = json["admin_bonus"].toDouble();
-    }
-    balance = json["balance"].toDouble();
+    userId = JsonReader.toInt(json["user_id"]);
+    transactionId = json["transaction_id"]?.toString();
+    credit = JsonReader.toDouble(json["credit"]);
+    debit = JsonReader.toDouble(json["debit"]);
+    adminBonus = JsonReader.toDouble(json["admin_bonus"]);
+    balance = JsonReader.toDouble(json["balance"]);
     transactionType = json["transaction_type"];
-    reference = json["reference"];
-    createdAt = DateTime.parse(json["created_at"]);
-    updatedAt = DateTime.parse(json["updated_at"]);
+    reference = json["reference"]?.toString();
+    createdAt = DateConverter.apiStringToDateOrNull(json["created_at"]?.toString());
+    updatedAt = DateConverter.apiStringToDateOrNull(json["updated_at"]?.toString());
   }
 
   Map<String, dynamic> toJson() {
@@ -80,8 +99,8 @@ class Transaction {
     data["balance"] = balance;
     data["transaction_type"] = transactionType;
     data["reference"] = reference;
-    data["created_at"] = createdAt!.toIso8601String();
-    data["updated_at"] = updatedAt!.toIso8601String();
+    data["created_at"] = createdAt?.toIso8601String();
+    data["updated_at"] = updatedAt?.toIso8601String();
     return data;
   }
 }

@@ -25,7 +25,9 @@ class StoreOfferGroupData {
 
   factory StoreOfferGroupData.fromStore(Store store) {
     final double? km = store.distanceKm ?? (store.distance != null ? store.distance! / 1000 : null);
-    final String distanceText = km != null ? '${km.toStringAsFixed(1)} km' : '';
+    // The API's label already carries the platform's configured distance unit;
+    // the hardcoded "km" is only the fallback for a backend without it.
+    final String distanceText = store.distanceLabel ?? (km != null ? '${km.toStringAsFixed(1)} km' : '');
     final String deliveryInfo = <String>[
       if((store.deliveryTime ?? '').isNotEmpty) store.deliveryTime!,
       if(distanceText.isNotEmpty) '($distanceText)',

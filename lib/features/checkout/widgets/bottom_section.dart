@@ -9,15 +9,15 @@ import 'package:sixam_mart/features/cart/controllers/cart_controller.dart';
 import 'package:sixam_mart/features/checkout/controllers/checkout_controller.dart';
 import 'package:sixam_mart/features/checkout/widgets/coupon_section.dart';
 import 'package:sixam_mart/features/pro/widgets/pro_coupon_benefit_banner_widget.dart';
-import 'package:sixam_mart/features/checkout/widgets/extra_discount_view_widget.dart';
 import 'package:sixam_mart/features/checkout/widgets/upload_prescription_widget.dart';
 import 'package:sixam_mart/features/coupon/controllers/coupon_controller.dart';
+import 'package:sixam_mart/features/happy_hour/controllers/happy_hour_controller.dart';
 import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
 import 'package:sixam_mart/features/pro/controllers/pro_controller.dart';
 import 'package:sixam_mart/features/pro/domain/models/pro_active_offer_model.dart';
-// import 'package:sixam_mart/features/pro/widgets/pro_cart_banner_widget.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
+import 'package:sixam_mart/helper/delivery_fee_tooltip.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
@@ -30,6 +30,13 @@ class BottomSection extends StatelessWidget {
   final Module module;
   final double subTotal;
   final double discount;
+
+  /// What the cart's bundles save against their members' own prices.
+  ///
+  /// Display only, and added to both rows at once: a bundle is billed at its bundle
+  /// price, so the subtotal shows the members' total and the discount line shows the
+  /// saving, while every figure the order is actually built from stays untouched.
+  final double bundleSaving;
   final CouponController couponController;
   final bool taxIncluded;
   final double tax;
@@ -40,27 +47,25 @@ class BottomSection extends StatelessWidget {
   final double? maxCodOrderAmount;
   final int? storeId;
   final double? taxPercent;
-  final  double price;
-  final double addOns;
   final Widget? checkoutButton;
   final bool isPrescriptionRequired;
   final double referralDiscount;
   final double proDiscount;
   final double proDeliveryDiscount;
-  final double variationPrice;
-  final double extraDiscount;
+  // Signed, and already 0 wherever the quote priced the tier into the fee itself.
+  final double saverDeliveryAdjustment;
   final JustTheController tooltipController1;
   final JustTheController tooltipController2;
   final String deliveryChargeForView;
   final double extraChargeForToolTip;
 
   const BottomSection({super.key, required this.checkoutController, required this.total, required this.module, required this.subTotal,
-    required this.discount, required this.couponController, required this.taxIncluded, required this.tax,
+    required this.discount, this.bundleSaving = 0, required this.couponController, required this.taxIncluded, required this.tax,
     required this.deliveryCharge, required this.todayClosed, required this.tomorrowClosed,
-    required this.orderAmount, this.maxCodOrderAmount, this.storeId, this.taxPercent, required this.price,
-    required this.addOns, this.checkoutButton, required this.isPrescriptionRequired, required this.referralDiscount,
-    required this.proDiscount, required this.proDeliveryDiscount,
-    required this.variationPrice, required this.extraDiscount, required this.tooltipController1, required this.tooltipController2,
+    required this.orderAmount, this.maxCodOrderAmount, this.storeId, this.taxPercent,
+    this.checkoutButton, required this.isPrescriptionRequired, required this.referralDiscount,
+    required this.proDiscount, required this.proDeliveryDiscount, required this.saverDeliveryAdjustment,
+    required this.tooltipController1, required this.tooltipController2,
     required this.deliveryChargeForView, required this.extraChargeForToolTip});
 
   @override
@@ -84,8 +89,8 @@ class BottomSection extends StatelessWidget {
 
         /// Coupon
         isDesktop && !isGuestLoggedIn ? CouponSection(
-          storeId: storeId, checkoutController: checkoutController, total: total, price: price,
-          discount: discount, addOns: addOns, deliveryCharge: deliveryCharge, variationPrice: variationPrice,
+          storeId: storeId, checkoutController: checkoutController, total: total, subTotal: subTotal,
+          discount: discount, deliveryCharge: deliveryCharge,
         ) : const SizedBox(),
 
         Padding(
@@ -95,10 +100,7 @@ class BottomSection extends StatelessWidget {
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-            ///Additional Note & prescription — hidden from view; checkoutController.noteController is still wired into order placement.
             const SizedBox.shrink(),
-
-            // isDesktop && !isGuestLoggedIn ? PartialPayView(totalPrice: total, isPrescription: storeId != null) : const SizedBox(),
 
             !isDesktop ? pricingView(context: context, takeAway: takeAway) : const SizedBox(),
             SizedBox(height: uploadPredcription ? Dimensions.paddingSizeLarge : 0),
@@ -112,15 +114,7 @@ class BottomSection extends StatelessWidget {
             ) : const SizedBox.shrink(),
 
             uploadPredcription ? const SizedBox(height: Dimensions.paddingSizeDefault) :const SizedBox.shrink(),
-
-            ExtraDiscountViewWidget(extraDiscount: extraDiscount),
             const SizedBox(height: Dimensions.paddingSizeDefault),
-
-            // Pro banner hidden on checkout for now
-            // (isDesktop && storeId == null) ? Padding(
-            //   padding: const EdgeInsets.only(bottom: Dimensions.paddingSizeDefault),
-            //   child: ProCartBannerWidget(subtotal: subTotal, discount: discount, couponDiscount: couponController.discount ?? 0),
-            // ) : const SizedBox(),
             const SizedBox(),
 
             ResponsiveHelper.isDesktop(context) ? Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -170,16 +164,27 @@ class BottomSection extends StatelessWidget {
     final ProActiveBenefit? proBenefit = Get.find<ProController>().activeOfferModel?.benefit;
     final bool isPro = (Get.find<ProfileController>().userInfoModel?.proStatus ?? false);
 
-    // Saver delivery option fee adjustment shown as its own bill line ("Express Delivery (+) X" / "Slightly Delay Delivery (-) X").
+    final bool isFreeDelivery = deliveryCharge == 0 || (couponController.coupon != null && couponController.coupon!.couponType == 'free_delivery');
+    final String? discountSourceMessage = discount > 0
+        ? Get.find<HappyHourController>().discountSourceMessageFor(checkoutController.store?.id) : null;
+
     final saverDeliveryOption = checkoutController.selectedSaverDeliveryOption;
-    final String? saverDeliveryType = saverDeliveryOption?.deliveryType;
-    final bool showSaverDeliveryOption = !takeAway && checkoutController.orderType != 'dine_in'
-        && checkoutController.store?.selfDeliverySystem != 1
+    final String? saverDeliveryType = checkoutController.saverDeliveryType;
+    // A row of its own only while the tier moves the bill: a reduction clamped away by the
+    // minimum delivery charge costs nothing, and a "(-) 0" line reads as one that applied.
+    final bool showSaverDeliveryOption = saverDeliveryAdjustment != 0
         && (saverDeliveryType == 'express' || saverDeliveryType == 'slightly_delay');
-    // Clamped against the delivery fee after the Pro delivery discount, so the shown
-    // reduction matches the amount actually applied to the total (a slightly-delay
-    // reduce charge is capped so the remaining fee never drops below the minimum).
-    final double saverDeliveryAdjustment = checkoutController.getEffectiveSaverDeliveryAdjustment(deliveryCharge: deliveryCharge - proDeliveryDiscount, deliveryOption: saverDeliveryOption).abs();
+    final String? surgeMessage = DeliveryFeeTooltip.surgeMessage(checkoutController.surgePrice);
+    // What the minimum delivery charge would not let the tier take off — the client applies
+    // the tier on every path, so it explains the shortfall on every path too.
+    final String? saverLimitMessage = DeliveryFeeTooltip.blockedSaverReductionMessage(
+      blockedAmount: checkoutController.getBlockedSaverDeliveryReduction(
+        // The same base the charge itself is clamped against, so the shortfall it explains
+        // is the shortfall the row shows.
+        deliveryCharge: deliveryCharge, deliveryOption: saverDeliveryOption,
+      ),
+      minimumDeliveryCharge: checkoutController.saverMinimumDeliveryCharge,
+    );
 
     return Column(children: [
 
@@ -205,13 +210,23 @@ class BottomSection extends StatelessWidget {
           children: [
             storeId == null ? Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Text(module.addOn! ? 'subtotal'.tr : 'item_price'.tr, style: robotoRegular),
-              Text(PriceConverter.convertPrice(subTotal), style: robotoMedium, textDirection: TextDirection.ltr),
+              Text(PriceConverter.convertPrice(subTotal + bundleSaving), style: robotoMedium, textDirection: TextDirection.ltr),
             ]) : const SizedBox(),
             SizedBox(height: storeId == null ? Dimensions.paddingSizeSmall : 0),
 
             storeId == null ? Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text('discount'.tr, style: robotoRegular),
-              Text('(-) ${PriceConverter.convertPrice(discount)}', style: robotoRegular, textDirection: TextDirection.ltr),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                Text('discount'.tr, style: robotoRegular),
+                if(discountSourceMessage != null) ...[
+                  const SizedBox(width: Dimensions.paddingSizeExtraSmall),
+                  CustomToolTip(
+                    message: discountSourceMessage,
+                    size: Dimensions.fontSizeLarge,
+                    preferredDirection: AxisDirection.up,
+                  ),
+                ],
+              ]),
+              Text('(-) ${PriceConverter.convertPrice(discount + bundleSaving)}', style: robotoRegular, textDirection: TextDirection.ltr),
             ]) : const SizedBox(),
             const SizedBox(height: Dimensions.paddingSizeSmall),
 
@@ -272,24 +287,32 @@ class BottomSection extends StatelessWidget {
             ) : const SizedBox.shrink() : const SizedBox(),
             SizedBox(height: storeId == null ? (checkoutController.store!.extraPackagingStatus! && Get.find<CartController>().needExtraPackage) ? Dimensions.paddingSizeSmall : 0.0 : 0.0),
 
-            (AuthHelper.isGuestLoggedIn() && checkoutController.guestAddress == null) ? const SizedBox() : Row( children: [
+            // Nothing is being delivered on a pickup, so the row has no fee to report —
+            // and with the charge at zero it read "Delivery Fee: Free", which offers a
+            // saving that was never on the table.
+            (takeAway || (AuthHelper.isGuestLoggedIn() && checkoutController.guestAddress == null)) ? const SizedBox() : Row( children: [
               Text('delivery_fee'.tr, style: robotoRegular),
               const SizedBox(width: 5),
 
-              (checkoutController.orderType == 'delivery') && (checkoutController.store?.selfDeliverySystem == 0) && (checkoutController.surgePrice?.customerNoteStatus == 1) ? CustomToolTip(
-                message: '${'this_delivery_fee_includes_all_the_applicable_charges_on_delivery'.tr} ${checkoutController.surgePrice?.customerNote ?? ''}',
+              isFreeDelivery ? const SizedBox() : (checkoutController.orderType == 'delivery') && (checkoutController.store?.selfDeliverySystem == 0)
+                  && surgeMessage != null ? CustomToolTip(
+                message: <String>[surgeMessage, ?saverLimitMessage].join('\n\n'),
               ) : deliveryChargeForView != PriceConverter.convertPrice(0) && (checkoutController.orderType == 'delivery') && checkoutController.extraCharge != null && (deliveryChargeForView != '0') && extraChargeForToolTip > 0 ? CustomToolTip(
-                message: '${'this_charge_include_extra_vehicle_charge'.tr} ${PriceConverter.convertPrice(extraChargeForToolTip)}',
+                message: <String>[
+                  '${'this_charge_include_extra_vehicle_charge'.tr} ${PriceConverter.convertPrice(extraChargeForToolTip)}',
+                  ?saverLimitMessage,
+                ].join('\n\n'),
                 preferredDirection: AxisDirection.right,
+                child: const Icon(Icons.info, color: Colors.blue, size: 14),
+              ) : saverLimitMessage != null ? CustomToolTip(
+                message: saverLimitMessage,
                 child: const Icon(Icons.info, color: Colors.blue, size: 14),
               ) : const SizedBox(),
 
 
               const Spacer(),
 
-              checkoutController.distance == -1 ? Text(
-                'calculating'.tr, style: robotoRegular.copyWith(color: Colors.red),
-              ) : (deliveryCharge == 0 || (couponController.coupon != null && couponController.coupon!.couponType == 'free_delivery')) ? Text(
+              (checkoutController.distance == -1 || checkoutController.summaryLoading) ? const _CalculatingText() : isFreeDelivery ? Text(
                 'free'.tr, style: robotoRegular.copyWith(color: Theme.of(context).primaryColor),
               ) : Text(
                 '(+) ${PriceConverter.convertPrice(deliveryCharge)}', style: robotoRegular, textDirection: TextDirection.ltr,
@@ -318,7 +341,7 @@ class BottomSection extends StatelessWidget {
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 Text('${saverDeliveryType!.tr.replaceAll('_', ' ').capitalize} ${'delivery'.tr}', style: robotoRegular),
                 Text(
-                  '${saverDeliveryType == 'express' ? '(+) ' : '(-) '}${PriceConverter.convertPrice(saverDeliveryAdjustment)}',
+                  '${saverDeliveryType == 'express' ? '(+) ' : '(-) '}${PriceConverter.convertPrice(saverDeliveryAdjustment.abs())}',
                   style: robotoRegular, textDirection: TextDirection.ltr,
                 ),
               ]),
@@ -327,7 +350,12 @@ class BottomSection extends StatelessWidget {
             SizedBox(height: Get.find<SplashController>().configModel!.additionalChargeStatus! && !(AuthHelper.isGuestLoggedIn() && checkoutController.guestAddress == null) ? Dimensions.paddingSizeSmall : 0),
 
             Get.find<SplashController>().configModel!.additionalChargeStatus! ? Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Expanded(child: Text((module.isTaxi == true || module.isParcel == true) ? 'service_charge'.tr : 'additional_charge'.tr, style: robotoRegular, overflow: TextOverflow.ellipsis, maxLines: 1)),
+              Expanded(child: Text(
+                Get.find<SplashController>().configModel!.additionalChargeName != null && Get.find<SplashController>().configModel!.additionalChargeName!.isNotEmpty
+                ? Get.find<SplashController>().configModel!.additionalChargeName!
+                    : (module.isTaxi == true || module.isParcel == true) ? 'service_charge'.tr : 'additional_charge'.tr,
+                style: robotoRegular, overflow: TextOverflow.ellipsis, maxLines: 1,
+              )),
               const SizedBox(width: Dimensions.paddingSizeSmall),
 
               Text(
@@ -360,6 +388,47 @@ class BottomSection extends StatelessWidget {
         ),
       ),
     ]);
+  }
+}
+
+
+class _CalculatingText extends StatefulWidget {
+  const _CalculatingText();
+
+  @override
+  State<_CalculatingText> createState() => _CalculatingTextState();
+}
+
+class _CalculatingTextState extends State<_CalculatingText> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this, duration: const Duration(milliseconds: 1100),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      child: Text('${'calculating'.tr}...', style: robotoMedium.copyWith(color: Colors.red)),
+      builder: (BuildContext context, Widget? text) {
+        final double sweep = _controller.value * 4 - 2;
+
+        return ShaderMask(
+          blendMode: BlendMode.srcIn,
+          shaderCallback: (Rect bounds) => LinearGradient(
+            colors: const [Colors.red, Colors.orangeAccent, Colors.red],
+            begin: Alignment(sweep - 0.6, 0),
+            end: Alignment(sweep + 0.6, 0),
+          ).createShader(bounds),
+          child: text,
+        );
+      },
+    );
   }
 }
 
@@ -425,3 +494,8 @@ class _PolicyAgreementBoxState extends State<_PolicyAgreementBox> {
     );
   }
 }
+
+// SUMMARY
+// Lower half of the checkout: the billing summary with every discount, fee, tip and
+// charge line and their tooltips, the delivery fee that animates while the server is
+// still calculating it, the prescription upload, the total row and the policy notice.

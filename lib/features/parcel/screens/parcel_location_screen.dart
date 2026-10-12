@@ -1,5 +1,4 @@
 import 'package:country_code_picker/country_code_picker.dart';
-import 'package:dotted_border/dotted_border.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -17,27 +16,32 @@ import 'package:sixam_mart/features/address/controllers/address_controller.dart'
 import 'package:sixam_mart/features/address/domain/models/address_model.dart';
 import 'package:sixam_mart/features/auth/controllers/auth_controller.dart';
 import 'package:sixam_mart/features/checkout/controllers/checkout_controller.dart';
+import 'package:sixam_mart/features/checkout/domain/models/coverage_list_model.dart';
 import 'package:sixam_mart/features/checkout/widgets/tips_widget.dart';
-import 'package:sixam_mart/features/dashboard/widgets/parcel_bottom_sheet_widget.dart';
-import 'package:sixam_mart/features/location/domain/models/zone_response_model.dart';
+import 'package:sixam_mart/features/parcel/widgets/parcel_coverage_bottom_sheet.dart';
+import 'package:sixam_mart/features/parcel/widgets/parcel_quote_error_widget.dart';
+import 'package:sixam_mart/features/parcel/widgets/set_parcel_information_bottom_sheet.dart';
 import 'package:sixam_mart/features/parcel/controllers/parcel_controller.dart';
 import 'package:sixam_mart/features/parcel/domain/models/parcel_category_model.dart';
 import 'package:sixam_mart/features/pro/widgets/pro_cart_banner_widget.dart';
 import 'package:sixam_mart/features/parcel/widgets/delivery_instruction_bottom_sheet_widget.dart';
 import 'package:sixam_mart/features/parcel/widgets/parcel_info_bottom_sheet.dart';
 import 'package:sixam_mart/features/parcel/widgets/parcel_payment_method_bottom_sheet.dart';
+import 'package:sixam_mart/features/parcel/widgets/parcel_payment_method_picker.dart';
 import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/helper/address_helper.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/helper/custom_validator.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/helper/string_extension.dart';
+import 'package:sixam_mart/helper/zone_module_helper.dart';
+import 'package:sixam_mart/helper/zone_payment_helper.dart';
 import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/dimensions.dart';
-import 'package:sixam_mart/util/images.dart';
 import 'package:sixam_mart/util/styles.dart';
 
 class ParcelLocationScreen extends StatefulWidget {
@@ -69,10 +73,6 @@ class _ParcelLocationScreenState extends State<ParcelLocationScreen> {
   late ParcelCategoryModel _category;
   bool _isCashOnDeliveryActive = false;
   bool _isDigitalPaymentActive = false;
-  // True only when this screen was opened via a chip pre-seed (recent-address
-  // suggestion on the parcel module screen). Used to auto-open the receiver
-  // sheet once the first frame is painted so the user can fill in receiver
-  // details on top of the pre-selected destination.
   bool _autoOpenReceiverSheet = false;
 
   @override
@@ -107,22 +107,32 @@ class _ParcelLocationScreenState extends State<ParcelLocationScreen> {
     parcelController.setPaymentIndex(-1, false);
     parcelController.setPayerIndex(0, false);
     parcelController.setInstructionSelectedIndex(-1, notify: false);
+    parcelController.clearTierSelections(notify: false);
+    parcelController.consumeHeldTierSelection(notify: false);
+    parcelController.clearCoverageSelection(notify: false);
     parcelController.setCustomNoteController('', notify: false);
     parcelController.setSelectedIndex(-1);
     parcelController.setCustomNote('');
     parcelController.updateTips(
-      Get.find<AuthController>().getDmTipIndex().isNotEmpty
-          ? int.parse(Get.find<AuthController>().getDmTipIndex()) : PriceConverter.noTipIndex,
+      PriceConverter.tipIndexFromSaved(Get.find<AuthController>().getDmTipIndex()),
       notify: false,
     );
 
     checkoutController.resetOrderTax();
+    checkoutController.resetCheckoutSummary();
+
+    if (parcelController.parcelCategoryList == null) {
+      parcelController.getParcelCategoryList();
+    }
     if (checkoutController.isCreateAccount) {
       checkoutController.toggleCreateAccount(willUpdate: false);
     }
 
     _resolvePaymentFlags();
-    _ensureDistance();
+    Future.wait(<Future<void>>[
+      _loadTiers(),
+      _loadCoverage(),
+    ]).then((_) => _ensureDistance());
 
     if (AuthHelper.isLoggedIn() && Get.find<AddressController>().addressList == null) {
       Get.find<AddressController>().getAddressList();
@@ -145,8 +155,6 @@ class _ParcelLocationScreenState extends State<ParcelLocationScreen> {
     if(_autoOpenReceiverSheet) {
       _autoOpenReceiverSheet = false;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        // Let the page-transition animation settle before the sheet slides in,
-        // otherwise the two animations stack and feel jumpy.
         await Future.delayed(const Duration(milliseconds: 400));
         if(mounted) _openReceiverSheet();
       });
@@ -154,28 +162,19 @@ class _ParcelLocationScreenState extends State<ParcelLocationScreen> {
   }
 
   void _resolvePaymentFlags() {
-    final pickup = Get.find<ParcelController>().pickupAddress;
-    final savedAddress = AddressHelper.getUserAddressFromSharedPref();
-    final config = Get.find<SplashController>().configModel!;
-    _isCashOnDeliveryActive = false;
-    _isDigitalPaymentActive = false;
-    if (pickup?.zoneData == null || savedAddress == null) return;
-    for (ZoneData zData in pickup!.zoneData!) {
-      if (zData.id == savedAddress.zoneId) {
-        _isCashOnDeliveryActive = (zData.cashOnDelivery ?? false) && (config.cashOnDelivery ?? false);
-        _isDigitalPaymentActive = (zData.digitalPayment ?? false) && (config.digitalPayment ?? false);
-        break;
-      }
-    }
+    final AddressModel? pickup = Get.find<ParcelController>().pickupAddress;
+    _isCashOnDeliveryActive = ZonePaymentHelper.isCashOnDeliveryActive(pickup);
+    _isDigitalPaymentActive = ZonePaymentHelper.isDigitalPaymentActive(pickup);
   }
 
-  void _ensureDistance() {
+  Future<void> _ensureDistance() async {
     final parcelController = Get.find<ParcelController>();
     final pickup = parcelController.pickupAddress;
     final destination = parcelController.destinationAddress;
     if (pickup?.latitude != null && pickup?.longitude != null
         && destination?.latitude != null && destination?.longitude != null) {
-      parcelController.getDistance(pickup!, destination!);
+      await parcelController.getDistance(pickup!, destination!);
+      await parcelController.fetchParcelSummary(_category);
     }
   }
 
@@ -183,12 +182,62 @@ class _ParcelLocationScreenState extends State<ParcelLocationScreen> {
     final parcelController = Get.find<ParcelController>();
     final pickup = parcelController.pickupAddress;
     final destination = parcelController.destinationAddress;
-    if (pickup != null && destination != null) {
-      Get.dialog(const CustomLoaderWidget(), barrierDismissible: false);
+    if (pickup == null || destination == null) return;
+
+    // Held by its own route, not by `Get.isDialogOpen`: that flag is rewritten by every
+    // push and pop around it, and a stale read left this loader on screen for good.
+    final NavigatorState navigator = Navigator.of(context, rootNavigator: true);
+    final DialogRoute<void> loader = DialogRoute<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext _) => const CustomLoaderWidget(),
+    );
+    navigator.push(loader);
+    try {
       await parcelController.getDistance(pickup, destination);
-      await parcelController.fetchOrderTax(_category);
-      if (Get.isDialogOpen ?? false) Get.back();
+      await Future.wait(<Future<void>>[_loadTiers(), _loadCoverage()]);
+      await parcelController.fetchParcelSummary(_category);
+    } finally {
+      if (loader.isActive) {
+        navigator.removeRoute(loader);
+      }
     }
+  }
+
+  void _quoteAfterSheetCloses() {
+    // After the sheet has gone: a refused quote belongs on the screen behind it.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await _loadDistanceAndTax();
+      _promptParcelInformation();
+    });
+  }
+
+  Future<void> _loadTiers() async {
+    final parcelController = Get.find<ParcelController>();
+    final int? moduleId = Get.find<SplashController>().module?.id;
+    final int? zoneId = ZoneModuleHelper.resolveZoneId(parcelController.pickupAddress, moduleId: moduleId);
+    if (zoneId == null) return;
+    await parcelController.loadParcelTiers(zoneId: zoneId, moduleId: moduleId);
+  }
+
+  Future<void> _loadCoverage() async {
+    final parcelController = Get.find<ParcelController>();
+    final int? moduleId = Get.find<SplashController>().module?.id;
+    final int? zoneId = ZoneModuleHelper.resolveZoneId(parcelController.pickupAddress, moduleId: moduleId);
+    if (zoneId == null) return;
+    await parcelController.loadParcelCoverage(zoneId: zoneId, moduleId: moduleId);
+  }
+
+  void _openCoverageSheet() {
+    ParcelCoverageBottomSheet.open(
+      context,
+      onConfirm: () async {
+        if (!mounted) return;
+        setState(() {});
+        await Get.find<ParcelController>().fetchParcelSummary(_category);
+      },
+    );
   }
 
   String _splitPhoneNumber(String number, {required bool returnCountryCode}) {
@@ -206,7 +255,6 @@ class _ParcelLocationScreenState extends State<ParcelLocationScreen> {
 
   @override
   void dispose() {
-    super.dispose();
     _senderNameController.dispose();
     _senderPhoneController.dispose();
     _receiverNameController.dispose();
@@ -222,6 +270,7 @@ class _ParcelLocationScreenState extends State<ParcelLocationScreen> {
     _senderAddressController.dispose();
     _receiverAddressController.dispose();
     _tipController.dispose();
+    super.dispose();
   }
 
   Future<bool> _validateSenderInfo({bool showSnackbarOnFail = true}) async {
@@ -333,8 +382,9 @@ class _ParcelLocationScreenState extends State<ParcelLocationScreen> {
         final ok = await _validateSenderInfo();
         if (ok && mounted) {
           Get.find<ParcelController>().setPaymentIndex(-1, false);
+          _resolvePaymentFlags();
           setState(() {});
-          await _loadDistanceAndTax();
+          _quoteAfterSheetCloses();
         }
         return ok;
       },
@@ -357,31 +407,45 @@ class _ParcelLocationScreenState extends State<ParcelLocationScreen> {
         if (ok && mounted) {
           Get.find<ParcelController>().setPaymentIndex(-1, false);
           setState(() {});
-          await _loadDistanceAndTax();
+          _quoteAfterSheetCloses();
         }
         return ok;
       },
     );
   }
 
-  void _openCategorySheet() {
-    final categoryList = Get.find<ParcelController>().parcelCategoryList;
-    final sheet = ParcelBottomSheetWidget(
-      parcelCategoryList: categoryList,
-      onCategorySelected: (selected) {
-        if (mounted) setState(() => _category = selected);
+  void _promptParcelInformation() {
+    if (!mounted) return;
+    final ParcelController parcelController = Get.find<ParcelController>();
+    final bool routeComplete = parcelController.pickupAddress != null
+        && parcelController.destinationAddress != null;
+    if (!routeComplete) return;
+
+    if (parcelController.isTierSelectionMissing) {
+      _openSheetAfterSettle(_openParcelInformationSheet);
+    } else if (parcelController.isCoverageSelectionMissing) {
+      _openSheetAfterSettle(_openCoverageSheet);
+    }
+  }
+
+  void _openSheetAfterSettle(VoidCallback open) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await Future.delayed(const Duration(milliseconds: 350));
+      if (mounted) open();
+    });
+  }
+
+  void _openParcelInformationSheet() {
+    SetParcelInformationBottomSheet.open(
+      context,
+      selectedCategory: _category,
+      onConfirm: (selected) async {
+        if (!mounted) return;
+        setState(() => _category = selected);
+        await Get.find<ParcelController>().fetchParcelSummary(_category);
+        _promptParcelInformation();
       },
     );
-    if (ResponsiveHelper.isDesktop(context)) {
-      Get.dialog(Dialog(child: sheet));
-    } else {
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (_) => sheet,
-      );
-    }
   }
 
   Future<void> _onReview() async {
@@ -391,6 +455,14 @@ class _ParcelLocationScreenState extends State<ParcelLocationScreen> {
     }
     if (!await _validateReceiverInfo(showSnackbarOnFail: false)) {
       _openReceiverSheet();
+      return;
+    }
+    if (Get.find<ParcelController>().isTierSelectionMissing) {
+      _openParcelInformationSheet();
+      return;
+    }
+    if (Get.find<ParcelController>().isCoverageSelectionMissing) {
+      _openCoverageSheet();
       return;
     }
 
@@ -439,7 +511,11 @@ class _ParcelLocationScreenState extends State<ParcelLocationScreen> {
                   child: SizedBox(
                     width: Dimensions.webMaxWidth,
                     child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                      _CategoryCard(category: _category, onEdit: _openCategorySheet),
+                      _CategoryCard(
+                        category: _category, onEdit: _openParcelInformationSheet,
+                        weightLabel: parcelController.selectedWeight?.name,
+                        dimensionLabel: parcelController.selectedDimension?.name,
+                      ),
                       const SizedBox(height: Dimensions.paddingSizeDefault),
                       Container(
                         padding: const EdgeInsets.all(Dimensions.paddingSizeDefault),
@@ -460,6 +536,17 @@ class _ParcelLocationScreenState extends State<ParcelLocationScreen> {
                             onReceiverTap: _openReceiverSheet,
                             bare: true,
                           ),
+                          const ParcelQuoteErrorWidget(),
+                          // Only drawn for a zone that prices by area or ZIP.
+                          // Distance- and fixed-priced zones — most of them —
+                          // see this screen exactly as before.
+                          if (parcelController.needsCoverageSelection) ...[
+                            const SizedBox(height: Dimensions.paddingSizeDefault),
+                            _CoverageRow(
+                              selectedCoverage: parcelController.selectedCoverageOption,
+                              onTap: _openCoverageSheet,
+                            ),
+                          ],
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: Dimensions.paddingSizeDefault),
                             child: Divider(height: 1, thickness: 1, color: Theme.of(context).disabledColor.withValues(alpha: 0.15)),
@@ -470,11 +557,7 @@ class _ParcelLocationScreenState extends State<ParcelLocationScreen> {
                       const SizedBox(height: Dimensions.paddingSizeDefault),
                       _DeliveryTipsCard(controller: parcelController, tipController: _tipController),
                       const SizedBox(height: Dimensions.paddingSizeDefault),
-                      _PaymentByCard(
-                        controller: parcelController, isCashOnDeliveryActive: _isCashOnDeliveryActive,
-                      ),
-                      const SizedBox(height: Dimensions.paddingSizeDefault),
-                      _PaymentMethodCard(
+                      _PaymentCard(
                         controller: parcelController, category: _category, isCashOnDeliveryActive: _isCashOnDeliveryActive,
                         isDigitalPaymentActive: _isDigitalPaymentActive,
                       ),
@@ -486,7 +569,7 @@ class _ParcelLocationScreenState extends State<ParcelLocationScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(Dimensions.paddingSizeDefault, Dimensions.paddingSizeDefault, Dimensions.paddingSizeDefault, 0),
               child: _ParcelLocationProBanner(
-                subtotal: parcelController.calculateDeliveryCharge(_category),
+                subtotal: parcelController.deliveryCharge(_category),
                 redirectRoute: RouteHelper.getParcelLocationRoute(_category),
               ),
             ),
@@ -511,13 +594,7 @@ class _ParcelLocationScreenState extends State<ParcelLocationScreen> {
   }
 }
 
-// Pro banner on the set-location screen. For pro members it shows the active benefit
-// (e.g. "you get 78% off on delivery charge as a pro member"); for non-pro users it shows
-// the subscribe banner, redirecting back here after subscribing. There is no cart subtotal
-// on this screen yet, so promo mode forces the achieved-benefit text.
 class _ParcelLocationProBanner extends StatelessWidget {
-  // Parcel has no item subtotal, so the Pro benefit applies on the delivery
-  // charge — pass it as the banner subtotal so the savings shown are correct.
   final double subtotal;
   final String redirectRoute;
   const _ParcelLocationProBanner({required this.subtotal, required this.redirectRoute});
@@ -535,8 +612,18 @@ class _ParcelLocationProBanner extends StatelessWidget {
 class _CategoryCard extends StatelessWidget {
   final ParcelCategoryModel category;
   final VoidCallback onEdit;
+  final String? weightLabel;
+  final String? dimensionLabel;
 
-  const _CategoryCard({required this.category, required this.onEdit});
+  const _CategoryCard({required this.category, required this.onEdit, this.weightLabel, this.dimensionLabel});
+
+  String _subtitle() {
+    final List<String> parts = <String>[
+      if (weightLabel != null && weightLabel!.isNotEmpty) weightLabel!,
+      if (dimensionLabel != null && dimensionLabel!.isNotEmpty) dimensionLabel!,
+    ];
+    return parts.isEmpty ? 'parcel_type'.tr : parts.join(' · ');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -555,6 +642,7 @@ class _CategoryCard extends StatelessWidget {
             height: 40,
             width: 40,
             fit: BoxFit.cover,
+            cacheWidth: ImageCacheHelper.pixels(context, 40),
           ),
         ),
         const SizedBox(width: Dimensions.paddingSizeDefault),
@@ -568,7 +656,9 @@ class _CategoryCard extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              'parcel_type'.tr,
+              _subtitle(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: robotoRegular.copyWith(
                 fontSize: Dimensions.fontSizeSmall,
                 color: Theme.of(context).disabledColor,
@@ -603,9 +693,6 @@ class _RouteCard extends StatelessWidget {
   final String? receiverAddress;
   final VoidCallback onSenderTap;
   final VoidCallback onReceiverTap;
-  // When true, renders the content without the outer Container decoration
-  // so it can be visually merged with an adjacent card. Default false keeps
-  // standalone behavior unchanged.
   final bool bare;
 
   const _RouteCard({
@@ -662,6 +749,75 @@ class _RouteCard extends StatelessWidget {
       padding: const EdgeInsets.all(Dimensions.paddingSizeDefault),
       decoration: _sectionDecoration(context),
       child: content,
+    );
+  }
+}
+
+class _CoverageRow extends StatelessWidget {
+  final CoverageOption? selectedCoverage;
+  final VoidCallback onTap;
+
+  const _CoverageRow({required this.selectedCoverage, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isSet = selectedCoverage != null;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: Dimensions.paddingSizeDefault,
+          vertical: Dimensions.paddingSizeSmall,
+        ),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
+          border: Border.all(
+            color: isSet
+                ? Theme.of(context).disabledColor.withValues(alpha: 0.3)
+                : Theme.of(context).colorScheme.error.withValues(alpha: 0.5),
+            width: 0.7,
+          ),
+        ),
+        child: Row(children: [
+          Icon(
+            Icons.map_outlined,
+            size: 18,
+            color: isSet ? Theme.of(context).disabledColor : Theme.of(context).colorScheme.error,
+          ),
+          const SizedBox(width: Dimensions.paddingSizeSmall),
+          Expanded(
+            child: Text.rich(
+              TextSpan(children: <InlineSpan>[
+                TextSpan(
+                  text: '${'area_zip_code'.tr}:  ',
+                  style: robotoRegular.copyWith(
+                    fontSize: Dimensions.fontSizeSmall,
+                    color: isSet ? Theme.of(context).disabledColor : Theme.of(context).colorScheme.error,
+                  ),
+                ),
+                TextSpan(
+                  text: isSet ? selectedCoverage!.name ?? '' : 'not_set_yet'.tr,
+                  style: robotoMedium.copyWith(
+                    fontSize: Dimensions.fontSizeSmall,
+                    color: isSet
+                        ? Theme.of(context).textTheme.bodyLarge?.color
+                        : Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ]),
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: Dimensions.paddingSizeSmall),
+          Icon(
+            isSet ? Icons.edit_outlined : Icons.keyboard_arrow_down,
+            size: 18,
+            color: isSet ? Theme.of(context).primaryColor : Theme.of(context).disabledColor,
+          ),
+        ]),
+      ),
     );
   }
 }
@@ -1040,11 +1196,43 @@ class _DeliveryTipsCard extends StatelessWidget {
   }
 }
 
-class _PaymentByCard extends StatelessWidget {
+class _PaymentCard extends StatelessWidget {
   final ParcelController controller;
+  final ParcelCategoryModel category;
   final bool isCashOnDeliveryActive;
+  final bool isDigitalPaymentActive;
 
-  const _PaymentByCard({required this.controller, required this.isCashOnDeliveryActive});
+  const _PaymentCard({
+    required this.controller, required this.category, required this.isCashOnDeliveryActive, required this.isDigitalPaymentActive,
+  });
+
+  Future<void> _openSheet(BuildContext context) async {
+    final bool isDesktop = ResponsiveHelper.isDesktop(context);
+    final bool isGuest = AuthHelper.isGuestLoggedIn();
+    final bool walletActive = (Get.find<SplashController>().configModel!.customerWalletStatus == 1) && controller.payerIndex == 0 && !isGuest;
+    final bool digitalActive = isDigitalPaymentActive && controller.payerIndex == 0;
+    final bool offlineActive = controller.offlineMethodList != null && controller.payerIndex == 0 && (Get.find<SplashController>().configModel?.offlinePaymentStatus ?? false);
+
+    if (!(isCashOnDeliveryActive || digitalActive || walletActive || offlineActive)) {
+      showCustomSnackBar('no_payment_method_found'.tr);
+      return;
+    }
+
+    double total = controller.calculateBill(category).total;
+
+    final sheet = ParcelPaymentMethodBottomSheet(
+      isCashOnDeliveryActive: isCashOnDeliveryActive,
+      isDigitalPaymentActive: digitalActive,
+      totalPrice: total,
+      isOfflinePaymentActive: offlineActive,
+      canPayWallet: walletActive,
+    );
+    if (isDesktop) {
+      Get.dialog(Dialog(backgroundColor: Colors.transparent, child: sheet));
+    } else {
+      Get.bottomSheet(sheet, backgroundColor: Colors.transparent, isScrollControlled: true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1076,6 +1264,11 @@ class _PaymentByCard extends StatelessWidget {
             )),
           ]),
         ),
+        const SizedBox(height: Dimensions.paddingSizeLarge),
+
+        Text('payment_method'.tr, style: robotoBold.copyWith(fontSize: Dimensions.fontSizeDefault)),
+        const SizedBox(height: Dimensions.paddingSizeSmall),
+        ParcelPaymentMethodPicker(controller: controller, onTap: () => _openSheet(context)),
       ]),
     );
   }
@@ -1117,149 +1310,8 @@ class _SegmentButton extends StatelessWidget {
   }
 }
 
-class _PaymentMethodCard extends StatelessWidget {
-  final ParcelController controller;
-  final ParcelCategoryModel category;
-  final bool isCashOnDeliveryActive;
-  final bool isDigitalPaymentActive;
-
-  const _PaymentMethodCard({
-    required this.controller, required this.category, required this.isCashOnDeliveryActive, required this.isDigitalPaymentActive,
-  });
-
-  Future<void> _openSheet(BuildContext context) async {
-    final bool isDesktop = ResponsiveHelper.isDesktop(context);
-    final bool isGuest = AuthHelper.isGuestLoggedIn();
-    final bool walletActive = (Get.find<SplashController>().configModel!.customerWalletStatus == 1) && controller.payerIndex == 0 && !isGuest;
-    final bool digitalActive = isDigitalPaymentActive && controller.payerIndex == 0;
-    final bool offlineActive = controller.offlineMethodList != null && controller.payerIndex == 0 && (Get.find<SplashController>().configModel?.offlinePaymentStatus ?? false);
-
-    if (!(isCashOnDeliveryActive || digitalActive || walletActive || offlineActive)) {
-      showCustomSnackBar('no_payment_method_found'.tr);
-      return;
-    }
-
-    double total = controller.calculateBill(category).total;
-
-    final sheet = ParcelPaymentMethodBottomSheet(
-      isCashOnDeliveryActive: isCashOnDeliveryActive,
-      isDigitalPaymentActive: digitalActive,
-      totalPrice: total,
-      isOfflinePaymentActive: offlineActive,
-      canPayWallet: walletActive,
-    );
-    if (isDesktop) {
-      Get.dialog(Dialog(backgroundColor: Colors.transparent, child: sheet));
-    } else {
-      Get.bottomSheet(sheet, backgroundColor: Colors.transparent, isScrollControlled: true);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final int paymentIndex = controller.paymentIndex;
-    final bool hasSelection = paymentIndex != -1;
-
-    return Container(
-      padding: const EdgeInsets.all(Dimensions.paddingSizeDefault),
-      decoration: _sectionDecoration(context),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('payment_method'.tr, style: robotoBold.copyWith(fontSize: Dimensions.fontSizeDefault)),
-        const SizedBox(height: Dimensions.paddingSizeSmall),
-        hasSelection
-            ? _SelectedPaymentRow(controller: controller, onEdit: () => _openSheet(context))
-            : InkWell(
-                onTap: () => _openSheet(context),
-                child: DottedBorder(
-                  options: RoundedRectDottedBorderOptions(
-                    color: Theme.of(context).disabledColor.withValues(alpha: 0.5),
-                    strokeWidth: 1,
-                    dashPattern: const [5, 4],
-                    radius: const Radius.circular(Dimensions.radiusDefault),
-                  ),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: Dimensions.paddingSizeDefault),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).disabledColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
-                    ),
-                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Icon(Icons.add_circle_outline, size: 18, color: Theme.of(context).textTheme.bodyLarge?.color),
-                      const SizedBox(width: Dimensions.paddingSizeSmall),
-                      Text(
-                        'add_payment_method'.tr,
-                        style: robotoMedium.copyWith(
-                          fontSize: Dimensions.fontSizeSmall,
-                          color: Theme.of(context).textTheme.bodyLarge?.color,
-                        ),
-                      ),
-                    ]),
-                  ),
-                ),
-              ),
-      ]),
-    );
-  }
-}
-
-class _SelectedPaymentRow extends StatelessWidget {
-  final ParcelController controller;
-  final VoidCallback onEdit;
-
-  const _SelectedPaymentRow({required this.controller, required this.onEdit});
-
-  @override
-  Widget build(BuildContext context) {
-    final int idx = controller.paymentIndex;
-    final String label = idx == 0
-        ? 'cash_on_delivery'.tr
-        : idx == 1
-        ? 'wallet_payment'.tr
-        : idx == 2
-        ? '${'digital_payment'.tr} (${controller.digitalPaymentName?.replaceAll('_', ' ').toTitleCase() ?? ''})'
-        : idx == 3
-        ? '${'offline_payment'.tr}(${controller.offlineMethodList?[controller.selectedOfflineBankIndex].methodName ?? ''})'
-        : 'select_payment_method'.tr;
-    final String iconAsset = idx == 0
-        ? Images.cash
-        : idx == 1
-        ? Images.wallet
-        : idx == 2
-        ? Images.digitalPayment
-        : Images.cash;
-
-    return InkWell(
-      onTap: onEdit,
-      borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Dimensions.paddingSizeDefault,
-          vertical: Dimensions.paddingSizeSmall,
-        ),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
-          border: Border.all(color: Theme.of(context).disabledColor.withValues(alpha: 0.3), width: 0.7),
-        ),
-        child: Row(children: [
-          Image.asset(iconAsset, width: 22, height: 22, color: Theme.of(context).textTheme.bodyMedium?.color),
-          const SizedBox(width: Dimensions.paddingSizeSmall),
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: robotoMedium.copyWith(
-                fontSize: Dimensions.fontSizeSmall,
-                color: Theme.of(context).textTheme.bodyLarge?.color,
-              ),
-            ),
-          ),
-          const SizedBox(width: Dimensions.paddingSizeSmall),
-          Icon(Icons.edit_outlined, size: 18, color: Theme.of(context).primaryColor),
-        ]),
-      ),
-    );
-  }
-}
+// SUMMARY
+// Set-location screen for a parcel. Collects the sender and receiver details, the parcel
+// category with its weight and size tiers, the area or ZIP pick, delivery instruction,
+// tips, who pays and how, showing the quoted fee and whatever reason the server gave for
+// refusing it, then hands the completed route to the parcel request screen.

@@ -23,6 +23,10 @@ class BrandsController extends GetxController implements GetxService {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
+  void clearBrandList() {
+    _brandList = null;
+  }
+
   Future<void> getBrandList({DataSourceEnum dataSource = DataSourceEnum.local}) async {
     List<BrandModel>? brandList;
     if(dataSource == DataSourceEnum.local) {
@@ -57,7 +61,10 @@ class BrandsController extends GetxController implements GetxService {
       if (offset == 1) {
         _brandItems = [];
       }
-      _brandItems!.addAll(brandItemModel.items!);
+      // Same guard as the home item sections: a response without a list must
+      // leave the section empty rather than throw past the `update()` below and
+      // strand the UI on its loader.
+      _brandItems!.addAll(brandItemModel.items ?? <Item>[]);
       _pageSize = brandItemModel.totalSize;
       _isLoading = false;
     }

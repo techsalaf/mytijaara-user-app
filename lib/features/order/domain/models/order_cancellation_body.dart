@@ -1,3 +1,4 @@
+import 'package:sixam_mart/common/models/pagination_model.dart';
 class OrderCancellationBody {
   int? totalSize;
   String? limit;
@@ -7,9 +8,13 @@ class OrderCancellationBody {
   OrderCancellationBody({this.totalSize, this.limit, this.offset, this.reasons});
 
   OrderCancellationBody.fromJson(Map<String, dynamic> json) {
-    totalSize = json['total_size'];
-    limit = json['limit'];
-    offset = json['offset'];
+    // Paging arrives flat (`total_size`/`limit`/`offset`) on the legacy format
+    // and nested under `pagination` now. Property names are unchanged, so no
+    // caller needs an edit.
+    final PaginationModel _pg = PaginationModel.fromJson(json);
+    totalSize = _pg.totalSize;
+    limit = _pg.limit?.toString();
+    offset = _pg.offset?.toString();
     if (json['data'] != null) {
       reasons = <CancellationData>[];
       json['data'].forEach((v) {

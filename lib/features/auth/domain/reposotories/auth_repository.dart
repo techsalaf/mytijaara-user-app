@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -12,6 +11,7 @@ import 'package:sixam_mart/features/auth/domain/models/signup_body_model.dart';
 import 'package:sixam_mart/features/auth/domain/models/social_log_in_body.dart';
 import 'package:sixam_mart/features/auth/domain/reposotories/auth_repository_interface.dart';
 import 'package:sixam_mart/helper/address_helper.dart';
+import 'package:sixam_mart/helper/notification_topic_helper.dart';
 import 'package:sixam_mart/helper/module_helper.dart';
 import 'package:sixam_mart/util/app_constants.dart';
 
@@ -69,7 +69,9 @@ class AuthRepository implements AuthRepositoryInterface{
     ResponseModel responseModel;
     String? deviceToken = await saveDeviceToken();
     Response response = await apiClient.postData(AppConstants.guestLoginUri, {'fcm_token': deviceToken});
-    if (response.statusCode == 200) {
+    // This endpoint answers `201 Created`, so a plain `== 200` check would drop a
+    // successful guest login and leave the app with no guest id.
+    if (ApiClient.isSuccessCode(response.statusCode)) {
       await saveSharedPrefGuestId(response.body['guest_id'].toString());
       responseModel = ResponseModel(true, '${response.body['guest_id']}');
     } else {
@@ -123,15 +125,15 @@ class AuthRepository implements AuthRepositoryInterface{
   Future<bool> saveUserToken(String token, {bool alreadyInApp = false}) async {
     apiClient.token = token;
     if(alreadyInApp && sharedPreferences.getString(AppConstants.userAddress) != null){
-      AddressModel? addressModel = AddressModel.fromJson(jsonDecode(sharedPreferences.getString(AppConstants.userAddress)!));
+      AddressModel? addressModel = AddressHelper.getUserAddressFromSharedPref();
       bool isRideOrService = false;
       try{
         isRideOrService = ModuleHelper.getModule() != null && (ModuleHelper.getModule()!.moduleType.toString() == AppConstants.ride || ModuleHelper.getModule()!.moduleType.toString() == AppConstants.service);
       }catch(_) {}
       apiClient.updateHeader(
-        token, addressModel.zoneIds, addressModel.areaIds, sharedPreferences.getString(AppConstants.languageCode),
-        ModuleHelper.getModule()?.id?.toString(), addressModel.latitude, addressModel.longitude, //null, addressModel.zoneId,
-        addressModel.zoneId, fromModule: isRideOrService,
+        token, addressModel?.zoneIds, addressModel?.areaIds, sharedPreferences.getString(AppConstants.languageCode),
+        ModuleHelper.getModule()?.id?.toString(), addressModel?.latitude, addressModel?.longitude, //null, addressModel.zoneId,
+        addressModel?.zoneId, fromModule: isRideOrService,
       );
     }else{
       apiClient.updateHeader(token, null, null, sharedPreferences.getString(AppConstants.languageCode), ModuleHelper.getModule()?.id?.toString(), null, null, null);
@@ -158,6 +160,9 @@ class AuthRepository implements AuthRepositoryInterface{
       if(!GetPlatform.isWeb) {
         FirebaseMessaging.instance.subscribeToTopic(AppConstants.topic);
         FirebaseMessaging.instance.subscribeToTopic('zone_${AddressHelper.getUserAddressFromSharedPref()!.zoneId}_customer');
+        // Promotion broadcasts moved to a zone+module topic; the zone-only one above still
+        // carries the admin's own zone-wide notifications, so both are kept.
+        NotificationTopicHelper.syncCustomerTopic();
       }
     }
     return await apiClient.postData(AppConstants.tokenUri, {"_method": "put", "cm_firebase_token": notificationDeviceToken.isNotEmpty ? notificationDeviceToken : deviceToken}, handleError: false);
@@ -215,6 +220,7 @@ class AuthRepository implements AuthRepositoryInterface{
     if(!GetPlatform.isWeb) {
       FirebaseMessaging.instance.unsubscribeFromTopic(AppConstants.topic);
       FirebaseMessaging.instance.unsubscribeFromTopic('zone_${AddressHelper.getUserAddressFromSharedPref()!.zoneId}_customer');
+      NotificationTopicHelper.clearCustomerTopic();
       if(removeToken){
         apiClient.postData(AppConstants.tokenUri, {"_method": "put", "cm_firebase_token": '@'}, handleError: false);
       }
@@ -225,10 +231,10 @@ class AuthRepository implements AuthRepositoryInterface{
     apiClient.token = null;
     await guestLogin();
     if(sharedPreferences.getString(AppConstants.userAddress) != null){
-      AddressModel? addressModel = AddressModel.fromJson(jsonDecode(sharedPreferences.getString(AppConstants.userAddress)!));
+      AddressModel? addressModel = AddressHelper.getUserAddressFromSharedPref();
       apiClient.updateHeader(
-        null, addressModel.zoneIds, null, sharedPreferences.getString(AppConstants.languageCode), null,
-        addressModel.latitude, addressModel.longitude, addressModel.zoneId,
+        null, addressModel?.zoneIds, null, sharedPreferences.getString(AppConstants.languageCode), null,
+        addressModel?.latitude, addressModel?.longitude, addressModel?.zoneId,
       );
     }
     return true;
@@ -340,6 +346,7 @@ class AuthRepository implements AuthRepositoryInterface{
         if(isLoggedIn()) {
           FirebaseMessaging.instance.unsubscribeFromTopic('zone_${AddressHelper.getUserAddressFromSharedPref()!.zoneId}_customer');
         }
+        NotificationTopicHelper.clearCustomerTopic();
       }
     }
     sharedPreferences.setBool(AppConstants.notification, isActive);

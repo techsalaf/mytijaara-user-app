@@ -1,3 +1,5 @@
+import 'package:sixam_mart/api/response_parser.dart';
+import 'package:sixam_mart/common/models/pagination_model.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 
 class NewItemListResponse {
@@ -9,14 +11,16 @@ class NewItemListResponse {
   NewItemListResponse({this.totalSize, this.limit, this.offset, this.items});
 
   NewItemListResponse.fromJson(Map<String, dynamic> json) {
-    totalSize = _toInt(json['total_size']);
-    limit = _toInt(json['limit']);
-    offset = _toInt(json['offset']);
-    if (json['items'] != null) {
-      items = <NewItem>[];
-      for (final dynamic v in json['items']) {
-        items!.add(NewItem.fromJson(v));
-      }
+    // Paging arrives flat (`total_size`/`limit`/`offset`) on the legacy format
+    // and nested under `pagination` now. Property names are unchanged, so no
+    // caller needs an edit.
+    final PaginationModel pagination = PaginationModel.fromJson(json);
+    totalSize = pagination.totalSize;
+    limit = pagination.limit;
+    offset = pagination.offset;
+    final List<dynamic>? rows = ResponseParser.listOf(json, legacyKey: 'items');
+    if (rows != null) {
+      items = rows.map((dynamic row) => NewItem.fromJson(row)).toList();
     }
   }
 }

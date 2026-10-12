@@ -12,6 +12,7 @@ import 'package:sixam_mart/features/reels/domain/services/reels_service.dart';
 import 'package:sixam_mart/features/reels/widgets/reels_details_dialog_widget.dart';
 import 'package:sixam_mart/features/reels/widgets/reels_shimmer_widget.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/dimensions.dart';
@@ -168,6 +169,8 @@ class _ReelsSectionWidgetState extends State<ReelsSectionWidget> {
                 reel: reels[index],
                 isActive: index == reelsController.currentIndex,
                 isDesktop: isDesktop,
+                cardWidth: cardWidth,
+                cardHeight: cardHeight,
                 onTap: () {
                   reelsController.setCurrentIndex(index);
                   if(widget.onReelTap != null) {
@@ -323,10 +326,23 @@ class _ReelCardWidget extends StatelessWidget {
   final bool isActive;
   final bool isDesktop;
   final VoidCallback onTap;
-  const _ReelCardWidget({required this.reel, required this.isActive, required this.onTap, this.isDesktop = false});
+  final double cardWidth;
+  final double cardHeight;
+
+  const _ReelCardWidget({required this.reel, required this.isActive, required this.onTap, required this.cardWidth, required this.cardHeight,
+    this.isDesktop = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    // The thumbnail fills the card exactly (Positioned.fill in a cardWidth x
+    // cardHeight box), so decode to that size in physical pixels — with no target
+    // the full-resolution source stays in memory and is reported as oversized.
+    // Both axes are safe here: reel stills are 9:16 and the card is ~0.58, so the
+    // exact-resize policy has almost no aspect ratio to distort.
+    final int? decodeWidth = ImageCacheHelper.pixels(context, cardWidth);
+    final int? decodeHeight = ImageCacheHelper.pixels(context, cardHeight);
+
     return AnimatedScale(
       scale: 1,
       duration: const Duration(milliseconds: 180),
@@ -358,7 +374,7 @@ class _ReelCardWidget extends StatelessWidget {
                 children: <Widget>[
                   Positioned.fill(
                     child: reel.resolvedThumbnailUrl.isNotEmpty
-                        ? CustomImage(image: reel.resolvedThumbnailUrl, fit: BoxFit.cover)
+                        ? CustomImage(image: reel.resolvedThumbnailUrl, fit: BoxFit.cover, cacheWidth: decodeWidth, cacheHeight: decodeHeight)
                         : DecoratedBox(
                             decoration: BoxDecoration(
                               gradient: LinearGradient(

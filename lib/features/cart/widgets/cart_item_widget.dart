@@ -2,16 +2,19 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:get/get.dart';
-import 'package:sixam_mart/common/widgets/confirmation_dialog.dart';
+import 'package:sixam_mart/common/widgets/confirmation_bottom_sheet.dart';
 import 'package:sixam_mart/common/widgets/custom_asset_image_widget.dart';
 import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/common/widgets/custom_ink_well.dart';
 import 'package:sixam_mart/features/cart/controllers/cart_controller.dart';
+import 'package:sixam_mart/features/cart/widgets/bogo_bundle_cart_tile.dart';
+import 'package:sixam_mart/features/cart/widgets/bundle_cart_tile.dart';
 import 'package:sixam_mart/features/cart/domain/models/cart_model.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 import 'package:sixam_mart/features/language/controllers/language_controller.dart';
 import 'package:sixam_mart/common/widgets/item_new_bottom_sheet.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
@@ -19,14 +22,14 @@ import 'package:sixam_mart/util/images.dart';
 import 'package:sixam_mart/util/styles.dart';
 
 void _confirmRemoveCartItem({required int cartIndex, required Item? item}) {
-  Get.dialog(ConfirmationDialog(
+  ConfirmationBottomSheet.show(
     icon: Images.warning,
     description: 'are_you_sure_to_remove_this_item'.tr,
     onYesPressed: () {
       Get.back();
       Get.find<CartController>().removeFromCart(cartIndex, item: item);
     },
-  ));
+  );
 }
 
 class CartItemWidget extends StatefulWidget {
@@ -34,8 +37,7 @@ class CartItemWidget extends StatefulWidget {
   final int cartIndex;
   final List<AddOns> addOns;
   final bool isAvailable;
-  final bool showDivider;
-  const CartItemWidget({super.key, required this.cart, required this.cartIndex, required this.isAvailable, required this.addOns, required this.showDivider});
+  const CartItemWidget({super.key, required this.cart, required this.cartIndex, required this.isAvailable, required this.addOns});
 
   @override
   State<CartItemWidget> createState() => _CartItemWidgetState();
@@ -47,6 +49,13 @@ class _CartItemWidgetState extends State<CartItemWidget> {
 
   @override
   Widget build(BuildContext context) {
+    if(widget.cart.isBogoBundle) {
+      return BogoBundleCartTile(cart: widget.cart, cartIndex: widget.cartIndex, isAvailable: widget.isAvailable);
+    }
+
+    if(widget.cart.isBundle) {
+      return BundleCartTile(cart: widget.cart, cartIndex: widget.cartIndex, isAvailable: widget.isAvailable);
+    }
 
     double? startingPrice = _calculatePrice(item: widget.cart.item);
     double? endingPrice = _calculatePrice(item: widget.cart.item, isStartingPrice: false);
@@ -128,6 +137,7 @@ class _CartItemWidgetState extends State<CartItemWidget> {
                       child: CustomImage(
                         image: '${widget.cart.item!.imageFullUrl}',
                         height: 44, width: 44, fit: BoxFit.cover,
+                        cacheHeight: ImageCacheHelper.pixels(context, 44),
                       ),
                     ),
                     if (!widget.isAvailable)
@@ -322,12 +332,6 @@ class _CartItemWidgetState extends State<CartItemWidget> {
                         )
                       : const SizedBox(),
                 ),
-
-                if (widget.showDivider && !isDesktop)
-                  Padding(
-                    padding: const EdgeInsets.only(top: Dimensions.paddingSizeSmall),
-                    child: Divider(height: 1, thickness: 0.5, color: Theme.of(context).disabledColor.withValues(alpha: 0.3)),
-                  ),
               ],
             ),
           ),
@@ -410,11 +414,11 @@ class _CartItemWidgetState extends State<CartItemWidget> {
     int index0 = 0;
     List<int?> ids = [];
     List<int?> qtys = [];
-    for (var addOn in cart.addOnIds!) {
+    for (var addOn in cart.addOnIds ?? const <AddOn>[]) {
       ids.add(addOn.id);
       qtys.add(addOn.quantity);
     }
-    for (var addOn in cart.item!.addOns!) {
+    for (var addOn in cart.item?.addOns ?? const <AddOns>[]) {
       if (ids.contains(addOn.id)) {
         addOnText = '$addOnText${(index0 == 0) ? '' : ',  '}${addOn.name} (${qtys[index0]})';
         index0 = index0 + 1;
@@ -473,7 +477,7 @@ class _CartItemQuantityPill extends StatelessWidget {
 
         InkWell(
           onTap: () {
-            Get.find<CartController>().forcefullySetModule(Get.find<CartController>().cartList[0].item!.moduleId!);
+            Get.find<CartController>().forcefullySetModule(Get.find<CartController>().cartModuleId!);
             Get.find<CartController>().changeQuantity(true, cartIndex, cart.stock, cart.quantityLimit);
           },
           borderRadius: const BorderRadius.only(

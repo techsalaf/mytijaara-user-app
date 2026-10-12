@@ -31,7 +31,6 @@ class LoyaltyHistoryWidget extends StatelessWidget {
             ]),
           ),
           loyaltyController.transactionList != null ? loyaltyController.transactionList!.isNotEmpty ? GridView.builder(
-            key: UniqueKey(),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisSpacing: 50,
               mainAxisSpacing: ResponsiveHelper.isDesktop(context) ? Dimensions.paddingSizeSmall : 0.01,
@@ -67,7 +66,6 @@ class WalletShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
-      key: UniqueKey(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisSpacing: 50,
         mainAxisSpacing: ResponsiveHelper.isDesktop(context) ? Dimensions.paddingSizeLarge : 0.01,

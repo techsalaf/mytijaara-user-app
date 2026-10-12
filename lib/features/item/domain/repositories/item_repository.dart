@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:get/get.dart';
 import 'package:sixam_mart/api/api_client.dart';
 import 'package:sixam_mart/api/local_client.dart';
+import 'package:sixam_mart/api/response_parser.dart';
 import 'package:sixam_mart/common/enums/data_source_enum.dart';
 import 'package:sixam_mart/common/widgets/custom_snackbar.dart';
 import 'package:sixam_mart/features/item/domain/models/basic_medicine_model.dart';
@@ -28,13 +29,13 @@ class ItemRepository implements ItemRepositoryInterface {
         Response response = await apiClient.getData('${AppConstants.basicMedicineUri}?offset=1&limit=50');
         if (response.statusCode == 200) {
           basicMedicineModel = BasicMedicineModel.fromJson(response.body);
-          LocalClient.organize(DataSourceEnum.client, cacheId, jsonEncode(response.body), apiClient.getHeader());
+          LocalClient.organize(DataSourceEnum.client, cacheId, response.bodyString ?? '', apiClient.getHeader());
         }
 
       case DataSourceEnum.local:
         String? cacheResponseData = await LocalClient.organize(DataSourceEnum.local, cacheId, null, null);
         if(cacheResponseData != null) {
-          basicMedicineModel = BasicMedicineModel.fromJson(jsonDecode(cacheResponseData));
+          basicMedicineModel = BasicMedicineModel.fromJson(ResponseParser.payloadOf(jsonDecode(cacheResponseData)));
         }
     }
     return basicMedicineModel;
@@ -56,9 +57,34 @@ class ItemRepository implements ItemRepositoryInterface {
       item = Item.fromJson(response.body);
     }
     else{
-      showCustomSnackBar(response.body['errors']['message'] ?? response.statusText);
+      showCustomSnackBar(_errorMessage(response));
     }
     return item;
+  }
+
+  /// The envelope reports failures as `errors: [{code, message}]` — a **list**. Reading
+  /// it as a map (`body['errors']['message']`) threw
+  /// `type 'String' is not a subtype of type 'int' of 'index'`, turning every item-details
+  /// 404 into a crash instead of a message. Falls back to the envelope's own `message`,
+  /// then to the status text.
+  String? _errorMessage(Response response) {
+    final dynamic body = response.body;
+    if(body is Map) {
+      final dynamic errors = body['errors'];
+      if(errors is List && errors.isNotEmpty && errors.first is Map) {
+        final dynamic message = errors.first['message'];
+        if(message != null) {
+          return message.toString();
+        }
+      }
+      if(errors is Map && errors['message'] != null) {
+        return errors['message'].toString();
+      }
+      if(body['message'] != null) {
+        return body['message'].toString();
+      }
+    }
+    return response.statusText;
   }
 
   Future<List<Item>?> _getConditionsWiseItems(int id, DataSourceEnum source) async {
@@ -71,14 +97,14 @@ class ItemRepository implements ItemRepositoryInterface {
         if (response.statusCode == 200) {
           conditionWiseProduct = [];
           conditionWiseProduct.addAll(ItemModel.fromJson(response.body).items!);
-          LocalClient.organize(DataSourceEnum.client, cacheId, jsonEncode(response.body), apiClient.getHeader());
+          LocalClient.organize(DataSourceEnum.client, cacheId, response.bodyString ?? '', apiClient.getHeader());
         }
 
       case DataSourceEnum.local:
         final String? cacheResponseData = await LocalClient.organize(DataSourceEnum.local, cacheId, null, null);
         if(cacheResponseData != null) {
           conditionWiseProduct = [];
-          conditionWiseProduct.addAll(ItemModel.fromJson(jsonDecode(cacheResponseData)).items!);
+          conditionWiseProduct.addAll(ItemModel.fromJson(ResponseParser.payloadOf(jsonDecode(cacheResponseData))).items!);
         }
     }
     return conditionWiseProduct;
@@ -131,14 +157,14 @@ class ItemRepository implements ItemRepositoryInterface {
         Response response = await apiClient.getData(uri, moduleScoped: true);
         if (response.statusCode == 200) {
           popularItemList = ItemModel.fromJson(response.body);
-          LocalClient.organize(DataSourceEnum.client, cacheId, jsonEncode(response.body), apiClient.getHeader());
+          LocalClient.organize(DataSourceEnum.client, cacheId, response.bodyString ?? '', apiClient.getHeader());
         }
         break;
 
       case DataSourceEnum.local:
         String? cacheResponseData = await LocalClient.organize(DataSourceEnum.local, cacheId, null, null);
         if(cacheResponseData != null) {
-          popularItemList = ItemModel.fromJson(jsonDecode(cacheResponseData));
+          popularItemList = ItemModel.fromJson(ResponseParser.payloadOf(jsonDecode(cacheResponseData)));
         }
         break;
     }
@@ -173,14 +199,14 @@ class ItemRepository implements ItemRepositoryInterface {
         Response response = await apiClient.getData(uri, moduleScoped: true);
         if(response.statusCode == 200) {
           itemModel = ItemModel.fromJson(response.body);
-          LocalClient.organize(DataSourceEnum.client, cacheId, jsonEncode(response.body), apiClient.getHeader());
+          LocalClient.organize(DataSourceEnum.client, cacheId, response.bodyString ?? '', apiClient.getHeader());
         }
         break;
 
       case DataSourceEnum.local:
         String? cacheResponseData = await LocalClient.organize(DataSourceEnum.local, cacheId, null, null);
         if(cacheResponseData != null) {
-          itemModel = ItemModel.fromJson(jsonDecode(cacheResponseData));
+          itemModel = ItemModel.fromJson(ResponseParser.payloadOf(jsonDecode(cacheResponseData)));
         }
         break;
     }
@@ -215,14 +241,14 @@ class ItemRepository implements ItemRepositoryInterface {
         Response response = await apiClient.getData(uri, moduleScoped: true);
         if (response.statusCode == 200) {
           discountedItem = ItemModel.fromJson(response.body);
-          LocalClient.organize(DataSourceEnum.client, cacheId, jsonEncode(response.body), apiClient.getHeader());
+          LocalClient.organize(DataSourceEnum.client, cacheId, response.bodyString ?? '', apiClient.getHeader());
         }
         break;
 
       case DataSourceEnum.local:
         String? cacheResponseData = await LocalClient.organize(DataSourceEnum.local, cacheId, null, null);
         if(cacheResponseData != null) {
-          discountedItem = ItemModel.fromJson(jsonDecode(cacheResponseData));
+          discountedItem = ItemModel.fromJson(ResponseParser.payloadOf(jsonDecode(cacheResponseData)));
         }
         break;
     }
@@ -240,13 +266,13 @@ class ItemRepository implements ItemRepositoryInterface {
         Response response = await apiClient.getData('${AppConstants.featuredCategoriesItemsUri}?limit=30&offset=1', moduleScoped: true);
         if (response.statusCode == 200) {
           featuredCategoriesItem = ItemModel.fromJson(response.body);
-          LocalClient.organize(DataSourceEnum.client, cacheId, jsonEncode(response.body), apiClient.getHeader());
+          LocalClient.organize(DataSourceEnum.client, cacheId, response.bodyString ?? '', apiClient.getHeader());
         }
 
       case DataSourceEnum.local:
         String? cacheResponseData = await LocalClient.organize(DataSourceEnum.local, cacheId, null, null);
         if(cacheResponseData != null) {
-          featuredCategoriesItem = ItemModel.fromJson(jsonDecode(cacheResponseData));
+          featuredCategoriesItem = ItemModel.fromJson(ResponseParser.payloadOf(jsonDecode(cacheResponseData)));
         }
     }
 
@@ -264,14 +290,14 @@ class ItemRepository implements ItemRepositoryInterface {
         if (response.statusCode == 200) {
           recommendedItemList = [];
           recommendedItemList.addAll(ItemModel.fromJson(response.body).items!);
-          LocalClient.organize(DataSourceEnum.client, cacheId, jsonEncode(response.body), apiClient.getHeader());
+          LocalClient.organize(DataSourceEnum.client, cacheId, response.bodyString ?? '', apiClient.getHeader());
         }
 
       case DataSourceEnum.local:
         String? cacheResponseData = await LocalClient.organize(DataSourceEnum.local, cacheId, null, null);
         if(cacheResponseData != null) {
           recommendedItemList = [];
-          recommendedItemList.addAll(ItemModel.fromJson(jsonDecode(cacheResponseData)).items!);
+          recommendedItemList.addAll(ItemModel.fromJson(ResponseParser.payloadOf(jsonDecode(cacheResponseData))).items!);
         }
     }
 
@@ -286,16 +312,21 @@ class ItemRepository implements ItemRepositoryInterface {
       case DataSourceEnum.client:
         final Response response = await apiClient.getData(AppConstants.commonConditionUri);
         if (response.statusCode == 200) {
+          final List<dynamic> conditionsJson = ResponseParser.listOrEmpty(response.body);
           commonConditions = [];
-          response.body.forEach((condition) => commonConditions!.add(CommonConditionModel.fromJson(condition)));
-          LocalClient.organize(DataSourceEnum.client, cacheId, jsonEncode(response.body), apiClient.getHeader());
+          for (final dynamic condition in conditionsJson) {
+            commonConditions.add(CommonConditionModel.fromJson(condition));
+          }
+          // Cache the extracted list, not the raw body, so the local branch below
+          // decodes the same shape whichever response format the client branch saw.
+          LocalClient.organize(DataSourceEnum.client, cacheId, jsonEncode(conditionsJson), apiClient.getHeader());
         }
 
       case DataSourceEnum.local:
         final String? cacheResponseData = await LocalClient.organize(DataSourceEnum.local, cacheId, null, null);
         if(cacheResponseData != null) {
           commonConditions = [];
-          for(final dynamic condition in (jsonDecode(cacheResponseData) as List)) {
+          for(final dynamic condition in ResponseParser.listOrEmpty(jsonDecode(cacheResponseData))) {
             commonConditions.add(CommonConditionModel.fromJson(condition));
           }
         }

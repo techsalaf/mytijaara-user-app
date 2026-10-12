@@ -88,10 +88,20 @@ class _SignInNewViewState extends State<SignInNewView> {
     if (!kIsWeb) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Future.delayed(const Duration(milliseconds: 800), () {
-          FocusScope.of(Get.context!).requestFocus(_phoneFocus);
+          if (!mounted) return;
+          _phoneFocus.requestFocus();
         });
       });
     }
+  }
+
+  @override
+  void dispose() {
+    _phoneFocus.dispose();
+    _passwordFocus.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   @override

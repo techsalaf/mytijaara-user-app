@@ -139,6 +139,11 @@ class BestStoreNearbyView extends StatelessWidget {
                         double distance = Get.find<StoreController>().getRestaurantDistance(
                           LatLng(double.parse(storeList[index].latitude!), double.parse(storeList[index].longitude!)),
                         );
+                        // The API's label is server-computed and already in the
+                        // platform's configured unit; the client-side haversine
+                        // above stays as the fallback for payloads without one.
+                        final String distanceText = storeList[index].distanceLabel
+                            ?? '${distance > 10 ? '10+' : distance.toStringAsFixed(1)} ${'km'.tr}';
 
                         return Padding(
                           padding: const EdgeInsets.only(bottom: Dimensions.paddingSizeDefault, right: Dimensions.paddingSizeDefault, top: Dimensions.paddingSizeDefault),
@@ -256,7 +261,7 @@ class BestStoreNearbyView extends StatelessWidget {
                                           ),
                                           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
 
-                                            Text('${distance > 10 ? '10+' : distance.toStringAsFixed(1)} ${'km'.tr}', style: robotoBold.copyWith(color: Theme.of(context).primaryColor, fontSize: Dimensions.fontSizeOverSmall)),
+                                            Text(distanceText, style: robotoBold.copyWith(color: Theme.of(context).primaryColor, fontSize: Dimensions.fontSizeOverSmall)),
                                             const SizedBox(width: Dimensions.paddingSizeExtraSmall),
 
                                             Text('from_you'.tr, style: robotoRegular.copyWith(color: Theme.of(context).primaryColor, fontSize: Dimensions.fontSizeOverSmall)),

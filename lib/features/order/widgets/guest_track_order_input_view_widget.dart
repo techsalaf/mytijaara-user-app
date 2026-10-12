@@ -56,6 +56,15 @@ class _GuestTrackOrderInputViewWidgetState extends State<GuestTrackOrderInputVie
   }
 
   @override
+  void dispose() {
+    _orderIdController.dispose();
+    _phoneNumberController.dispose();
+    _orderFocus.dispose();
+    _phoneFocus.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return ResponsiveHelper.isDesktop(context) ? Expanded(
       child: Padding(

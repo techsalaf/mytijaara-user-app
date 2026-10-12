@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sixam_mart/common/widgets/custom_button.dart';
 import 'package:sixam_mart/common/widgets/custom_snackbar.dart';
-import 'package:sixam_mart/features/auth/controllers/auth_controller.dart';
 import 'package:sixam_mart/features/checkout/domain/models/payment_model.dart';
+import 'package:sixam_mart/features/checkout/controllers/checkout_controller.dart';
+import 'package:sixam_mart/features/rental_module/rental_order/controllers/taxi_order_controller.dart';
 import 'package:sixam_mart/features/checkout/widgets/payment_method_bottom_sheet.dart';
 import 'package:sixam_mart/features/order/controllers/order_controller.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
-import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
@@ -24,6 +24,16 @@ class PaymentIncompleteBottomSheet extends StatefulWidget {
 
 class _PaymentIncompleteBottomSheetState extends State<PaymentIncompleteBottomSheet> {
   bool _dontShowAgain = false;
+
+  void _switchToCash(OrderController orderController) {
+    // The same call the "pay now" sheet makes for cash, so it closes this sheet and
+    // keeps the trip and mart split in one place. The copy that used to live here
+    // force-unwrapped the optional loyalty config and threw before it could close
+    // anything, leaving the sheet over a switch that had already gone through.
+    final CheckoutController checkoutController = Get.find<CheckoutController>();
+    checkoutController.setPaymentMethod(0, isUpdate: false);
+    checkoutController.paymentAfterDigitalCancel(orderController.paymentModel!, widget.fromHome);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -152,6 +162,12 @@ class _PaymentIncompleteBottomSheetState extends State<PaymentIncompleteBottomSh
                         )));
 
                       } else {
+                        // Close this sheet first, exactly as the desktop branch
+                        // above does. Without it the method sheet stacks on top,
+                        // and the single `Get.back()` that dismisses a sheet
+                        // after payment only unstacks one — leaving this one
+                        // sitting there over a payment that already succeeded.
+                        Get.back();
                         Get.bottomSheet(
                           PaymentMethodBottomSheet(
                             isCashOnDeliveryActive: orderController.paymentModel?.isCashOnDeliveryActive??false, isDigitalPaymentActive: orderController.paymentModel?.isDigitalPaymentActive??false,
@@ -170,17 +186,14 @@ class _PaymentIncompleteBottomSheetState extends State<PaymentIncompleteBottomSh
                     height: 50.0,
                     child: OutlinedButton(
                       onPressed: () {
+                        // A rental trip settles through `rental/user/trip/payment`, and it
+                        // has no order amount to check against the cash limit below.
+                        if(CheckoutController.isTripPayment(orderController.paymentModel)) {
+                          _switchToCash(orderController);
+                          return;
+                        }
                         if((((orderController.paymentModel?.maxCodOrderAmount != null && orderController.paymentModel!.orderAmount! < orderController.paymentModel!.maxCodOrderAmount!) || orderController.paymentModel!.maxCodOrderAmount == null || orderController.paymentModel!.maxCodOrderAmount == 0) && orderController.paymentModel!.orderType != 'parcel') || orderController.paymentModel!.orderType == 'parcel'){
-                          orderController.switchToCOD(orderController.paymentModel!.orderID, guestId: orderController.paymentModel!.guestId).then((success){
-                            if(success){
-                              Get.find<SplashController>().togglePaymentIncompleteBottomSheet(false);
-                              double total = ((orderController.paymentModel!.orderAmount! / 100) * Get.find<SplashController>().configModel!.loyaltyPointItemPurchasePoint!);
-                              if(AuthHelper.isLoggedIn()) {
-                                Get.find<AuthController>().saveEarningPoint(total.toStringAsFixed(0));
-                                Get.back();
-                              }
-                            }
-                          });
+                          _switchToCash(orderController);
                         }else{
                           if(Get.isDialogOpen!) {
                             Get.back();
@@ -208,6 +221,19 @@ class _PaymentIncompleteBottomSheetState extends State<PaymentIncompleteBottomSh
                   TextButton(
                     onPressed: () {
                       Get.find<SplashController>().togglePaymentIncompleteBottomSheet(false);
+                      // Same split as the cash button above: `cancelOrder` posts to
+                      // the mart order endpoint, so a trip has to go to
+                      // `rental/user/trip/cancel-trip` instead.
+                      if(CheckoutController.isTripPayment(widget.paymentModel)) {
+                        final int? tripId = int.tryParse(widget.paymentModel.orderID ?? '');
+                        if(tripId == null) return;
+                        Get.find<TaxiOrderController>().cancelTrip(id: tripId).then((bool success) {
+                          if(success) {
+                            Get.offAllNamed(RouteHelper.getInitialRoute());
+                          }
+                        });
+                        return;
+                      }
                       orderController.cancelOrder(orderID: int.parse(widget.paymentModel.orderID!), reason: 'Digital payment issue', isParcel: false, guestId: null).then((success) {
                         if(success){
                           Get.offAllNamed(RouteHelper.getInitialRoute());
@@ -248,3 +274,8 @@ class _PaymentIncompleteBottomSheetState extends State<PaymentIncompleteBottomSh
     );
   }
 }
+
+// SUMMARY
+// Sheet shown over the home page for an order whose digital payment did not complete.
+// Holds the order id and outstanding amount, and offers paying again through the payment
+// method sheet, switching that order to cash, or cancelling it.

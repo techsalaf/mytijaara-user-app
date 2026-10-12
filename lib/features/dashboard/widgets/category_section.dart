@@ -6,13 +6,11 @@ import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/features/category/controllers/category_controller.dart';
 import 'package:sixam_mart/features/category/domain/models/category_model.dart';
 import 'package:sixam_mart/features/dashboard/widgets/category_widget.dart';
+import 'package:sixam_mart/helper/image_cache_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/styles.dart';
 
-// Height of a category cell: the 64px circle image + gap + the two-line label,
-// scaled by the device text scale so larger font/accessibility settings don't
-// clip the label. Floored at 110 so the default phone layout is unchanged.
 double _categoryCellHeight(BuildContext context) {
   final double textScale = MediaQuery.textScalerOf(context).scale(1.0);
   final double labelHeight = Dimensions.fontSizeSmall * 1.3 * 2 * textScale;
@@ -28,7 +26,7 @@ class CategorySection extends StatelessWidget {
     return GetBuilder<CategoryController>(builder: (controller) {
       final List<CategoryModel>? list = controller.categoryList;
       if(list == null) {
-        return _CategoryShimmer(asList: asList);
+        return CategoryShimmer(asList: asList);
       }
       if(list.isEmpty) {
         return const SizedBox.shrink();
@@ -79,7 +77,7 @@ class CategoryGridWidget extends StatelessWidget {
                 children: [
                   ClipOval(child: Container(color: Theme.of(context).disabledColor, height: 64, width: 64, child: CustomImage(
                     image: category.imageFullUrl ?? '', fit: BoxFit.cover,
-                    cacheWidth: 192, cacheHeight: 192,
+                    cacheWidth: ImageCacheHelper.pixels(context, 64),
                   ))),
                   const SizedBox(height: Dimensions.paddingSizeExtraSmall),
                   Text(
@@ -120,7 +118,7 @@ class CategoryGridWidget extends StatelessWidget {
                     SizedBox(height: 64, width: 64,
                       child: ClipOval(child: CustomImage(
                         image: category.imageFullUrl ?? '', fit: BoxFit.cover,
-                        cacheWidth: 192, cacheHeight: 192,
+                        cacheWidth: ImageCacheHelper.pixels(context, 64),
                       )),
                     ),
                     const SizedBox(height: Dimensions.paddingSizeExtraSmall),
@@ -162,9 +160,9 @@ class CategoryGridWidget extends StatelessWidget {
   }
 }
 
-class _CategoryShimmer extends StatelessWidget {
+class CategoryShimmer extends StatelessWidget {
   final bool asList;
-  const _CategoryShimmer({required this.asList});
+  const CategoryShimmer({super.key, required this.asList});
 
   @override
   Widget build(BuildContext context) {

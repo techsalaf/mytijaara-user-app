@@ -50,7 +50,6 @@ class _WebItemsViewState extends State<WebItemsView> {
     return Column(children: [
 
       !isNull ? length > 0 ? GridView.builder(
-        key: UniqueKey(),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisSpacing: Dimensions.paddingSizeLarge,
           mainAxisSpacing: ResponsiveHelper.isDesktop(context) ? Dimensions.paddingSizeLarge : 0.01,
@@ -73,7 +72,6 @@ class _WebItemsViewState extends State<WebItemsView> {
         text: widget.noDataText ?? (widget.isStore ? Get.find<SplashController>().configModel!.moduleConfig!.module!.showRestaurantText!
             ? 'no_restaurant_available'.tr : 'no_store_available'.tr : 'no_item_available'.tr),
       ) : GridView.builder(
-        key: UniqueKey(),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisSpacing: Dimensions.paddingSizeLarge,
           mainAxisSpacing: ResponsiveHelper.isDesktop(context) ? Dimensions.paddingSizeLarge : 0.01,

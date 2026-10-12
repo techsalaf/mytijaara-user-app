@@ -5,7 +5,7 @@ import 'package:sixam_mart/util/images.dart';
 
 class AppConstants {
   static const String appName = 'MyTijaara';
-  static const double appVersion = 4.1; ///Flutter sdk 3.44.7
+  static const double appVersion = 4.2; ///Flutter sdk 3.47.5
 
   static const String fontFamily = 'DMSans';
   static const bool payInWevView = false;
@@ -90,6 +90,12 @@ class AppConstants {
   static const String moduleUri = '/api/v1/module';
   static const String topOfferUri = '/api/v1/module/top-offer';
   static const String parcelCategoryUri = '/api/v1/parcel-category';
+
+  /// The weight bands and dimension classes a parcel is priced by, for one
+  /// `(zone, module)`. Each answers `[]` unless the zone's active delivery rule
+  /// has that tier switched on — an empty list is the answer, not a failure.
+  static const String parcelWeightUri = '/api/v1/parcel-weight';
+  static const String parcelDimensionUri = '/api/v1/parcel-dimension';
   static const String aboutUsUri = '/api/v1/about-us';
   static const String privacyPolicyUri = '/api/v1/privacy-policy';
   static const String termsAndConditionUri = '/api/v1/terms-and-conditions';
@@ -117,7 +123,9 @@ class AppConstants {
   static const String runningTripUri = '/api/v1/trip/list';
   static const String vehicleChargeUri = '/api/v1/vehicle/extra_charge';
   static const String vehiclesUri = '/api/v1/get-vehicles';
-  static const String storeRecommendedItemUri = '/api/v1/items/recommended';
+  // Takes the store's id or slug in the path, and reads the same filters as
+  // storeCategoryItemsUri — the two differ only in shape and default order.
+  static const String storePopularItemUri = '/api/v1/stores/popular-items/';
   static const String storeCategoryItemsUri = '/api/v1/store-categories/items';
   static const String orderCancellationUri = '/api/v1/customer/order/cancellation-reasons';
   static const String cartStoreSuggestedItemsUri = '/api/v1/items/suggested';
@@ -155,7 +163,18 @@ class AppConstants {
   static const String personalInformationUri = '/api/v1/auth/update-info';
   static const String firebaseResetPassword = '/api/v1/auth/firebase-reset-password';
   static const String getOrderTaxUri = '/api/v1/customer/order/get-Tax';
-  static const String getSurgePriceUri = '/api/v1/customer/order/get-surge-price';
+
+  /// One call for tax, delivery, surge, pro and cashback — priced by the same
+  /// methods `place_order` calls, so the quote equals the charge. Supersedes
+  /// [getOrderTaxUri] and [getCashBackAmountUri], which the backend still serves
+  /// for shipped clients, and `get-surge-price`, which it no longer serves at all:
+  /// the surge reaches the client only through this call's `surge` block.
+  static const String checkoutSummaryUri = '/api/v1/customer/order/checkout-summary';
+
+  /// What the customer must pick from for a `(zone, module)`, when the active
+  /// delivery rule is area- or ZIP-based. Renamed from the old
+  /// `delivery-charge-coverage`, which now returns 404.
+  static const String deliveryChargeCoverageListUri = '/api/v1/delivery-charge/coverage-list';
   static const String customerParcelReturn = '/api/v1/customer/order/parcel-return';
   static const String getMetaData = '/api/v1/get-metadata';
   static const String paymentFailedDetailsUri = '/api/v1/customer/order/payment-failed';
@@ -164,6 +183,15 @@ class AppConstants {
   static const String offerStoresUri = '/api/v1/offers/stores';
   static const String quickDeliveryStoresUri = '/api/v1/stores/quick-delivery';
   static const String distanceStoresUri = '/api/v1/stores/distance';
+
+  /// BOGO Offers
+  static const String bogoHomeUri = '/api/v1/bogo/home';
+  static const String bogoOfferListUri = '/api/v1/bogo/offers';
+  static const String storeBogoOffersUri = '/api/v1/bogo/store-offers';
+
+  /// Happy Hour
+  static const String happyHourRunningUri = '/api/v1/happy-hour/running';
+  static const String happyHourStoreUri = '/api/v1/happy-hour/stores';
 
   ///Subscription
   static const String businessPlanUri = '/api/v1/vendor/business_plan';
@@ -181,6 +209,15 @@ class AppConstants {
   static const String messageListUri = '/api/v1/customer/message/details';
   static const String sendMessageUri = '/api/v1/customer/message/send';
 
+  /// Bundle-item
+  static const String bundleHomeUri = '/api/v1/bundle/home';
+  static const String bundleListUri = '/api/v1/bundle/list';
+  static const String storeBundlesUri = '/api/v1/bundle/store-bundles';
+  static const String bundleDetailsUri = '/api/v1/bundle/';
+  static const String addBundleCartUri = '/api/v1/customer/cart/bundle/add';
+  static const String updateBundleCartUri = '/api/v1/customer/cart/bundle/update';
+  static const String removeBundleCartUri = '/api/v1/customer/cart/bundle/remove';
+
   /// Cart
   static const String getCartListUri = '/api/v1/customer/cart/list';
   static const String getAllCartsUri = '/api/v1/customer/cart/get-all';
@@ -188,6 +225,12 @@ class AppConstants {
   static const String updateCartUri = '/api/v1/customer/cart/update';
   static const String removeAllCartUri = '/api/v1/customer/cart/remove';
   static const String removeItemCartUri = '/api/v1/customer/cart/remove-item';
+
+  /// BOGO bundles
+  static const String addBogoCartUri = '/api/v1/customer/cart/bogo/add';
+  static const String updateBogoCartUri = '/api/v1/customer/cart/bogo/update';
+  static const String removeBogoCartUri = '/api/v1/customer/cart/bogo/remove';
+  static const String cartDiscountEligibilityUri = '/api/v1/customer/cart/discount-eligibility';
 
   // Review
   static const String getReviewListUri = '/api/v1/items/reviews';
@@ -420,6 +463,9 @@ class AppConstants {
   static const String prescriptionMediaLibrary = 'prescription_media_library';
 
   static const String topic = 'all_zone_customer';
+  /// The zone+module broadcast topic this device last joined, so it can be left when the
+  /// customer's zone or module changes.
+  static const String customerBroadcastTopic = 'customer_broadcast_topic';
   static const String zoneId = 'zoneId';
   static const String operationAreaId = 'operationAreaId';
   static const String moduleId = 'moduleId';
@@ -447,7 +493,7 @@ class AppConstants {
   ];
 
   /// Delivery Tips
-  static List<String> tips = ['custom', '15', '10', '20', '40', '0'];
+  static List<String> tips = ['0', '15', '10', '20', '40', 'custom'];
   static List<String> deliveryInstructionList = [
     'deliver_to_front_door',
     'deliver_the_reception_desk',

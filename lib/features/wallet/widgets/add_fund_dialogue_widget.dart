@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
-import 'package:sixam_mart/features/wallet/controllers/wallet_controller.dart';
-import 'package:sixam_mart/util/dimensions.dart';
-import 'package:sixam_mart/util/styles.dart';
 import 'package:sixam_mart/common/widgets/custom_button.dart';
 import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/common/widgets/custom_snackbar.dart';
 import 'package:sixam_mart/common/widgets/custom_text_field.dart';
+import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
+import 'package:sixam_mart/features/wallet/controllers/wallet_controller.dart';
+import 'package:sixam_mart/util/dimensions.dart';
+import 'package:sixam_mart/util/styles.dart';
 
 class AddFundDialogueWidget extends StatefulWidget {
-  final ScrollController cardScrollController;
-  const AddFundDialogueWidget({super.key, required this.cardScrollController});
+  const AddFundDialogueWidget({super.key});
 
   @override
   State<AddFundDialogueWidget> createState() => _AddFundDialogueWidgetState();
@@ -26,12 +25,6 @@ class _AddFundDialogueWidgetState extends State<AddFundDialogueWidget> {
   void initState() {
     super.initState();
 
-    scrollController.addListener(() {
-      if (scrollController.position.pixels == scrollController.position.maxScrollExtent) {
-        widget.cardScrollController.jumpTo(50);
-      }
-    });
-
     Get.find<WalletController>().isTextFieldEmpty('', isUpdate: false);
     Get.find<WalletController>().changeDigitalPaymentName('', isUpdate: false);
 
@@ -44,6 +37,8 @@ class _AddFundDialogueWidgetState extends State<AddFundDialogueWidget> {
   @override
   void dispose() {
     scrollController.dispose();
+    inputAmountController.dispose();
+    focusNode.dispose();
     super.dispose();
   }
 
@@ -70,18 +65,22 @@ class _AddFundDialogueWidgetState extends State<AddFundDialogueWidget> {
       const SizedBox(height: Dimensions.paddingSizeSmall),
 
       GetBuilder<WalletController>(builder: (walletController) {
+        final double availableHeight = context.height - MediaQuery.of(context).viewInsets.bottom;
+        final double maxCardHeight = availableHeight * 0.7;
+        final double preferredMinHeight = context.height * 0.34;
+
         return Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
             color: Theme.of(context).cardColor,
           ),
           width: context.width * 0.9,
-          constraints: BoxConstraints(minHeight: context.height * 0.34, maxHeight: context.height * 0.7),
+          constraints: BoxConstraints(
+            minHeight: preferredMinHeight < maxCardHeight ? preferredMinHeight : maxCardHeight,
+            maxHeight: maxCardHeight,
+          ),
           padding: const EdgeInsets.all(Dimensions.paddingSizeLarge),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-
-            const SizedBox(height: Dimensions.paddingSizeLarge),
-
             Text('add_fund_to_wallet'.tr, style: robotoBold.copyWith(fontSize: Dimensions.fontSizeLarge)),
             const SizedBox(height: Dimensions.paddingSizeSmall),
 
@@ -160,7 +159,7 @@ class _AddFundDialogueWidgetState extends State<AddFundDialogueWidget> {
                               const SizedBox(width: Dimensions.paddingSizeDefault),
 
                               CustomImage(
-                                height: 20, fit: BoxFit.contain,
+                                height: 20, width: 30, fit: BoxFit.contain,
                                 image: '${Get.find<SplashController>().configModel!.activePaymentMethodList![index].getWayImageFullUrl}',
                               ),
                               const SizedBox(width: Dimensions.paddingSizeSmall),
@@ -225,3 +224,8 @@ class _AddFundDialogueWidgetState extends State<AddFundDialogueWidget> {
     }
   }
 }
+
+// SUMMARY
+// Add-fund dialog for the wallet. Holds the amount field and the list of active digital
+// payment gateways, sizes itself to the room left above the keyboard, and sends the
+// chosen amount and gateway to the wallet controller.

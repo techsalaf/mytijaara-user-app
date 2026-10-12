@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shimmer_animation/shimmer_animation.dart';
 import 'package:sixam_mart/common/widgets/title_widget.dart';
 import 'package:sixam_mart/features/order/controllers/order_controller.dart';
 import 'package:sixam_mart/features/order/domain/models/last_order_model.dart';
 import 'package:sixam_mart/features/order/domain/models/order_model.dart';
 import 'package:sixam_mart/features/dashboard/widgets/common_widget/last_order_card.dart';
+import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/util/app_constants.dart';
@@ -27,10 +29,26 @@ class LastOrdersSectionWidget extends StatelessWidget {
       return const SizedBox();
     }
 
+    // Last orders are only ever fetched when repeat ordering is enabled. Without
+    // this the loading shimmer below would have nothing to wait for and would show
+    // forever wherever this widget is rendered unconditionally (the Home tab).
+    if(!fromStore && Get.find<SplashController>().configModel?.repeatOrderOption != 1) {
+      return const SizedBox();
+    }
+
     return GetBuilder<OrderController>(builder: (orderController) {
-      final List<LastOrderModel> source = fromStore
-          ? (orderController.storeLastOrders ?? const <LastOrderModel>[])
-          : ((moduleType == null ? orderController.lastOrdersHome : orderController.lastOrders) ?? const <LastOrderModel>[]);
+      final List<LastOrderModel>? source = fromStore
+          ? orderController.storeLastOrders
+          : (moduleType == null ? orderController.lastOrdersHome : orderController.lastOrders);
+
+      // null means "not fetched yet", empty means "fetched, nothing to show". On a
+      // lazy module this section fetches when it scrolls into view, so it has to
+      // keep its height while loading — a zero-height placeholder would leave every
+      // section below it inside the viewport and make them all fetch at once.
+      if(source == null) {
+        return _LastOrdersShimmer(showTitleFirst: showTitleFirst, isPharmacy: isPharmacy);
+      }
+
       final List<OrderModel> orders = source.take(10).map(_toOrderModel).toList();
 
       if(orders.isEmpty) {
@@ -122,6 +140,72 @@ class LastOrdersSectionWidget extends StatelessWidget {
         slug: src.store?.slug,
         logoFullUrl: src.store?.logoFullUrl,
         items: items,
+      ),
+    );
+  }
+}
+
+// Loading placeholder. Mirrors the height of each loaded layout so the section
+// holds its space while its data is in flight.
+class _LastOrdersShimmer extends StatelessWidget {
+  final bool showTitleFirst;
+  final bool isPharmacy;
+
+  const _LastOrdersShimmer({required this.showTitleFirst, required this.isPharmacy});
+
+  @override
+  Widget build(BuildContext context) {
+    final double cardWidth = MediaQuery.sizeOf(context).width * 0.70;
+    final double cardHeight = (cardWidth * 0.48).clamp(120.0, double.infinity).toDouble();
+
+    if(showTitleFirst) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: Dimensions.paddingSizeExtraLarge),
+        child: Container(
+          height: 138,
+          padding: const EdgeInsets.symmetric(vertical: Dimensions.paddingSizeDefault),
+          decoration: BoxDecoration(
+            color: Theme.of(context).disabledColor.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
+          ),
+          child: _ShimmerCardList(cardWidth: cardWidth),
+        ),
+      );
+    }
+
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault),
+        child: TitleWidget(title: (isPharmacy ? "refill_your_medicine" : "your_last_order").tr),
+      ),
+      const SizedBox(height: Dimensions.paddingSizeSmall),
+      SizedBox(height: cardHeight, child: _ShimmerCardList(cardWidth: cardWidth)),
+    ]);
+  }
+}
+
+class _ShimmerCardList extends StatelessWidget {
+  final double cardWidth;
+
+  const _ShimmerCardList({required this.cardWidth});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      scrollDirection: Axis.horizontal,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeDefault),
+      itemCount: 3,
+      separatorBuilder: (context, index) => const SizedBox(width: Dimensions.paddingSizeDefault),
+      itemBuilder: (context, index) => Shimmer(
+        duration: const Duration(seconds: 2),
+        child: Container(
+          width: cardWidth,
+          decoration: BoxDecoration(
+            color: Colors.grey[300],
+            borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
+          ),
+        ),
       ),
     );
   }

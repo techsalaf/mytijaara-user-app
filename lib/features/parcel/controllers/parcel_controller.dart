@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:sixam_mart/api/api_client.dart';
+import 'package:sixam_mart/api/json_reader.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -13,8 +15,12 @@ import 'package:sixam_mart/features/profile/controllers/profile_controller.dart'
 import 'package:sixam_mart/features/address/domain/models/address_model.dart';
 import 'package:sixam_mart/features/location/domain/models/zone_response_model.dart';
 import 'package:sixam_mart/features/auth/controllers/auth_controller.dart';
+import 'package:sixam_mart/features/checkout/domain/models/checkout_summary_body_model.dart';
+import 'package:sixam_mart/features/checkout/domain/models/coverage_list_model.dart';
+import 'package:sixam_mart/features/checkout/domain/models/checkout_summary_model.dart';
 import 'package:sixam_mart/features/checkout/domain/models/place_order_body_model.dart';
 import 'package:sixam_mart/features/parcel/domain/models/parcel_category_model.dart';
+import 'package:sixam_mart/features/parcel/domain/models/parcel_tier_model.dart';
 import 'package:sixam_mart/features/parcel/domain/models/video_content_model.dart';
 import 'package:sixam_mart/features/parcel/domain/models/why_choose_model.dart';
 import 'package:sixam_mart/features/parcel/domain/services/parcel_service_interface.dart';
@@ -144,6 +150,79 @@ class ParcelController extends GetxController implements GetxService {
   List<Reason>? _parcelCancellationReasons;
   List<Reason>? get parcelCancellationReasons => _parcelCancellationReasons;
 
+  ParcelTierListModel<ParcelWeightModel>? _weightTier;
+  ParcelTierListModel<ParcelWeightModel>? get weightTier => _weightTier;
+
+  ParcelTierListModel<ParcelDimensionModel>? _dimensionTier;
+  ParcelTierListModel<ParcelDimensionModel>? get dimensionTier => _dimensionTier;
+
+  int? _selectedWeightId;
+  int? get selectedWeightId => _selectedWeightId;
+
+  int? _selectedDimensionId;
+  int? get selectedDimensionId => _selectedDimensionId;
+
+  /// Whether this `(zone, module)` prices by the tier at all. Both switches are
+  /// independent — a rule may price by weight and not by size — so each is asked
+  /// separately and each picker is drawn separately.
+  bool get needsWeightSelection => _weightTier?.requiresSelection ?? false;
+  bool get needsDimensionSelection => _dimensionTier?.requiresSelection ?? false;
+
+  /// A tier is on and offers bands, but nothing is picked. The fee would then be
+  /// quoted without that band's charge — the engine simply charges nothing for a
+  /// tier it was sent no id for — so the customer would be shown a price the
+  /// order will not honour once they pick.
+  bool get isTierSelectionMissing =>
+      (needsWeightSelection && _selectedWeightId == null)
+      || (needsDimensionSelection && _selectedDimensionId == null);
+
+  ParcelWeightModel? get selectedWeight => _findById(_weightTier?.data, _selectedWeightId, (ParcelWeightModel w) => w.id);
+  ParcelDimensionModel? get selectedDimension => _findById(_dimensionTier?.data, _selectedDimensionId, (ParcelDimensionModel d) => d.id);
+
+  /// What the sender's zone asks the customer to pick from before its delivery
+  /// rule can price the parcel — an area, a ZIP code, or nothing at all.
+  ///
+  /// Held here rather than on `CheckoutController`, which keeps its own copy for
+  /// a store checkout: that one is loaded against the *store's* zone and its
+  /// `needCoverageAreaSelection` is gated on `orderType == 'delivery'`, so
+  /// sharing the field would have a parcel priced by a store's rule and cleared
+  /// by `clearPrevData()` on the next checkout visit.
+  CoverageListModel? _coverage;
+  CoverageListModel? get coverage => _coverage;
+
+  /// Only one can be set — which one depends on [isZipCodeWiseDelivery] — and it
+  /// is posted to both the quote and `place_order`, because the fee moves with it.
+  int? _selectedAreaId;
+  int? get selectedAreaId => _selectedAreaId;
+
+  int? _selectedZipCodeId;
+  int? get selectedZipCodeId => _selectedZipCodeId;
+
+  /// Whether this zone prices by area or ZIP at all. False for `distance_wise`,
+  /// `fixed_amount`, and a rule with no options configured.
+  bool get needsCoverageSelection => _coverage?.requiresSelection ?? false;
+
+  /// Which key the pick is posted under, and which wording the customer sees.
+  bool get isZipCodeWiseDelivery => _coverage?.isZipCode ?? false;
+
+  CoverageOption? get selectedCoverageOption {
+    final int? id = isZipCodeWiseDelivery ? _selectedZipCodeId : _selectedAreaId;
+    return _findById(_coverage?.coverage, id, (CoverageOption o) => o.id);
+  }
+
+  /// The zone prices by area or ZIP but nothing is picked. As with the tiers,
+  /// the quote is not refused — it falls back to the rule's own minimum — so the
+  /// customer would be shown a price the order will not honour once they pick.
+  bool get isCoverageSelectionMissing => needsCoverageSelection && selectedCoverageOption == null;
+
+  static T? _findById<T>(List<T>? list, int? id, int? Function(T) idOf) {
+    if (list == null || id == null) return null;
+    for (final T row in list) {
+      if (idOf(row) == id) return row;
+    }
+    return null;
+  }
+
   void showTipsField(){
     _canShowTipsField = !_canShowTipsField;
     update();
@@ -189,6 +268,178 @@ class ParcelController extends GetxController implements GetxService {
       _parcelCategoryList!.addAll(categoryModelList);
     }
     update();
+  }
+
+  /// Loads the weight bands and dimension classes this `(zone, module)` prices by.
+  ///
+  /// Both are fetched together because the two switches are independent and a
+  /// screen needs to know about both before it can decide what to draw. The zone
+  /// is the sender's — a delivery rule is looked up for exactly one zone, so the
+  /// caller resolves it with [ZoneModuleHelper] rather than passing the address's
+  /// first overlapping zone (it is what `senderZoneId` posts at placement).
+  ///
+  /// An existing pick is re-validated rather than cleared up front: this is fired
+  /// un-awaited from `initState`, and clearing eagerly silently discards a pick
+  /// the customer already made — the quote would then be priced without that
+  /// band. See [_survivingPick] for exactly what does and does not drop one, and
+  /// [clearTierSelections] for the separate question of starting a screen empty.
+  Future<void> loadParcelTiers({required int zoneId, int? moduleId}) async {
+    final int? previousWeightId = _selectedWeightId;
+    final int? previousDimensionId = _selectedDimensionId;
+
+    final List<dynamic> tiers = await Future.wait(<Future<dynamic>>[
+      parcelServiceInterface.getParcelWeightList(zoneId: zoneId, moduleId: moduleId),
+      parcelServiceInterface.getParcelDimensionList(zoneId: zoneId, moduleId: moduleId),
+    ]);
+    final ParcelTierListModel<ParcelWeightModel>? weight = tiers[0] as ParcelTierListModel<ParcelWeightModel>?;
+    final ParcelTierListModel<ParcelDimensionModel>? dimension = tiers[1] as ParcelTierListModel<ParcelDimensionModel>?;
+
+    // Assigned only when the request answered. Overwriting with null on a failure
+    // destroyed a list that was still correct, and the screens read the *list* to
+    // decide what to draw: the review screen reloads these on entry, so one
+    // dropped request left the customer coming back to a set-location screen with
+    // no weight, no size and no way to edit either — while the picks themselves,
+    // which [_survivingPick] deliberately keeps, were still set underneath.
+    if (weight != null) _weightTier = weight;
+    if (dimension != null) _dimensionTier = dimension;
+
+    _selectedWeightId = _survivingPick(_weightTier, previousWeightId, (ParcelWeightModel w) => w.id);
+    _selectedDimensionId = _survivingPick(_dimensionTier, previousDimensionId, (ParcelDimensionModel d) => d.id);
+
+    update();
+  }
+
+  /// A pick made on this screen, kept unless this zone's bands prove it wrong.
+  ///
+  /// This is about a *reload* — an edited sender address moving the parcel to a
+  /// different zone, or a refetch — not about arriving at the screen. Entry
+  /// starts with nothing chosen, via [clearTierSelections]; from then on, what
+  /// the customer picked stands until something contradicts it.
+  ///
+  /// Only one thing does: a real list of bands that does not contain the id,
+  /// which means it belongs to some other zone's bands. Everything else leaves
+  /// it standing —
+  ///
+  /// - **no answer at all** ([tier] is null) is a failed or dropped request.
+  ///   Absence of evidence is not evidence against the pick, and discarding it
+  ///   here made a flaky connection look like the app forgetting a choice the
+  ///   customer had just made.
+  /// - **a tier this zone does not price by** has nothing to contradict. An id
+  ///   posted at a switched-off tier costs nothing — the engine re-checks the
+  ///   switch — so an address edit that passes through such a zone does not cost
+  ///   the customer their pick.
+  static int? _survivingPick<T>(ParcelTierListModel<T>? tier, int? id, int? Function(T) idOf) {
+    if (id == null) return null;
+    if (tier == null || !tier.requiresSelection) return id;
+    return tier.data.any((T row) => idOf(row) == id) ? id : null;
+  }
+
+  // Carries the picks past ParcelLocationScreen's entry clear, once.
+  int? _pendingWeightId;
+  int? _pendingDimensionId;
+
+  void holdTierSelectionForNextEntry() {
+    _pendingWeightId = _selectedWeightId;
+    _pendingDimensionId = _selectedDimensionId;
+  }
+
+  void consumeHeldTierSelection({bool notify = true}) {
+    _selectedWeightId = _pendingWeightId;
+    _selectedDimensionId = _pendingDimensionId;
+    _pendingWeightId = null;
+    _pendingDimensionId = null;
+    if (notify) update();
+  }
+
+  /// Drops both tier picks, so a screen starts with nothing chosen.
+  ///
+  /// Called when entering the set-location screen. The controller is a singleton
+  /// and would otherwise carry the previous parcel's weight and size in, showing
+  /// them pre-selected for a parcel the customer has not described yet — a fee
+  /// quoted against a band they never chose for *this* parcel.
+  ///
+  /// Deliberately *not* called when moving on to the review screen: the picks
+  /// made here have to survive that step, or the order would be placed without
+  /// the bands it was quoted with.
+  void clearTierSelections({bool notify = true}) {
+    _selectedWeightId = null;
+    _selectedDimensionId = null;
+    if (notify) update();
+  }
+
+  /// Records the weight pick. The fee moves with it, so the caller requotes.
+  void setWeightSelection(int? id, {bool notify = true}) {
+    _selectedWeightId = id;
+    if (notify) update();
+  }
+
+  /// Records the dimension pick. The fee moves with it, so the caller requotes.
+  void setDimensionSelection(int? id, {bool notify = true}) {
+    _selectedDimensionId = id;
+    if (notify) update();
+  }
+
+  /// Loads the areas or ZIP codes the sender's zone prices by.
+  ///
+  /// Same zone as [loadParcelTiers] and for the same reason: a delivery rule is
+  /// looked up for exactly one zone, resolved by the caller with [ZoneModuleHelper]
+  /// rather than the address's first overlapping zone — the same single id that
+  /// `senderZoneId` posts at placement. The `zoneId` header is a list wherever
+  /// zones overlap and will not do.
+  ///
+  /// An existing pick is re-validated rather than cleared up front, exactly as
+  /// [_survivingPick] does for the tiers — this is fired un-awaited from
+  /// `initState`, and clearing eagerly would silently discard a pick the
+  /// customer had already made.
+  Future<void> loadParcelCoverage({required int zoneId, int? moduleId}) async {
+    final int? previousAreaId = _selectedAreaId;
+    final int? previousZipCodeId = _selectedZipCodeId;
+
+    final CoverageListModel? loaded =
+        await parcelServiceInterface.getParcelCoverageList(zoneId: zoneId, moduleId: moduleId);
+
+    // Kept on a failed request for the same reason as the tiers above: the
+    // Area/ZIP row is drawn from this list, so overwriting it with null hid the
+    // row — and with it the only way to edit the pick.
+    if (loaded != null) _coverage = loaded;
+
+    // Keep the pick only if the new list still offers it. A null response is a
+    // failed request, not evidence against the pick; a rule that asks for
+    // nothing has nothing to contradict.
+    final bool isZip = isZipCodeWiseDelivery;
+    final int? previousId = isZip ? previousZipCodeId : previousAreaId;
+    final bool stillOffered = previousId != null
+        && (!needsCoverageSelection
+            || _coverage!.coverage.any((CoverageOption option) => option.id == previousId));
+
+    _selectedAreaId = (stillOffered && !isZip) ? previousId : null;
+    _selectedZipCodeId = (stillOffered && isZip) ? previousId : null;
+
+    update();
+  }
+
+  /// Records the coverage pick. The fee moves with it, so the caller requotes.
+  ///
+  /// Sets one id and nulls the other: only one can apply, and posting `area_id`
+  /// and `zip_code_id` together is not a request the endpoint accepts.
+  void setCoverageSelection(int? id, {bool notify = true}) {
+    if (isZipCodeWiseDelivery) {
+      _selectedZipCodeId = id;
+      _selectedAreaId = null;
+    } else {
+      _selectedAreaId = id;
+      _selectedZipCodeId = null;
+    }
+    if (notify) update();
+  }
+
+  /// Drops the coverage pick, so a screen starts with nothing chosen. The
+  /// counterpart of [clearTierSelections], called from the same place and for
+  /// the same reason — this controller is a singleton.
+  void clearCoverageSelection({bool notify = true}) {
+    _selectedAreaId = null;
+    _selectedZipCodeId = null;
+    if (notify) update();
   }
 
   void setPickupAddress(AddressModel? addressModel, bool notify) {
@@ -337,14 +588,95 @@ class ParcelController extends GetxController implements GetxService {
     );
 
     _extraCharge = Get.find<CheckoutController>().extraCharge;
+    // Read from the same call as the distance, so the two always describe the
+    // same measured route. Null whenever the routing API did not answer and the
+    // distance fell back to a straight line.
+    _deliveryDuration = Get.find<CheckoutController>().deliveryDuration;
 
     update();
   }
 
-  /// Central parcel delivery-charge formula (distance × per-km, floored at the
-  /// minimum shipping charge, plus the extra charge and optional surge).
-  /// Shared by the set-location screen and the request/checkout screen so both
-  /// always show the same bill.
+  /// Seconds `config/distance-api` estimated for the leg, posted as
+  /// `delivery_duration` at placement. Rounded there, kept exact here.
+  double? _deliveryDuration;
+  double? get deliveryDuration => _deliveryDuration;
+
+  /// The value `place_order` takes — whole seconds, or null when the route was
+  /// never measured.
+  int? get deliveryDurationInSeconds => _deliveryDuration?.round();
+
+  /// The delivery charge to show, and the one the order will be charged.
+  ///
+  /// A parcel fee is `base + category + weight + dimension`, where `base` comes
+  /// from the zone's active delivery rule (area / zip / distance / fixed). The
+  /// client cannot see that rule, so it cannot compute the fee — only
+  /// `checkout-summary`, priced by the same methods `place_order` calls, can.
+  /// Wherever it has answered it is authoritative.
+  ///
+  /// [calculateDeliveryCharge] remains the fallback for the two moments the quote
+  /// cannot cover: before the first one lands, and when the call fails.
+  ///
+  /// Returns the **gross** fee. `delivery_charge` is already net of the Pro
+  /// saving, but every caller here treats the charge as gross and subtracts the
+  /// Pro line itself — so `before_pro_discount` is taken, which the API
+  /// guarantees equals `delivery_charge` when no Pro applied. Taking the net
+  /// figure would double-count the saving.
+  double deliveryCharge(ParcelCategoryModel category, {double? surgePrice, String? surgePriceType}) {
+    final CheckoutSummaryDelivery? summaryDelivery = Get.find<CheckoutController>().checkoutSummary?.delivery;
+    final double? quoted = summaryDelivery?.deliveryChargeBeforeProDiscount ?? summaryDelivery?.deliveryCharge;
+    if (quoted != null) return PriceConverter.toFixed(quoted);
+    if (!canEstimateClientSide) return 0;
+    return calculateDeliveryCharge(category, surgePrice: surgePrice, surgePriceType: surgePriceType);
+  }
+
+  /// Whether the client-side per-km estimate can stand in for the quote at all.
+  ///
+  /// [calculateDeliveryCharge] models the superseded `distance × per-km` rule. A
+  /// zone that prices by area or ZIP does not charge by distance, so there the
+  /// estimate is not a rough figure — it is a different rule's answer, and the
+  /// distance still resolves, so nothing else would catch it. The fee must come
+  /// from the quote in that case; until it lands the row reads "calculating".
+  bool get canEstimateClientSide => !needsCoverageSelection;
+
+  /// Whether a fee can be rendered at all — an answered quote, or a zone the
+  /// client estimate is valid for with its inputs resolved.
+  bool get hasRenderableDeliveryCharge =>
+      Get.find<CheckoutController>().checkoutSummary?.delivery != null
+      || (canEstimateClientSide && _distance != -1 && _extraCharge != null);
+
+  /// Whether there is no fee to show yet, so the row must read "calculating".
+  ///
+  /// **Not the same question as "is the distance resolved".** The fee used to be
+  /// distance × per-km, so gating the view on the distance was the same test;
+  /// it no longer is. A zone whose delivery rule is fixed, area-wise or ZIP-wise
+  /// quotes a fee without a distance ever being resolved, and gating on the
+  /// distance there leaves the customer on "calculating" forever with a priced
+  /// order underneath it.
+  ///
+  /// A quote in flight is pending. An answered quote is never pending — it *is*
+  /// the fee. Only with no quote at all does the client fallback apply, and that
+  /// one genuinely does need a distance.
+  bool get isDeliveryChargePending {
+    final CheckoutController checkoutController = Get.find<CheckoutController>();
+    // An answered quote is checked *first*, so a refresh does not blank a figure
+    // that is already on screen. Every address, category and tier change fires a
+    // new quote, and flipping the summary back to "calculating" each time made
+    // the panel look broken while the previous, still-valid numbers were sitting
+    // right there.
+    if (checkoutController.checkoutSummary?.delivery != null) return false;
+    if (checkoutController.summaryLoading) return true;
+    // Nothing has been quoted and this zone cannot be estimated client-side, so
+    // there is genuinely no fee to show yet — see [canEstimateClientSide].
+    if (!canEstimateClientSide) return true;
+    return _distance == -1 || _extraCharge == null;
+  }
+
+  /// The superseded per-km estimate — distance × per-km, floored at the minimum
+  /// shipping charge, plus the extra charge and optional surge.
+  ///
+  /// This is the *old* pricing model and is no longer how a parcel is charged.
+  /// Kept only as the fallback behind [deliveryCharge], so the screen shows a
+  /// figure rather than a blank while the quote is in flight.
   double calculateDeliveryCharge(ParcelCategoryModel category, {double? surgePrice, String? surgePriceType}) {
     double charge = 0;
     if (_distance != -1 && _extraCharge != null) {
@@ -388,20 +720,40 @@ class ParcelController extends GetxController implements GetxService {
 
   ParcelBill calculateBill(ParcelCategoryModel category, {double? surgePrice, String? surgePriceType}) {
     final config = Get.find<SplashController>().configModel!;
+    final CheckoutController checkoutController = Get.find<CheckoutController>();
     final double additionalCharge = (config.additionalChargeStatus ?? false) ? (config.additionCharge ?? 0) : 0;
-    final double tax = Get.find<CheckoutController>().orderTax ?? 0;
+
+    final CheckoutSummaryDelivery? summaryDelivery = checkoutController.checkoutSummary?.delivery;
+    final CheckoutSummaryPro? summaryPro = checkoutController.checkoutSummary?.pro;
+
+    final CheckoutSummaryTax? summaryTax = checkoutController.checkoutSummary?.tax;
+    // Only the quote can price this: the rate and the fee it applies to are both
+    // worked out server-side.
+    final double tax = summaryTax?.taxAmount ?? 0;
+    final bool taxIncluded = summaryTax?.isTaxIncluded ?? false;
 
     double charge = 0;
     double proDiscount = 0;
     double proDeliveryDiscount = 0;
     double total = 0;
 
-    if (_distance != -1 && _extraCharge != null) {
-      charge = calculateDeliveryCharge(category, surgePrice: surgePrice, surgePriceType: surgePriceType);
-      total = charge + _tips + additionalCharge + tax;
+    // A quote prices the parcel without needing a distance; the client fallback
+    // cannot, so it stays gated on one being resolved — and on the zone being
+    // one the per-km rule actually applies to.
+    if (hasRenderableDeliveryCharge) {
+      charge = deliveryCharge(category, surgePrice: surgePrice, surgePriceType: surgePriceType);
+      // An included tax is already inside the fee; only one charged on top is added.
+      total = charge + _tips + additionalCharge + (taxIncluded ? 0 : tax);
 
       final bool isPro = AuthHelper.isLoggedIn() && (Get.find<ProfileController>().userInfoModel?.proStatus ?? false);
-      if (isPro) {
+      if (summaryDelivery != null) {
+        // The server recomputes what the membership was actually worth on this
+        // order rather than applying the notional percentage, so it wins where
+        // present. Paired with the gross fee above, "gross minus saving" holds.
+        proDiscount = summaryPro?.discount ?? 0;
+        proDeliveryDiscount = summaryDelivery.proCustomerSavings ?? 0;
+        total = total - proDiscount - proDeliveryDiscount;
+      } else if (isPro) {
         final ProActiveBenefit? benefit = Get.find<ProController>().activeOfferModel?.benefit;
         proDiscount = calculateProDiscount(charge, benefit);
         proDeliveryDiscount = calculateProDeliveryDiscount(charge, benefit);
@@ -410,36 +762,55 @@ class ParcelController extends GetxController implements GetxService {
     }
 
     return ParcelBill(
-      charge: charge, dmTips: _tips, additionalCharge: additionalCharge, tax: tax,
-      proDiscount: proDiscount, proDeliveryDiscount: proDeliveryDiscount, total: total,
+      charge: charge, dmTips: _tips, additionalCharge: additionalCharge,
+      proDiscount: proDiscount, proDeliveryDiscount: proDeliveryDiscount,
+      tax: tax, taxIncluded: taxIncluded, total: total,
     );
   }
 
-  Future<void> fetchOrderTax(ParcelCategoryModel category) async {
+  /// Quotes the parcel — delivery, surge and Pro — in one call.
+  ///
+  /// Replaces the old `get-Tax` round trip: the fee itself now comes back here
+  /// too, because `base + category + weight + dimension` is only computable
+  /// server-side. Refire it whenever anything the fee moves with changes —
+  /// category, weight, dimension, either address, or the distance. The
+  /// signature check inside `getCheckoutSummary` swallows the no-op requotes,
+  /// so callers do not have to be careful about firing it too often.
+  ///
+  /// `receiver_details` is required for `order_type=parcel`: the quote reads the
+  /// receiver's zone out of it, and its absence answers 500 rather than naming
+  /// what was missing.
+  Future<void> fetchParcelSummary(ParcelCategoryModel category, {bool force = false}) async {
     final AddressModel? pickup = _pickupAddress;
     final AddressModel? destination = _destinationAddress;
-    if (pickup == null || destination == null || _distance == -1) return;
+    if (pickup == null || destination == null) return;
 
-    final double charge = calculateDeliveryCharge(category);
-    final PlaceOrderBodyModel body = PlaceOrderBodyModel(
-      cart: [], couponDiscountAmount: null, distance: _distance, scheduleAt: null,
-      orderAmount: charge, orderNote: '', orderType: 'parcel', receiverDetails: destination,
-      paymentMethod: 'cash_on_delivery',
-      couponCode: null, storeId: null, address: pickup.address, latitude: pickup.latitude,
-      longitude: pickup.longitude, senderZoneId: pickup.zoneId,
-      addressType: pickup.addressType,
-      contactPersonName: pickup.contactPersonName ?? '',
-      contactPersonNumber: pickup.contactPersonNumber ?? '',
-      streetNumber: pickup.streetNumber ?? '', house: pickup.house ?? '',
-      floor: pickup.floor ?? '',
-      discountAmount: 0, parcelCategoryId: category.id.toString(),
-      chargePayer: _payerTypes[_payerIndex], dmTips: _tips.toString(),
-      cutlery: 0, unavailableItemNote: '',
-      partialPayment: 0, guestId: AuthHelper.isGuestLoggedIn() ? int.parse(AuthHelper.getGuestId()) : 0, isBuyNow: 0,
-      guestEmail: pickup.email ?? '', extraPackagingAmount: null,
-      createNewUser: 0, password: '',
+    final CheckoutSummaryBodyModel body = CheckoutSummaryBodyModel(
+      orderType: 'parcel',
+      // Parcel has no basket; the fee is the order amount. Seeded with the client
+      // estimate so free-delivery and Pro minimums have something to measure
+      // against — the server prices the fee itself regardless.
+      orderAmount: calculateDeliveryCharge(category),
+      distance: _distance == -1 ? null : _distance,
+      latitude: pickup.latitude,
+      longitude: pickup.longitude,
+      parcelCategoryId: category.id,
+      weightId: _selectedWeightId,
+      dimensionId: _selectedDimensionId,
+      // The same ids `place_order` posts. The fee moves with the pick, so
+      // sending it to only one of the two is how the quote and the charge come
+      // apart.
+      areaId: _selectedAreaId,
+      zipCodeId: _selectedZipCodeId,
+      receiverDetails: destination,
+      guestId: AuthHelper.isGuestLoggedIn() ? AuthHelper.getGuestId() : null,
     );
-    await Get.find<CheckoutController>().getOrderTax(body);
+    await Get.find<CheckoutController>().getCheckoutSummary(body, force: force);
+    // The quote lands in CheckoutController, so it notifies *that* controller's
+    // builders. The parcel screens are built inside `GetBuilder<ParcelController>`,
+    // which would otherwise keep painting the fallback estimate after the real
+    // fee had arrived.
+    update();
   }
 
   void setPayerIndex(int index, bool notify) {
@@ -545,10 +916,25 @@ class ParcelController extends GetxController implements GetxService {
     String orderID = '';
     Response response = await parcelServiceInterface.placeOrder(placeOrderBody);
     _isLoading = false;
-    if (response.statusCode == 200) {
-      String? message = response.body['message'];
-      orderID = response.body['order_id'].toString();
-      int createUserId = response.body['user_id'];
+    // Any 2xx is a placed order. Every documented create in this API answers `201`
+    // (`identical_code: default_store_201`), and matching only 200 sent a successfully
+    // placed order down the failure branch — which shows a snackbar and never calls
+    // parcelCallback, so no success screen.
+    if (ApiClient.isSuccessCode(response.statusCode)) {
+      final Map<String, dynamic> placed = response.body is Map<String, dynamic>
+          ? response.body as Map<String, dynamic>
+          : const <String, dynamic>{};
+      // The envelope's `message` is lifted onto `statusText` when `content` is
+      // unwrapped, so a body-level `message` is no longer guaranteed.
+      String? message = placed['message'] ?? response.statusText;
+      orderID = placed['order_id']?.toString() ?? '';
+      // `user_id` only comes back when the API created an account for a guest, so it is
+      // absent on an ordinary logged-in order. Assigning it into a non-nullable `int`
+      // threw a TypeError right here — after the order had been created server-side but
+      // before parcelCallback could redirect, which is exactly "the order went through
+      // but nothing happened". It is optional the whole way down: parcelCallback,
+      // RouteHelper.getPaymentRoute and the route parser all take `int?`.
+      final int? createUserId = JsonReader.toInt(placed['user_id']);
 
       if(forParcel && _destinationAddress != null) {
         await addParcelRecentAddress(_destinationAddress!);
@@ -581,7 +967,7 @@ class ParcelController extends GetxController implements GetxService {
     Get.find<ParcelController>().startLoader(false);
     if(isSuccess) {
       if(isDmTipSave){
-        Get.find<AuthController>().saveDmTipIndex(selectedTips.toString());
+        Get.find<AuthController>().saveDmTipIndex(PriceConverter.tipToSave(selectedTips));
       }
       Get.find<CheckoutController>().setGuestAddress(null);
       if(Get.find<ParcelController>().paymentIndex == 2) {
@@ -625,13 +1011,26 @@ class ParcelBill {
   final double charge;
   final double dmTips;
   final double additionalCharge;
-  final double tax;
   final double proDiscount;
   final double proDeliveryDiscount;
+
+  /// The quote's tax amount. Inside [total] only when it is charged on top.
+  final double tax;
+
+  /// True when the amount above is already inside the fee, so the bill names it
+  /// beside the total instead of listing it as a charge of its own.
+  final bool taxIncluded;
+
   final double total;
 
   const ParcelBill({
-    required this.charge, required this.dmTips, required this.additionalCharge, required this.tax, required this.proDiscount,
-    required this.proDeliveryDiscount, required this.total,
+    required this.charge, required this.dmTips, required this.additionalCharge, required this.proDiscount,
+    required this.proDeliveryDiscount, required this.tax, required this.taxIncluded, required this.total,
   });
 }
+
+// SUMMARY
+// Parcel state and pricing. Holds the picked category, addresses, weight and dimension
+// tiers, tips, payer and payment choice, quotes the parcel against the server summary,
+// and builds the bill — delivery fee, tips, additional charge and Pro savings — that the
+// parcel screens show and place an order with.

@@ -133,13 +133,13 @@ class ModuleZoneData {
 }
 
 class TopOffer {
-  int? discount;
+  double? discount;
   String? discountType;
 
   TopOffer({this.discount, this.discountType});
 
   TopOffer.fromJson(Map<String, dynamic> json) {
-    discount = json['discount'];
+    discount = json['discount']?.toDouble();
     discountType = json['discount_type'];
   }
 

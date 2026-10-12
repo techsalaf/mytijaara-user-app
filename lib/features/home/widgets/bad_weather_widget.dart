@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sixam_mart/features/checkout/controllers/checkout_controller.dart';
-import 'package:sixam_mart/helper/address_helper.dart';
-import 'package:sixam_mart/helper/auth_helper.dart';
-import 'package:sixam_mart/helper/date_converter.dart';
-import 'package:sixam_mart/helper/module_helper.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/images.dart';
@@ -19,16 +15,6 @@ class BadWeatherWidget extends StatefulWidget {
 }
 
 class _BadWeatherWidgetState extends State<BadWeatherWidget> {
-  @override
-  void initState() {
-    super.initState();
-
-    Get.find<CheckoutController>().getSurgePrice(
-      zoneId:AddressHelper.getUserAddressFromSharedPref()!.zoneId.toString(), moduleId: ModuleHelper.getModule()?.id.toString() ?? (ModuleHelper.getCacheModule()?.id.toString() ?? '0'),
-      dateTime: DateConverter.dateToDateTime(DateTime.now()), guestId: AuthHelper.getGuestId(),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return GetBuilder<CheckoutController>(builder: (checkoutController) {

@@ -1,21 +1,41 @@
+import 'package:flutter/foundation.dart';
+import 'package:sixam_mart/features/checkout/domain/models/checkout_summary_body_model.dart';
+import 'package:sixam_mart/features/checkout/widgets/delivery_address_coverage_sheet.dart';
+import 'package:sixam_mart/features/checkout/domain/models/checkout_summary_model.dart';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:just_the_tooltip/just_the_tooltip.dart';
+import 'package:sixam_mart/common/models/config_model.dart';
 import 'package:sixam_mart/common/widgets/address_widget.dart';
+import 'package:sixam_mart/common/widgets/custom_app_bar.dart';
+import 'package:sixam_mart/common/widgets/custom_button.dart';
+import 'package:sixam_mart/common/widgets/custom_dropdown.dart';
+import 'package:sixam_mart/common/widgets/custom_snackbar.dart';
+import 'package:sixam_mart/common/widgets/footer_view.dart';
+import 'package:sixam_mart/common/widgets/menu_drawer.dart';
+import 'package:sixam_mart/common/widgets/not_logged_in_screen.dart';
 import 'package:sixam_mart/features/address/controllers/address_controller.dart';
+import 'package:sixam_mart/features/address/domain/models/address_model.dart';
+import 'package:sixam_mart/helper/bundle_amount_helper.dart';
 import 'package:sixam_mart/features/cart/controllers/cart_controller.dart';
 import 'package:sixam_mart/features/cart/domain/models/cart_model.dart';
-import 'package:sixam_mart/features/coupon/controllers/coupon_controller.dart';
-import 'package:sixam_mart/features/home/controllers/home_controller.dart';
-import 'package:sixam_mart/features/item/domain/models/item_model.dart';
-import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
-import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
-import 'package:sixam_mart/features/pro/controllers/pro_controller.dart';
-import 'package:sixam_mart/features/pro/domain/models/pro_active_offer_model.dart';
+import 'package:sixam_mart/features/checkout/controllers/checkout_controller.dart';
 // import 'package:sixam_mart/features/pro/widgets/pro_cart_banner_widget.dart';
 import 'package:sixam_mart/features/checkout/domain/models/place_order_body_model.dart';
-import 'package:sixam_mart/features/address/domain/models/address_model.dart';
-import 'package:sixam_mart/common/models/config_model.dart';
+import 'package:sixam_mart/features/checkout/widgets/bottom_section.dart';
+import 'package:sixam_mart/features/checkout/widgets/checkout_screen_shimmer_view.dart';
+import 'package:sixam_mart/features/checkout/widgets/payment_method_bottom_sheet.dart';
+import 'package:sixam_mart/features/checkout/widgets/top_section.dart';
+import 'package:sixam_mart/features/coupon/controllers/coupon_controller.dart';
+import 'package:sixam_mart/features/happy_hour/controllers/happy_hour_controller.dart';
+import 'package:sixam_mart/features/happy_hour/widgets/happy_hour_milestone_banner_widget.dart';
+import 'package:sixam_mart/features/home/controllers/home_controller.dart';
+import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 import 'package:sixam_mart/features/location/domain/models/zone_response_model.dart';
-import 'package:sixam_mart/features/checkout/controllers/checkout_controller.dart';
+import 'package:sixam_mart/features/pro/controllers/pro_controller.dart';
+import 'package:sixam_mart/features/pro/domain/models/pro_active_offer_model.dart';
+import 'package:sixam_mart/features/profile/controllers/profile_controller.dart';
+import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
 import 'package:sixam_mart/features/store/domain/models/store_model.dart';
 import 'package:sixam_mart/helper/address_helper.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
@@ -28,19 +48,6 @@ import 'package:sixam_mart/helper/shallow_route_helper.dart';
 import 'package:sixam_mart/util/app_constants.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/styles.dart';
-import 'package:sixam_mart/common/widgets/custom_app_bar.dart';
-import 'package:sixam_mart/common/widgets/custom_button.dart';
-import 'package:sixam_mart/common/widgets/custom_dropdown.dart';
-import 'package:sixam_mart/common/widgets/custom_snackbar.dart';
-import 'package:sixam_mart/common/widgets/footer_view.dart';
-import 'package:sixam_mart/common/widgets/menu_drawer.dart';
-import 'package:sixam_mart/common/widgets/not_logged_in_screen.dart';
-import 'package:sixam_mart/features/checkout/widgets/checkout_screen_shimmer_view.dart';
-import 'package:sixam_mart/features/checkout/widgets/payment_method_bottom_sheet.dart';
-import 'package:get/get.dart';
-import 'package:sixam_mart/features/checkout/widgets/bottom_section.dart';
-import 'package:sixam_mart/features/checkout/widgets/top_section.dart';
-import 'package:flutter/material.dart';
 
 class CheckoutScreen extends StatefulWidget {
   final List<CartModel?>? cartList;
@@ -72,7 +79,6 @@ class CheckoutScreenState extends State<CheckoutScreen> {
   bool _isCashBackSnackBarShown = false;
   double badWeatherChargeForToolTip = 0;
   double extraChargeForToolTip = 0;
-  bool isPassedVariationPrice = false;
 
   final TextEditingController guestContactPersonNameController = TextEditingController();
   final TextEditingController guestContactPersonNumberController = TextEditingController();
@@ -85,8 +91,13 @@ class CheckoutScreenState extends State<CheckoutScreen> {
   final FocusNode guestConfirmPasswordNode = FocusNode();
 
   double? _lastCouponDiscount;
+  bool _initialQuoteRequested = false;
   bool _firstTimeCheckPayment = false;
   bool isCampaign = false;
+
+  /// The quote inputs this screen last asked for, so a rebuild that changed
+  /// nothing does not schedule a request the controller would only discard.
+  String? _lastRequestedSummarySignature;
 
   @override
   void initState() {
@@ -131,10 +142,13 @@ class CheckoutScreenState extends State<CheckoutScreen> {
           if(Get.find<ProfileController>().userInfoModel != null && GetPlatform.isWeb) {
             Get.find<CheckoutController>().insertAddresses(AddressHelper.getUserAddressFromSharedPref()!, notify: false);
           }
+          // proStatus reads userInfoModel, so asking before this resolves always answers
+          // "not Pro" and the offer is never fetched — leaving the Pro rows hidden for
+          // the whole visit.
+          _loadProActiveOffer();
         });
-      }
-      if(Get.find<ProfileController>().proStatus){
-        Get.find<ProController>().getProActiveOffer(moduleType: Get.find<SplashController>().module?.moduleType);
+      } else {
+        _loadProActiveOffer();
       }
 
       if(Get.find<AddressController>().addressList == null) {
@@ -151,14 +165,14 @@ class CheckoutScreenState extends State<CheckoutScreen> {
       }
       widget.fromCart ? _cartList!.addAll(Get.find<CartController>().cartList) : _cartList!.addAll(widget.cartList!);
       if(_cartList != null && _cartList!.isNotEmpty) {
-        Get.find<CheckoutController>().initCheckoutData(_cartList![0]!.item!.storeId);
+        Get.find<CheckoutController>().initCheckoutData(_storeIdFromCart());
       }
     }
 
     if(isLoggedIn) {
       Get.find<CouponController>().getCouponList(
         customerId: Get.find<ProfileController>().userInfoModel?.id,
-        storeId: widget.storeId ?? (_cartList != null && _cartList!.isNotEmpty ? _cartList![0]!.item!.storeId : null),
+        storeId: widget.storeId ?? _storeIdFromCart(),
       );
     }
 
@@ -169,7 +183,7 @@ class CheckoutScreenState extends State<CheckoutScreen> {
     Get.find<CheckoutController>().pickPrescriptionImage(isRemove: true, isCamera: false);
     _isWalletActive = Get.find<SplashController>().configModel!.customerWalletStatus == 1;
     Get.find<CheckoutController>().updateTips(
-      Get.find<CheckoutController>().getSharedPrefDmTipIndex().isNotEmpty ? int.parse(Get.find<CheckoutController>().getSharedPrefDmTipIndex()) : PriceConverter.noTipIndex,
+      PriceConverter.tipIndexFromSaved(Get.find<CheckoutController>().getSharedPrefDmTipIndex()),
       notify: false,
     );
     Get.find<CheckoutController>().tipController.text = Get.find<CheckoutController>().selectedTips != -1 ? AppConstants.tips[Get.find<CheckoutController>().selectedTips] : '';
@@ -188,10 +202,18 @@ class CheckoutScreenState extends State<CheckoutScreen> {
 
   @override
   void dispose() {
-    super.dispose();
+    _scrollController.dispose();
+    guestEmailController.dispose();
+    guestPasswordController.dispose();
+    guestConfirmPasswordController.dispose();
+    guestNumberNode.dispose();
+    guestEmailNode.dispose();
+    guestPasswordNode.dispose();
+    guestConfirmPasswordNode.dispose();
 
     guestContactPersonNameController.dispose();
     guestContactPersonNumberController.dispose();
+    super.dispose();
   }
 
 
@@ -234,11 +256,13 @@ class CheckoutScreenState extends State<CheckoutScreen> {
         }
 
         if(checkoutController.store != null) {
-          todayClosed = checkoutController.isStoreClosed(true, checkoutController.store!.active!, checkoutController.store!.schedules);
-          tomorrowClosed = checkoutController.isStoreClosed(false, checkoutController.store!.active!, checkoutController.store!.schedules);
+          todayClosed = checkoutController.isStoreClosed(true, checkoutController.store!.active ?? true, checkoutController.store!.schedules);
+          tomorrowClosed = checkoutController.isStoreClosed(false, checkoutController.store!.active ?? true, checkoutController.store!.schedules);
           _taxPercent = checkoutController.store!.tax;
         }
         return GetBuilder<CouponController>(builder: (couponController) {
+          return GetBuilder<ProController>(builder: (proController) {
+          return GetBuilder<HappyHourController>(builder: (happyHourController) {
           double? maxCodOrderAmount;
 
           if(moduleData != null) {
@@ -250,23 +274,32 @@ class CheckoutScreenState extends State<CheckoutScreen> {
           double? itemDiscountPrice = _calculateDiscountPrice(store: checkoutController.store, cartList: _cartList, price: price, addOns: addOns, calStoreDiscount: false);
           double? storeDiscountPrice = _calculateDiscountPrice(store: checkoutController.store, cartList: _cartList, price: price, addOns: addOns, calStoreDiscount: true);
 
-          double extraDiscount = _getExtraDiscountPrice(storeDiscountPrice, itemDiscountPrice);
-          double? discount = _getDiscountPrice(storeDiscountPrice, itemDiscountPrice);
+          
+          double? discount = happyHourController.discountAmountFor(
+            storeId: checkoutController.store?.id,
+            fallback: _getDiscountPrice(storeDiscountPrice, itemDiscountPrice),
+          );
+          final double bundleSaving = BundleAmountHelper.bundleSaving(_cartList);
           double couponDiscount = PriceConverter.toFixed(couponController.discount!);
 
           print('========coupon discount: $couponDiscount');
 
           double subTotal = _calculateSubTotal(price: price, addOns: addOns, variations: variations, cartList: _cartList);
 
-          double referralDiscount = _calculateReferralDiscount(subTotal, discount, couponDiscount);
+          // Same rule as the coupon: the bundle's own amount is outside a referral's reach.
+          double referralDiscount = _calculateReferralDiscount(
+            subTotal - BundleAmountHelper.netAmount(_cartList), discount, couponDiscount,
+          );
 
           double orderAmount = _calculateOrderAmount(
             price: price, variations: variations, discount: discount, addOns: addOns,
             couponDiscount: couponDiscount, cartList: _cartList, referralDiscount: referralDiscount,
           );
 
-          if((checkoutController.isFirstTime || _lastCouponDiscount != couponController.discount)
+          // isFirstTime stays true until the tax call answers, so without the flag every rebuild in between requested it again.
+          if(((checkoutController.isFirstTime && !_initialQuoteRequested) || _lastCouponDiscount != couponController.discount)
               && ((widget.storeId == null && checkoutController.store != null) || widget.storeId != null)) {
+            _initialQuoteRequested = true;
             _lastCouponDiscount = couponController.discount;
 
             Future.delayed(const Duration(milliseconds: 50), () {
@@ -277,6 +310,9 @@ class CheckoutScreenState extends State<CheckoutScreen> {
                   CartModel cart = _cartList![index]!;
                   if(cart.isCampaign ?? false) {
                     isCampaign = true;
+                  }
+                  if(cart.isAtomicBundle) {
+                    continue;
                   }
                   List<int?> addOnIdList = [];
                   List<int?> addOnQtyList = [];
@@ -316,7 +352,7 @@ class CheckoutScreenState extends State<CheckoutScreen> {
                       : checkoutController.paymentMethodIndex == 2 ? 'digital_payment' : 'offline_payment',
                   couponCode: (Get.find<CouponController>().discount! > 0 || (Get.find<CouponController>().coupon != null
                       && Get.find<CouponController>().freeDelivery)) ? Get.find<CouponController>().coupon!.code : null,
-                  storeId: (widget.storeId == null) ? _cartList![0]!.item!.storeId : widget.storeId,
+                  storeId: (widget.storeId == null) ? _storeIdFromCart() : widget.storeId,
                   discountAmount: discount, receiverDetails: null, parcelCategoryId: null,
                   chargePayer: null, dmTips: (checkoutController.orderType == 'take_away' || checkoutController.tipController.text == 'not_now') ? '' : checkoutController.tipController.text.trim(),
                   cutlery: Get.find<CartController>().addCutlery ? 1 : 0,
@@ -329,30 +365,47 @@ class CheckoutScreenState extends State<CheckoutScreen> {
                   isPrescriptionOrder: widget.storeId == null ? false : true,
                   monthlySubscribe: checkoutController.monthlySubscribe,
                   saverDeliveryType: checkoutController.saverDeliveryType,
+                  deliveryDuration: checkoutController.deliveryDuration?.round(),
                 );
                 print('[DEBUG] PlaceOrderBody (parcel) monthlySubscribe: ${placeOrderBody.monthlySubscribe}');
 
               if((widget.storeId == null && _cartList != null && _cartList!.isNotEmpty && placeOrderBody.storeId != null) || (widget.storeId != null)) {
                 print("=======store id: ${placeOrderBody.storeId}");
                 checkoutController.getOrderTax(placeOrderBody);
+                checkoutController.getCheckoutSummary(_buildCheckoutSummaryBody(
+                  checkoutController: checkoutController, orderAmount: subTotal,
+                ));
               }
             });
           }
 
-          double additionalCharge =  Get.find<SplashController>().configModel!.additionalChargeStatus! ? Get.find<SplashController>().configModel!.additionCharge! : 0;
-          double originalCharge = _calculateOriginalDeliveryCharge(
+          if((widget.storeId == null && checkoutController.store != null) || widget.storeId != null) {
+            _requoteIfInputsChanged(checkoutController, subTotal);
+          }
+
+          double additionalCharge = Get.find<SplashController>().configModel!.additionalChargeStatus! ? Get.find<SplashController>().configModel!.additionCharge! : 0;
+
+          final CheckoutSummaryDelivery? summaryDelivery = checkoutController.checkoutSummary?.delivery;
+
+          double originalCharge = summaryDelivery?.originalDeliveryCharge ?? _calculateOriginalDeliveryCharge(
             store: checkoutController.store, address: AddressHelper.getUserAddressFromSharedPref()!,
             distance: checkoutController.distance, extraCharge: checkoutController.extraCharge,
             surgePrice: checkoutController.surgePrice?.price, surgePriceType: checkoutController.surgePrice?.priceType,
           );
-          double deliveryCharge = _calculateDeliveryCharge(
+          double deliveryCharge = summaryDelivery?.deliveryChargeBeforeProDiscount
+              ?? summaryDelivery?.deliveryCharge ?? _calculateDeliveryCharge(
             store: checkoutController.store, address: AddressHelper.getUserAddressFromSharedPref()!, distance: checkoutController.distance,
             extraCharge: checkoutController.extraCharge, orderType: checkoutController.orderType!, orderAmount: orderAmount,
             surgePrice: checkoutController.surgePrice?.price, surgePriceType: checkoutController.surgePrice?.priceType,
           );
+          if(summaryDelivery != null) {
+            badWeatherChargeForToolTip = summaryDelivery.surgeAmount ?? 0;
+          }
 
           if(checkoutController.orderType != 'take_away' && checkoutController.store != null) {
-            _deliveryChargeForView = (checkoutController.orderType == 'delivery' ? checkoutController.store!.freeDelivery! : true) ? 'free'.tr
+            _deliveryChargeForView = checkoutController.summaryLoading ? 'calculating'.tr
+                : checkoutController.isOutsideDeliveryZone ? 'out_of_delivery_coverage'.tr
+                : (summaryDelivery?.isFreeDelivery ?? (checkoutController.orderType == 'delivery' ? checkoutController.store!.freeDelivery! : true)) ? 'free'.tr
                 : deliveryCharge != -1 ? PriceConverter.convertPrice(deliveryCharge) : 'calculating'.tr;
           }
 
@@ -360,19 +413,18 @@ class CheckoutScreenState extends State<CheckoutScreen> {
 
           final ProActiveBenefit? proBenefit = Get.find<ProController>().activeOfferModel?.benefit;
           final bool isPro = !isCampaign && (Get.find<ProfileController>().userInfoModel?.proStatus ?? false);
-          double proDiscount = isPro ? _calculateProDiscount(subTotal, discount, couponDiscount, proBenefit) : 0;
-          double proDeliveryDiscount = (isPro && checkoutController.orderType != 'take_away' && checkoutController.orderType != 'dine_in')
+          final CheckoutSummaryPro? summaryPro = checkoutController.checkoutSummary?.pro;
+          double proDiscount = summaryPro?.discount ?? (isPro ? _calculateProDiscount(subTotal, discount, couponDiscount, proBenefit) : 0);
+          double proDeliveryDiscount = summaryDelivery != null ? (summaryDelivery.proCustomerSavings ?? 0)
+              : (isPro && checkoutController.orderType != 'take_away' && checkoutController.orderType != 'dine_in')
               ? _calculateProDeliveryDiscount(subTotal - discount - couponDiscount, deliveryCharge, proBenefit) : 0;
           // Pro fully covers the delivery fee (full-free or 100% off) → saver charge options are pointless.
           final bool proFreeDelivery = proDeliveryDiscount > 0 && (proBenefit?.offerType == ProOfferType.fullFree || (proBenefit?.chargeDiscountPercentage ?? 0) >= 100);
 
-          // Saver delivery option fee adjustment (express +charge / slightly_delay -charge); 0 for the standard option.
-          // Added as its own signed term so picking an option updates the bill (shown as a separate line in BottomSection).
-          // Clamped against the delivery fee *after* any Pro delivery discount, so a slightly-delay
-          // reduction only cuts what's left of the fee (down to the minimum) and can't make the total negative.
-          final double saverDeliveryAdjustment = (checkoutController.orderType == 'delivery' && checkoutController.isInstantDelivery
+          final double saverDeliveryAdjustment = (checkoutController.orderType == 'delivery'
+                  && checkoutController.isInstantDelivery
                   && checkoutController.store?.selfDeliverySystem != 1)
-              ? checkoutController.getEffectiveSaverDeliveryAdjustment(deliveryCharge: deliveryCharge - proDeliveryDiscount, deliveryOption: checkoutController.selectedSaverDeliveryOption)
+              ? checkoutController.getEffectiveSaverDeliveryAdjustment(deliveryCharge: deliveryCharge, deliveryOption: checkoutController.selectedSaverDeliveryOption)
               : 0;
 
           double total = _calculateTotal(
@@ -400,6 +452,8 @@ class CheckoutScreenState extends State<CheckoutScreen> {
 
           _setSinglePaymentActive();
 
+          print('==========order amount : $orderAmount');
+
           return (checkoutController.distance != null && checkoutController.store != null) ? Column(
             children: [
               ResponsiveHelper.isDesktop(context) ? Container(
@@ -410,91 +464,58 @@ class CheckoutScreenState extends State<CheckoutScreen> {
 
               Expanded(child: SingleChildScrollView(
                 controller: _scrollController,
-                // physics: const BouncingScrollPhysics(),
                 child: FooterView(child: SizedBox(
                   width: Dimensions.webMaxWidth,
-                  child: ResponsiveHelper.isDesktop(context) ? Padding(
-                    padding: const EdgeInsets.only(top: Dimensions.paddingSizeLarge),
-                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-
-                      Expanded(flex: 6, child: TopSection(
-                        checkoutController: checkoutController, charge: originalCharge, deliveryCharge: deliveryCharge,
-                        addressList: addressList,
-                        tomorrowClosed: tomorrowClosed, todayClosed: todayClosed, module : module, price: price,
-                        discount: discount, addOns: addOns, address: address, cartList: _cartList, isCashOnDeliveryActive: _isCashOnDeliveryActive!,
-                        isDigitalPaymentActive: _isDigitalPaymentActive!, isWalletActive: _isWalletActive, storeId: widget.storeId,
-                        total: total, isOfflinePaymentActive: _isOfflinePaymentActive, guestNameTextEditingController: guestContactPersonNameController,
-                        guestNumberTextEditingController: guestContactPersonNumberController, guestNumberNode: guestNumberNode,
-                        guestEmailController: guestEmailController, guestEmailNode: guestEmailNode,
-                        tooltipController1: tooltipController1, tooltipController2: tooltipController2, dmTipsTooltipController: tooltipController3,
-                        guestPasswordController: guestPasswordController, guestConfirmPasswordController: guestConfirmPasswordController,
-                        guestPasswordNode: guestPasswordNode, guestConfirmPasswordNode: guestConfirmPasswordNode, variationPrice: isPassedVariationPrice ? variations : 0,
-                        deliveryChargeForView: _deliveryChargeForView, badWeatherCharge: badWeatherChargeForToolTip, extraChargeForToolTip: extraChargeForToolTip,
-                        proFreeDelivery: proFreeDelivery,
-                      )),
-                      const SizedBox(width: Dimensions.paddingSizeLarge),
-
-                      Expanded(flex: 4, child: BottomSection(
-                        checkoutController: checkoutController, total: total, module: module!, subTotal: subTotal,
-                        discount: discount, couponController: couponController, taxIncluded: (checkoutController.taxIncluded == 1), tax: checkoutController.orderTax!,
-                        deliveryCharge: deliveryCharge,
-                        todayClosed: todayClosed, tomorrowClosed: tomorrowClosed, orderAmount: orderAmount,
-                        maxCodOrderAmount: maxCodOrderAmount, storeId: widget.storeId, taxPercent: _taxPercent, price: price, addOns : addOns,
-                        isPrescriptionRequired: isPrescriptionRequired, checkoutButton: _orderPlaceButton(
-                          checkoutController, todayClosed, tomorrowClosed, orderAmount,
-                          deliveryCharge, checkoutController.orderTax!, discount, total, maxCodOrderAmount, isPrescriptionRequired,
-                        ),
-                        referralDiscount: referralDiscount, proDiscount: proDiscount, proDeliveryDiscount: proDeliveryDiscount, variationPrice: isPassedVariationPrice ? variations : 0, extraDiscount: extraDiscount, tooltipController1: tooltipController1, tooltipController2: tooltipController2,
-                        deliveryChargeForView: _deliveryChargeForView, extraChargeForToolTip: extraChargeForToolTip,
-                      )),
-                    ]),
-                  ) : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
                     TopSection(
                       checkoutController: checkoutController, charge: originalCharge, deliveryCharge: deliveryCharge,
                       addressList: addressList,
-                      tomorrowClosed: tomorrowClosed, todayClosed: todayClosed, module : module, price: price,
-                      discount: discount, addOns: addOns, address: address, cartList: _cartList, isCashOnDeliveryActive: _isCashOnDeliveryActive!,
+                      tomorrowClosed: tomorrowClosed, todayClosed: todayClosed, module : module, subTotal: subTotal,
+                      discount: discount, address: address, cartList: _cartList, isCashOnDeliveryActive: _isCashOnDeliveryActive!,
                       isDigitalPaymentActive: _isDigitalPaymentActive!, isWalletActive: _isWalletActive, storeId: widget.storeId,
                       total: total, isOfflinePaymentActive: _isOfflinePaymentActive, guestNameTextEditingController: guestContactPersonNameController,
                       guestNumberTextEditingController: guestContactPersonNumberController, guestNumberNode: guestNumberNode,
                       guestEmailController: guestEmailController, guestEmailNode: guestEmailNode,
                       tooltipController1: tooltipController1, tooltipController2: tooltipController2, dmTipsTooltipController: tooltipController3,
                       guestPasswordController: guestPasswordController, guestConfirmPasswordController: guestConfirmPasswordController,
-                      guestPasswordNode: guestPasswordNode, guestConfirmPasswordNode: guestConfirmPasswordNode, variationPrice: isPassedVariationPrice ? variations : 0,
+                      guestPasswordNode: guestPasswordNode, guestConfirmPasswordNode: guestConfirmPasswordNode,
                       deliveryChargeForView: _deliveryChargeForView, badWeatherCharge: badWeatherChargeForToolTip, extraChargeForToolTip: extraChargeForToolTip,
                       proFreeDelivery: proFreeDelivery,
                     ),
 
                     BottomSection(
                       checkoutController: checkoutController, total: total, module: module!, subTotal: subTotal,
+                      bundleSaving: bundleSaving,
                       discount: discount, couponController: couponController, taxIncluded: (checkoutController.taxIncluded == 1), tax: checkoutController.orderTax!,
                       deliveryCharge: deliveryCharge,
                       todayClosed: todayClosed,tomorrowClosed: tomorrowClosed, orderAmount: orderAmount,
-                      maxCodOrderAmount: maxCodOrderAmount, storeId: widget.storeId, taxPercent: _taxPercent, price: price, addOns : addOns,
+                      maxCodOrderAmount: maxCodOrderAmount, storeId: widget.storeId, taxPercent: _taxPercent,
                       isPrescriptionRequired: isPrescriptionRequired, checkoutButton: _orderPlaceButton(
                         checkoutController, todayClosed, tomorrowClosed, orderAmount, deliveryCharge,
                       checkoutController.orderTax!, discount, total, maxCodOrderAmount, isPrescriptionRequired,
                       ),
-                      referralDiscount: referralDiscount, proDiscount: proDiscount, proDeliveryDiscount: proDeliveryDiscount, variationPrice: isPassedVariationPrice ? variations : 0,
-                      extraDiscount: extraDiscount, tooltipController1: tooltipController1, tooltipController2: tooltipController2,
+                      referralDiscount: referralDiscount, proDiscount: proDiscount, proDeliveryDiscount: proDeliveryDiscount,
+                      saverDeliveryAdjustment: saverDeliveryAdjustment,
+                      tooltipController1: tooltipController1, tooltipController2: tooltipController2,
                       deliveryChargeForView: _deliveryChargeForView, extraChargeForToolTip: extraChargeForToolTip,
                     )
                   ]),
                 )),
               )),
 
-              ResponsiveHelper.isDesktop(context) ? const SizedBox() : Container(
+              HappyHourMilestoneBannerWidget(
+                subtotal: subTotal, isHappyHourRunning: checkoutController.store?.isHappyHourRunning,
+                storeId: checkoutController.store?.id,
+              ),
+
+              Container(
                 decoration: BoxDecoration(
                   color: Theme.of(context).cardColor,
                   boxShadow: [BoxShadow(color: Theme.of(context).primaryColor.withValues(alpha: 0.1), blurRadius: 10)],
                 ),
                 child: Column(children: [
-                  // Pro banner hidden on checkout for now
-                  // widget.storeId == null ? Padding(
-                  //   padding: const EdgeInsets.fromLTRB(Dimensions.paddingSizeLarge, Dimensions.paddingSizeSmall, Dimensions.paddingSizeLarge, 0),
-                  //   child: ProCartBannerWidget(subtotal: subTotal, discount: discount, couponDiscount: couponDiscount),
-                  // ) : const SizedBox(),
+
                   const SizedBox(),
 
                   Padding(
@@ -525,6 +546,8 @@ class CheckoutScreenState extends State<CheckoutScreen> {
 
             ],
           ) : const CheckoutScreenShimmerView();
+          });
+          });
         });
       }) : NotLoggedInScreen(callBack: (value){
         initCall();
@@ -536,6 +559,14 @@ class CheckoutScreenState extends State<CheckoutScreen> {
 
   Widget _orderPlaceButton(CheckoutController checkoutController, bool todayClosed, bool tomorrowClosed,
       double orderAmount, double? deliveryCharge, double tax, double? discount, double total, double? maxCodOrderAmount, bool isPrescriptionRequired) {
+
+
+    final bool isDeliveryFeeNotReady = checkoutController.orderType != 'take_away'
+        && (checkoutController.distance == null || checkoutController.distance == -1);
+
+
+    final bool isQuoteInFlight = checkoutController.summaryLoading;
+
     return Container(
       width: Dimensions.webMaxWidth,
       alignment: Alignment.center,
@@ -544,8 +575,30 @@ class CheckoutScreenState extends State<CheckoutScreen> {
         child: CustomButton(
           isLoading: checkoutController.isLoading,
           buttonText: 'place_order'.tr,
-          onPressed: checkoutController.acceptTerms ? () async {
+          onPressed: (checkoutController.acceptTerms && !isDeliveryFeeNotReady && !isQuoteInFlight) ? () async {
+          // The order body carries no delivery charge — only `distance`. The server works
+          // the fee out itself, so anything that disagrees here is a client-side estimate.
+          if(kDebugMode) {
+            final Store? debugStore = checkoutController.store;
+            print('===== PLACE ORDER · delivery fee =====');
+            print('shown on checkout      : $deliveryCharge');
+            print('SENT to server         : (nothing — no delivery charge key in the body)');
+            print('distance (km, sent)    : ${checkoutController.distance}');
+            print('extra vehicle charge   : ${checkoutController.extraCharge}');
+            print('surge                  : ${checkoutController.surgePrice?.price} (${checkoutController.surgePrice?.priceType})');
+            print('order type             : ${checkoutController.orderType}');
+            print('store.selfDelivery     : ${debugStore?.selfDeliverySystem}  freeDelivery: ${debugStore?.freeDelivery}');
+            print('store per-km/min/max   : ${debugStore?.perKmShippingCharge} / ${debugStore?.minimumShippingCharge} / ${debugStore?.maximumShippingCharge}');
+            print('coupon freeDelivery    : ${Get.find<CouponController>().freeDelivery}');
+            print('adminFreeDelivery      : ${Get.find<SplashController>().configModel?.adminFreeDelivery?.status} '
+                '${Get.find<SplashController>().configModel?.adminFreeDelivery?.type} '
+                'over ${Get.find<SplashController>().configModel?.adminFreeDelivery?.freeDeliveryOver}');
+            print('order amount (sent)    : $orderAmount');
+            print('======================================');
+          }
+
           bool isAvailable = true;
+          bool bogoScheduleOutOfWindow = false;
           DateTime scheduleStartDate = DateTime.now();
           DateTime scheduleEndDate = DateTime.now();
           bool isGuestLogIn = AuthHelper.isGuestLoggedIn();
@@ -558,14 +611,23 @@ class CheckoutScreenState extends State<CheckoutScreen> {
             DateTime endTime = checkoutController.timeSlots![checkoutController.selectedTimeSlot].endTime!;
             scheduleStartDate = DateTime(date.year, date.month, date.day, startTime.hour, startTime.minute+1);
             scheduleEndDate = DateTime(date.year, date.month, date.day, endTime.hour, endTime.minute+1);
+
+            final DateTime? bundleEndsAt = bundleOfferEndsAt(_cartList);
+            if(bundleEndsAt != null && scheduleStartDate.isAfter(bundleEndsAt)) {
+              bogoScheduleOutOfWindow = true;
+            }
+
             if(_cartList != null){
               for (CartModel? cart in _cartList!) {
+                if (cart!.isAtomicBundle) {
+                  continue;
+                }
                 if (!DateConverter.isAvailable(
-                  cart!.item!.availableTimeStarts, cart.item!.availableTimeEnds,
-                  time: checkoutController.store!.scheduleOrder! ? scheduleStartDate : null,
+                  cart.item!.availableTimeStarts, cart.item!.availableTimeEnds,
+                  time: (checkoutController.store!.scheduleOrder ?? false) ? scheduleStartDate : null,
                 ) && !DateConverter.isAvailable(
                   cart.item!.availableTimeStarts, cart.item!.availableTimeEnds,
-                  time: checkoutController.store!.scheduleOrder! ? scheduleEndDate : null,
+                  time: (checkoutController.store!.scheduleOrder ?? false) ? scheduleEndDate : null,
                 )) {
                   isAvailable = false;
                   break;
@@ -587,7 +649,9 @@ class CheckoutScreenState extends State<CheckoutScreen> {
             isPhoneValid = phoneValid.isValid;
           }
 
-          if(isGuestLogIn && guestContactPersonNameController.text.isEmpty) {
+          if(bogoScheduleOutOfWindow) {
+            showCustomSnackBar('the_bogo_offer_in_your_cart_ends_before_this_time_slot'.tr);
+          } else if(isGuestLogIn && guestContactPersonNameController.text.isEmpty) {
             showCustomSnackBar('please_enter_contact_person_name'.tr);
           } else if(isGuestLogIn && guestContactPersonNumberController.text.isEmpty) {
             showCustomSnackBar('please_enter_contact_person_number'.tr);
@@ -613,6 +677,9 @@ class CheckoutScreenState extends State<CheckoutScreen> {
             showCustomSnackBar('please_enter_valid_phone_number'.tr);
           }else if(AuthHelper.isLoggedIn() && !isDesktop && checkoutController.contactPersonAddressController.text.isEmpty) {
             showCustomSnackBar('please_enter_contact_person_address'.tr);
+          } else if(checkoutController.isCoverageSelectionMissing) {
+            showCustomSnackBar(checkoutController.isZipCodeWiseDelivery ? 'please_select_zip_code'.tr : 'please_select_area'.tr);
+            showDeliveryAddressCoverageSheet();
           } else if(!_isCashOnDeliveryActive! && !_isDigitalPaymentActive! && !_isWalletActive && !_isOfflinePaymentActive) {
             showCustomSnackBar('no_payment_method_is_enabled'.tr);
           }else if(checkoutController.paymentMethodIndex == -1) {
@@ -650,7 +717,7 @@ class CheckoutScreenState extends State<CheckoutScreen> {
           }else if(checkoutController.paymentMethodIndex != 0 && widget.storeId != null){
             showCustomSnackBar('payment_method_is_not_available'.tr);
           }else if (checkoutController.timeSlots == null || checkoutController.timeSlots!.isEmpty) {
-            if(checkoutController.store!.scheduleOrder!) {
+            if((checkoutController.store!.scheduleOrder ?? false)) {
               showCustomSnackBar('select_a_time'.tr);
             }else {
               showCustomSnackBar(Get.find<SplashController>().configModel!.moduleConfig!.module!.showRestaurantText!
@@ -658,6 +725,10 @@ class CheckoutScreenState extends State<CheckoutScreen> {
             }
           }else if (!isAvailable) {
             showCustomSnackBar('one_or_more_products_are_not_available_for_this_selected_time'.tr);
+          }else if (checkoutController.summaryLoading) {
+            // The handler awaits phone validation before reaching here, so a
+            // quote can start after the button was already tapped.
+            showCustomSnackBar('delivery_fee_is_calculating_please_wait'.tr);
           }else if (checkoutController.orderType != 'take_away' && checkoutController.distance == -1 && deliveryCharge == -1) {
             showCustomSnackBar('delivery_fee_not_set_yet'.tr);
           }else if (widget.storeId != null && checkoutController.pickedPrescriptions.isEmpty) {
@@ -708,6 +779,9 @@ class CheckoutScreenState extends State<CheckoutScreen> {
               List<OnlineCart> carts = [];
               for (int index = 0; index < _cartList!.length; index++) {
                 CartModel cart = _cartList![index]!;
+                if(cart.isAtomicBundle) {
+                  continue;
+                }
                 List<int?> addOnIdList = [];
                 List<int?> addOnQtyList = [];
                 for (var addOn in cart.addOnIds!) {
@@ -739,7 +813,7 @@ class CheckoutScreenState extends State<CheckoutScreen> {
 
               PlaceOrderBodyModel placeOrderBody = PlaceOrderBodyModel(
                 cart: carts, couponDiscountAmount: Get.find<CouponController>().discount, distance: checkoutController.distance,
-                scheduleAt: !checkoutController.store!.scheduleOrder! ? null : (checkoutController.selectedDateSlot == 0
+                scheduleAt: !(checkoutController.store!.scheduleOrder ?? false) ? null : (checkoutController.selectedDateSlot == 0
                     && checkoutController.selectedTimeSlot == 0) ? null : DateConverter.dateToDateAndTime(scheduleEndDate),
                 orderAmount: total, orderNote: checkoutController.noteController.text, orderType: checkoutController.orderType,
                 paymentMethod: checkoutController.paymentMethodIndex == 0 ? 'cash_on_delivery'
@@ -747,7 +821,7 @@ class CheckoutScreenState extends State<CheckoutScreen> {
                     : checkoutController.paymentMethodIndex == 2 ? 'digital_payment' : 'offline_payment',
                 couponCode: (Get.find<CouponController>().discount! > 0 || (Get.find<CouponController>().coupon != null
                     && Get.find<CouponController>().freeDelivery)) ? Get.find<CouponController>().coupon!.code : null,
-                storeId: _cartList![0]!.item!.storeId,
+                storeId: _storeIdFromCart(),
                 address: finalAddress!.address, latitude: finalAddress.latitude, longitude: finalAddress.longitude,
                 senderZoneId: null, addressType: finalAddress.addressType,
                 contactPersonName: finalAddress.contactPersonName ?? '${Get.find<ProfileController>().userInfoModel!.fName} '
@@ -768,6 +842,14 @@ class CheckoutScreenState extends State<CheckoutScreen> {
                 bringChangeAmount: checkoutController.paymentMethodIndex == 0 && checkoutController.exchangeAmount > 0 ? checkoutController.exchangeAmount : null,
                 monthlySubscribe: checkoutController.monthlySubscribe,
                 saverDeliveryType: checkoutController.saverDeliveryType,
+                // The same pick the quote was priced with. Posting it to only one
+                // of the two endpoints is how the quote and the charge come apart.
+                areaId: checkoutController.selectedAreaId, zipCodeId: checkoutController.selectedZipCodeId,
+                // Read from the same `distance-api` response as `distance` above,
+                // so the two always describe one measured route. Null — and so
+                // omitted — whenever that call did not answer and the distance
+                // fell back to a straight line.
+                deliveryDuration: checkoutController.deliveryDuration?.round(),
               );
               print('[DEBUG] PlaceOrderBody (regular) monthlySubscribe: ${placeOrderBody.monthlySubscribe}');
 
@@ -879,11 +961,64 @@ class CheckoutScreenState extends State<CheckoutScreen> {
     return isDigitalPaymentActive;
   }
 
+  /// The first cart row that actually carries an item — a BOGO bundle row has none,
+  /// so it can never stand in for the cart's store or module.
+  CartModel? _firstItemCart(List<CartModel?>? cartList) {
+    for(final CartModel? cart in cartList ?? const <CartModel?>[]) {
+      if(cart != null && !cart.isBogoBundle && cart.item != null) {
+        return cart;
+      }
+    }
+    return null;
+  }
+
+  int? _storeIdFromCart() {
+    final CartModel? cart = _firstItemCart(_cartList);
+    if(cart != null) {
+      return cart.item!.storeId;
+    }
+    for(final CartModel? bundle in _cartList ?? const <CartModel?>[]) {
+      // Any bundle will do — a cart holding nothing but bundles still belongs to
+      // a store, and without this checkout would have no store id at all.
+      if(bundle != null && bundle.isAtomicBundle && bundle.storeId != null) {
+        return bundle.storeId;
+      }
+    }
+    return null;
+  }
+
+  /// The earliest moment any bundle in the cart stops being valid. A delivery scheduled
+  /// past it is refused server-side, so the app checks while the customer is still picking.
+  static DateTime? bundleOfferEndsAt(List<CartModel?>? cartList) {
+    DateTime? endsAt;
+    for(final CartModel? cart in cartList ?? const <CartModel?>[]) {
+      final String? offerEnd = cart?.bogoDetails?.offerEndDate;
+      if(offerEnd == null || offerEnd.isEmpty) {
+        continue;
+      }
+      final DateTime? parsed = DateTime.tryParse(offerEnd);
+      if(parsed != null && (endsAt == null || parsed.isBefore(endsAt))) {
+        endsAt = parsed;
+      }
+    }
+    return endsAt;
+  }
+
   double _calculatePrice({required Store? store, required List<CartModel?>? cartList}) {
     double price = 0;
     if(cartList != null) {
       for (var cartModel in cartList) {
-        if(Get.find<SplashController>().getModuleConfig(cartModel!.item!.moduleType).newVariation!){
+        // A bundle's price is frozen at enrolment and carries no variations of its own.
+        // A bundle row prices itself: it carries no item to derive a price from.
+        if(cartModel!.isBogoBundle) {
+          price = price + cartModel.bogoDetails!.totalPrice;
+          continue;
+        }
+        if(cartModel.isBundle) {
+          price = price + cartModel.bundleDetails!.totalFinalPrice;
+          continue;
+        }
+        if(Get.find<SplashController>().getModuleConfig(cartModel.item!.moduleType).newVariation!){
           price = price + (cartModel.item!.price! * cartModel.quantity!);
         } else {
           price = _calculateVariationPrice(store: store, cartList: cartList);
@@ -897,9 +1032,13 @@ class CheckoutScreenState extends State<CheckoutScreen> {
     double addOns = 0;
     if(store != null && cartList != null) {
       for (var cartModel in cartList) {
+        // A bundle carries no item and no add-on ids of its own.
+        if(cartModel == null || cartModel.isAtomicBundle) {
+          continue;
+        }
         List<AddOns> addOnList = [];
-        for (var addOnId in cartModel!.addOnIds!) {
-          for (AddOns addOns in cartModel.item!.addOns!) {
+        for (var addOnId in cartModel.addOnIds ?? <AddOn>[]) {
+          for (AddOns addOns in cartModel.item?.addOns ?? <AddOns>[]) {
             if (addOns.id == addOnId.id) {
               addOnList.add(addOns);
               break;
@@ -919,11 +1058,13 @@ class CheckoutScreenState extends State<CheckoutScreen> {
     double variationDiscount = 0;
     if(store != null && cartList != null) {
       for (var cartModel in cartList) {
-        double? discount = cartModel!.item!.discount;
+        if(cartModel!.isAtomicBundle) {
+          continue;
+        }
+        double? discount = cartModel.item!.discount;
         String? discountType = cartModel.item!.discountType;
 
         if(Get.find<SplashController>().getModuleConfig(cartModel.item!.moduleType).newVariation!) {
-          isPassedVariationPrice = true;
           for(int index = 0; index< cartModel.item!.foodVariations!.length; index++) {
             for(int i=0; i<cartModel.item!.foodVariations![index].variationValues!.length; i++) {
               if(cartModel.foodVariations![index][i]!) {
@@ -967,15 +1108,24 @@ class CheckoutScreenState extends State<CheckoutScreen> {
     double discount = 0;
     if (store != null && cartList != null && cartList.isNotEmpty) {
       for (var cartModel in cartList) {
+        // A bundle's discount is already baked into the price the server sent.
+        if(cartModel!.isAtomicBundle) {
+          if(cartModel.isBogoBundle){
+            if(cartModel.bogoDetails!.isHappyHour) {
+              discount = discount + cartModel.bogoDetails!.totalDiscountAmount;
+            }
+          }
+          continue;
+        }
         double? dis = (store.discount != null
             && DateConverter.isAvailable(store.discount!.startTime, store.discount!.endTime))
-            && calStoreDiscount ? store.discount!.discount : cartModel!.item!.discount;
+            && calStoreDiscount ? store.discount!.discount : cartModel.item!.discount;
 
         String? disType = (store.discount != null
             && DateConverter.isAvailable(store.discount!.startTime, store.discount!.endTime))
-            && calStoreDiscount ? 'percent' : cartModel?.item!.discountType;
+            && calStoreDiscount ? 'percent' : cartModel.item!.discountType;
 
-        if(Get.find<SplashController>().getModuleConfig(cartModel!.item!.moduleType).newVariation!) {
+        if(Get.find<SplashController>().getModuleConfig(cartModel.item!.moduleType).newVariation!) {
           double d = ((cartModel.item!.price! - PriceConverter.convertWithDiscount(cartModel.item!.price!, dis, disType)!) * cartModel.quantity!);
           discount = discount + d;
           if(disType == 'percent' && discount != 0) {
@@ -1009,10 +1159,16 @@ class CheckoutScreenState extends State<CheckoutScreen> {
 
     if(calStoreDiscount){
       if (store != null && store.discount != null) {
-        if (store.discount!.maxDiscount != 0 && store.discount!.maxDiscount! < discount) {
-          discount = store.discount!.maxDiscount!;
+        // `store_discount` shrank to {discount, discount_type}: no cap and no
+        // minimum arrive any more, so these are null rather than 0 and the
+        // force-unwraps threw while pricing the cart. A missing cap means the
+        // discount is uncapped, a missing minimum means it always applies.
+        final double? maxDiscount = store.discount!.maxDiscount;
+        final double? minPurchase = store.discount!.minPurchase;
+        if (maxDiscount != null && maxDiscount != 0 && maxDiscount < discount) {
+          discount = maxDiscount;
         }
-        if (store.discount!.minPurchase != 0 && store.discount!.minPurchase! > (price + addOns)) {
+        if (minPurchase != null && minPurchase != 0 && minPurchase > (price + addOns)) {
           discount = 0;
         }
       }
@@ -1032,22 +1188,11 @@ class CheckoutScreenState extends State<CheckoutScreen> {
     return discountPrice;
   }
 
-  double _getExtraDiscountPrice(double storeDiscountPrice, double itemDiscountPrice) {
-    double extraDiscount = 0;
-    if(storeDiscountPrice > itemDiscountPrice) {
-      extraDiscount = storeDiscountPrice - itemDiscountPrice;
-    } else if(itemDiscountPrice > storeDiscountPrice) {
-      extraDiscount = 0;
-    } else {
-      extraDiscount = 0;
-    }
-    return extraDiscount;
-  }
 
   double _calculateFoodVariationDiscount({required CartModel? cartModel}) {
     double variationPrice = 0;
     double variationDiscount = 0;
-    if(cartModel != null) {
+    if(cartModel != null && !cartModel.isAtomicBundle) {
       double? discount = cartModel.item!.discount;
       String? discountType = cartModel.item!.discountType;
       for (int index = 0; index < cartModel.item!.foodVariations!.length; index++) {
@@ -1064,6 +1209,76 @@ class CheckoutScreenState extends State<CheckoutScreen> {
     return (variationDiscount - variationPrice);
   }
 
+  /// The quote's inputs, assembled from the same state that builds the order.
+  ///
+  /// Deliberately a strict subset of `PlaceOrderBodyModel`: the endpoint takes
+  /// placement's inputs minus everything placement needs only in order to *write*
+  /// an order. `distance` is kilometres — the `distance_unit` setting decides the
+  /// unit the rates are quoted in, never how this value is read.
+  CheckoutSummaryBodyModel _buildCheckoutSummaryBody({required CheckoutController checkoutController, required double orderAmount}) {
+    // The address the customer picked *on this screen* comes first. Reading the
+    // shared-pref address before it meant swapping the delivery address here
+    // quoted the old coordinates — the fee was priced for wherever the customer
+    // used to be. The pref address stays as the fallback for the first build,
+    // before `insertAddresses` has run.
+    final AddressModel? address = checkoutController.orderType == 'take_away'
+        ? null
+        : (AuthHelper.isGuestLoggedIn() ? checkoutController.guestAddress : checkoutController.address)
+            ?? AddressHelper.getUserAddressFromSharedPref();
+    final CouponController couponController = Get.find<CouponController>();
+    final bool hasCoupon = (couponController.discount ?? 0) > 0 || (couponController.coupon != null && couponController.freeDelivery);
+
+    return CheckoutSummaryBodyModel(
+      orderType: checkoutController.orderType ?? 'delivery',
+      storeId: widget.storeId ?? _storeIdFromCart(),
+      orderAmount: orderAmount,
+      // Omitted for take_away, which has no address and no fee.
+      distance: checkoutController.orderType == 'take_away' ? null : _quotableDistance(checkoutController.distance),
+      latitude: address?.latitude,
+      longitude: address?.longitude,
+      couponCode: hasCoupon ? couponController.coupon?.code : null,
+      // The pick must go to `place_order` too, or the quote and the charge diverge.
+      areaId: checkoutController.selectedAreaId,
+      zipCodeId: checkoutController.selectedZipCodeId,
+      // Only the platform fleet's instant delivery is tiered — sending a tier anywhere else
+      // would churn the signature for a key that cannot move the fee.
+      deliveryType: (checkoutController.orderType == 'delivery' && checkoutController.isInstantDelivery
+          && checkoutController.store?.selfDeliverySystem != 1) ? checkoutController.saverDeliveryType : null,
+      guestId: AuthHelper.isGuestLoggedIn() ? AuthHelper.getGuestId() : null,
+    );
+  }
+
+  /// Requotes when an input that prices the order has changed.
+  ///
+  /// Called from `build`, so the request is deferred to the end of the frame:
+  /// `getCheckoutSummary` repaints before its first await, and firing it inline
+  /// would be a rebuild during a build.
+  void _requoteIfInputsChanged(CheckoutController checkoutController, double orderAmount) {
+    final CheckoutSummaryBodyModel body = _buildCheckoutSummaryBody(
+      checkoutController: checkoutController, orderAmount: orderAmount,
+    );
+    // The endpoint requires a store, and the cart may not have resolved one yet
+    // on the first builds of the screen.
+    if(body.storeId == null || body.signature == _lastRequestedSummarySignature) {
+      return;
+    }
+    _lastRequestedSummarySignature = body.signature;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if(!mounted) return;
+      checkoutController.getCheckoutSummary(body);
+    });
+  }
+
+  /// The distance the quote can be priced from, or null while there isn't one.
+  ///
+  /// `getDistanceInKM` parks `-1` on the controller for the whole time the
+  /// distance call is in flight, and the rest of the screen reads that as
+  /// "still calculating". Posting it would send `distance: -1` to
+  /// `checkout-summary`; omitting the key instead lets the endpoint price from
+  /// the coordinates, exactly as it does before the first distance resolves.
+  double? _quotableDistance(double? distance) =>
+      (distance == null || distance < 0) ? null : distance;
+
   double _calculateOrderAmount({required double price, required double variations, required double discount, required double addOns, required double couponDiscount, required List<CartModel?>? cartList, required double referralDiscount}) {
     double orderAmount = 0;
     double variationPrice = 0;
@@ -1079,7 +1294,9 @@ class CheckoutScreenState extends State<CheckoutScreen> {
     bool isFoodVariation = false;
 
     if(cartList != null && cartList.isNotEmpty) {
-      isFoodVariation = Get.find<SplashController>().getModuleConfig(cartList[0]!.item!.moduleType).newVariation!;
+      final CartModel? sample = _firstItemCart(cartList);
+      isFoodVariation = sample == null ? false
+          : Get.find<SplashController>().getModuleConfig(sample.item!.moduleType).newVariation!;
     }
     if(isFoodVariation){
       subTotal = price + addOns + variations;
@@ -1212,7 +1429,10 @@ class CheckoutScreenState extends State<CheckoutScreen> {
   bool _checkPrescriptionRequired() {
     if(widget.storeId == null && Get.find<SplashController>().configModel!.moduleConfig!.module!.orderAttachment!) {
       for (var cart in _cartList!) {
-        if(cart!.item!.isPrescriptionRequired!) {
+        if(cart!.isAtomicBundle) {
+          continue;
+        }
+        if(cart.item!.isPrescriptionRequired!) {
           return true;
         }
       }
@@ -1237,6 +1457,12 @@ class CheckoutScreenState extends State<CheckoutScreen> {
       }
     }
     return PriceConverter.toFixed(referralDiscount);
+  }
+
+  void _loadProActiveOffer() {
+    if(Get.find<ProfileController>().proStatus) {
+      Get.find<ProController>().getProActiveOffer(moduleType: Get.find<SplashController>().module?.moduleType);
+    }
   }
 
   double _calculateProDiscount(double subTotal, double discount, double couponDiscount, ProActiveBenefit? benefit) {
@@ -1274,3 +1500,9 @@ class CheckoutScreenState extends State<CheckoutScreen> {
   }
 
 }
+
+// SUMMARY
+// Checkout screen for store orders and campaigns. Gathers the address, delivery type,
+// schedule, coupon, tips and payment choice, keeps the server quote in step with whatever
+// prices the order, and renders the bill it answers with — delivery fee, tax, surge, Pro
+// savings and cashback — before placing the order.

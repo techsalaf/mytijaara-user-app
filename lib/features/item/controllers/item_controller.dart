@@ -45,10 +45,30 @@ class ItemController extends GetxController implements GetxService {
   bool _isDirectlyAdding = false;
   bool get isDirectlyAdding => _isDirectlyAdding;
 
-  int? _pageSize = 0;
-  int? get pageSize => _pageSize;
+  // Popular / reviewed / discounted each paginate independently. They used to share
+  // one _pageSize and one _offsetList, which was harmless only because the dashboard
+  // fetched all three back-to-back. They are now fetched at different times (each
+  // section fetches when it scrolls into view), so a shared cursor would let
+  // whichever loaded last overwrite the others' total and break their "load more".
+  int? _popularPageSize = 0;
+  int? _reviewedPageSize = 0;
+  int? _discountedPageSize = 0;
 
-  List<String> _offsetList = [];
+  /// Total item count for one of the three lists. Selected the same way as
+  /// [hasMoreData] — [isPopular], else [isSpecial] (discounted), else reviewed.
+  int? pageSizeFor({bool isPopular = false, bool isSpecial = false}) {
+    if (isPopular) {
+      return _popularPageSize;
+    } else if (isSpecial) {
+      return _discountedPageSize;
+    } else {
+      return _reviewedPageSize;
+    }
+  }
+
+  final List<String> _popularOffsetList = [];
+  final List<String> _reviewedOffsetList = [];
+  final List<String> _discountedOffsetList = [];
 
   int _offset = 1;
   int get offset => _offset;
@@ -405,6 +425,9 @@ class ItemController extends GetxController implements GetxService {
     _discountedItemList = null;
     _featuredCategoriesItem = null;
     _recommendedItemList = null;
+    _commonConditions = null;
+    _conditionWiseProduct = null;
+    _selectedCommonCondition = 0;
   }
 
   void showBottomLoader() {
@@ -418,13 +441,14 @@ class ItemController extends GetxController implements GetxService {
 
   bool hasMoreData({bool isPopular = false, bool isSpecial = false}) {
     if (isPopular) {
-      return _popularItemList != null && _popularItemList!.length < _pageSize!;
+      return _popularItemList != null &&
+          _popularItemList!.length < _popularPageSize!;
     } else if (isSpecial) {
       return _discountedItemList != null &&
-          _discountedItemList!.length < _pageSize!;
+          _discountedItemList!.length < _discountedPageSize!;
     } else {
       return _reviewedItemList != null &&
-          _reviewedItemList!.length < _pageSize!;
+          _reviewedItemList!.length < _reviewedPageSize!;
     }
   }
 
@@ -443,15 +467,15 @@ class ItemController extends GetxController implements GetxService {
     }
 
     if (offset == '1') {
-      _offsetList = [];
+      _popularOffsetList.clear();
       _offset = 1;
       _popularItemList = null;
       if (firstTimeCategoryLoad) _categoryList = null;
       if (notify) update();
     }
 
-    if (!_offsetList.contains(offset)) {
-      _offsetList.add(offset);
+    if (!_popularOffsetList.contains(offset)) {
+      _popularOffsetList.add(offset);
 
       ItemModel? itemModel = await itemServiceInterface.getPopularItemList(
         type: _popularType,
@@ -492,9 +516,14 @@ class ItemController extends GetxController implements GetxService {
         _popularItemList = [];
         if (firstTimeCategoryLoad) _categoryList = [];
       }
-      _popularItemList!.addAll(itemModel.items!);
-      if (firstTimeCategoryLoad) _categoryList!.addAll(itemModel.categories!);
-      _pageSize = itemModel.totalSize;
+      // `items`/`categories` are absent on some endpoints — /items/discounted
+      // and /items/popular return only `data` + `pagination`, with no
+      // `categories` at all. Force-unwrapping threw here, and because the
+      // throw landed before `update()` the section never rebuilt: the list
+      // was populated but the UI sat on its shimmer forever.
+      _popularItemList!.addAll(itemModel.items ?? <Item>[]);
+      if (firstTimeCategoryLoad) _categoryList!.addAll(itemModel.categories ?? <Categories>[]);
+      _popularPageSize = itemModel.totalSize;
       _isLoading = false;
     }
     update();
@@ -515,7 +544,7 @@ class ItemController extends GetxController implements GetxService {
     }
 
     if (offset == '1') {
-      _offsetList = [];
+      _reviewedOffsetList.clear();
       _offset = 1;
       _reviewedItemList = null;
       _reviewedCategoriesList = null;
@@ -523,8 +552,8 @@ class ItemController extends GetxController implements GetxService {
       if (notify) update();
     }
 
-    if (!_offsetList.contains(offset)) {
-      _offsetList.add(offset);
+    if (!_reviewedOffsetList.contains(offset)) {
+      _reviewedOffsetList.add(offset);
 
       ItemModel? itemModel = await itemServiceInterface.getReviewedItemList(
         type: _reviewedType,
@@ -566,10 +595,15 @@ class ItemController extends GetxController implements GetxService {
         _reviewedCategoriesList = [];
         if (firstTimeCategoryLoad) _categoryList = [];
       }
-      _reviewedItemList!.addAll(itemModel.items!);
-      _reviewedCategoriesList!.addAll(itemModel.categories!);
-      if (firstTimeCategoryLoad) _categoryList!.addAll(itemModel.categories!);
-      _pageSize = itemModel.totalSize;
+      // `items`/`categories` are absent on some endpoints — /items/discounted
+      // and /items/popular return only `data` + `pagination`, with no
+      // `categories` at all. Force-unwrapping threw here, and because the
+      // throw landed before `update()` the section never rebuilt: the list
+      // was populated but the UI sat on its shimmer forever.
+      _reviewedItemList!.addAll(itemModel.items ?? <Item>[]);
+      _reviewedCategoriesList!.addAll(itemModel.categories ?? <Categories>[]);
+      if (firstTimeCategoryLoad) _categoryList!.addAll(itemModel.categories ?? <Categories>[]);
+      _reviewedPageSize = itemModel.totalSize;
       _isLoading = false;
     }
     update();
@@ -590,15 +624,15 @@ class ItemController extends GetxController implements GetxService {
     }
 
     if (offset == '1') {
-      _offsetList = [];
+      _discountedOffsetList.clear();
       _offset = 1;
       _discountedItemList = null;
       if (firstTimeCategoryLoad) _categoryList = null;
       if (notify) update();
     }
 
-    if (!_offsetList.contains(offset)) {
-      _offsetList.add(offset);
+    if (!_discountedOffsetList.contains(offset)) {
+      _discountedOffsetList.add(offset);
 
       ItemModel? itemModel = await itemServiceInterface.getDiscountedItemList(
         type: _discountedType,
@@ -639,9 +673,14 @@ class ItemController extends GetxController implements GetxService {
         _discountedItemList = [];
         if (firstTimeCategoryLoad) _categoryList = [];
       }
-      _discountedItemList!.addAll(itemModel.items!);
-      if (firstTimeCategoryLoad) _categoryList!.addAll(itemModel.categories!);
-      _pageSize = itemModel.totalSize;
+      // `items`/`categories` are absent on some endpoints — /items/discounted
+      // and /items/popular return only `data` + `pagination`, with no
+      // `categories` at all. Force-unwrapping threw here, and because the
+      // throw landed before `update()` the section never rebuilt: the list
+      // was populated but the UI sat on its shimmer forever.
+      _discountedItemList!.addAll(itemModel.items ?? <Item>[]);
+      if (firstTimeCategoryLoad) _categoryList!.addAll(itemModel.categories ?? <Categories>[]);
+      _discountedPageSize = itemModel.totalSize;
       _isLoading = false;
     }
     update();
@@ -1087,10 +1126,9 @@ class ItemController extends GetxController implements GetxService {
     BuildContext context, {
     bool inStore = false,
     bool isCampaign = false,
+    int? availableStock,
     // bool inNewDesign = true,
   }) {
-    // Only shop (ecommerce) items open the full details page; every other
-    // module shows the item in a bottom sheet (mobile) / dialog (desktop).
     if (item!.moduleType == AppConstants.ecommerce) {
       Get.toNamed(
         RouteHelper.getItemDetailsRoute(
@@ -1108,7 +1146,8 @@ class ItemController extends GetxController implements GetxService {
       );
     } else {
       if (ResponsiveHelper.isMobile(context)) {
-        if(Get.isBottomSheetOpen!) {
+        // Only the sheet being replaced — the open flag stays true under a pushed page.
+        if(Get.rawRoute is GetModalBottomSheetRoute) {
           Get.back();
         }
         Get.bottomSheet(
@@ -1117,6 +1156,7 @@ class ItemController extends GetxController implements GetxService {
             inStorePage: inStore,
             isCampaign: isCampaign,
             item: item,
+            availableStock: availableStock,
           ),
           backgroundColor: Colors.transparent,
           isScrollControlled: true,
@@ -1130,6 +1170,7 @@ class ItemController extends GetxController implements GetxService {
               inStorePage: inStore,
               isCampaign: isCampaign,
               item: item,
+              availableStock: availableStock,
             ),
           ),
         );
@@ -1142,6 +1183,7 @@ class ItemController extends GetxController implements GetxService {
     BuildContext context, {
     bool inStore = false,
     bool isCampaign = false,
+    int? availableStock,
   }) async {
     if (_isDirectlyAdding) return;
     _isDirectlyAdding = true;
@@ -1155,10 +1197,10 @@ class ItemController extends GetxController implements GetxService {
           (_item?.variations != null &&
               _item!.variations!.isEmpty &&
               _item?.moduleType != AppConstants.food)) {
-        await _doAddToCart(isCampaign);
+        await _doAddToCart(isCampaign, availableStock);
       } else {
         if (!context.mounted) return;
-        navigateToItemPage(_item, context, inStore: inStore, isCampaign: isCampaign);
+        navigateToItemPage(_item, context, inStore: inStore, isCampaign: isCampaign, availableStock: availableStock);
       }
     } catch (_) {
       // intentionally swallowed — callers rely on snackbars for error feedback
@@ -1168,7 +1210,7 @@ class ItemController extends GetxController implements GetxService {
     }
   }
 
-  Future<void> _doAddToCart(bool isCampaign) async {
+  Future<void> _doAddToCart(bool isCampaign, [int? availableStock]) async {
     final double price = _item!.price!;
     final int? storeId = _item?.storeId;
     final OnlineCart onlineCart = OnlineCart(
@@ -1185,7 +1227,9 @@ class ItemController extends GetxController implements GetxService {
       [],
       'Item',
     );
-    if (Get.find<SplashController>().configModel!.moduleConfig!.module!.stock! && _item!.stock! <= 0) {
+    final int stock = availableStock != null && availableStock < _item!.stock! ? availableStock : _item!.stock!;
+    final bool tracksStock = availableStock != null || Get.find<SplashController>().configModel!.moduleConfig!.module!.stock!;
+    if (tracksStock && stock <= 0) {
       showCustomSnackBar('out_of_stock'.tr);
     } else {
       bool success = await Get.find<CartController>().addToCartOnline(onlineCart, storeId: storeId);

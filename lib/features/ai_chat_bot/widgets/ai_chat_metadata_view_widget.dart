@@ -4,8 +4,14 @@ import 'package:sixam_mart/common/models/module_model.dart';
 import 'package:sixam_mart/common/widgets/custom_image.dart';
 import 'package:sixam_mart/common/widgets/custom_ink_well.dart';
 import 'package:sixam_mart/features/ai_chat_bot/domain/models/ai_chat_message_model.dart';
+import 'package:sixam_mart/features/bogo_offer/widgets/bogo_offer_item_card.dart';
+import 'package:sixam_mart/features/bundle/widgets/bundle_card_widget.dart';
 import 'package:sixam_mart/features/cart/screens/global_cart_screen.dart';
 import 'package:sixam_mart/features/category/domain/models/category_model.dart';
+import 'package:sixam_mart/features/happy_hour/controllers/happy_hour_controller.dart';
+import 'package:sixam_mart/features/happy_hour/domain/models/happy_hour_model.dart';
+import 'package:sixam_mart/features/happy_hour/screens/happy_hour_screen.dart';
+import 'package:sixam_mart/features/happy_hour/widgets/happy_hour_palette.dart';
 import 'package:sixam_mart/features/item/controllers/item_controller.dart';
 import 'package:sixam_mart/features/item/domain/models/item_model.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
@@ -31,7 +37,36 @@ void _navigateWithModuleGuard({required int? moduleId, required VoidCallback onP
   onProceed();
 }
 
+/// Opens the happy hour sheet for [happyHour], switching module first when it belongs
+/// to another one.
+///
+/// The sheet reads the running offer off [HappyHourController] rather than taking one,
+/// and that controller is only refreshed by the home load — so after a switch it still
+/// holds the previous module's offer, and the sheet would close itself on finding none.
+Future<void> _openHappyHour(BuildContext context, HappyHourModel happyHour) async {
+  final SplashController splash = Get.find<SplashController>();
+  final int? moduleId = happyHour.moduleId;
+
+  if (moduleId != null && splash.module?.id != moduleId) {
+    final ModuleModel? target = splash.moduleList?.firstWhereOrNull((ModuleModel m) => m.id == moduleId);
+    if (target != null) {
+      await splash.setModule(target);
+      await Get.find<HappyHourController>().getRunningHappyHour();
+    }
+  }
+
+  if (context.mounted) {
+    HappyHourScreen.show(context);
+  }
+}
+
 class AiChatMetadataViewWidget extends StatelessWidget {
+  static const double _happyHourCardWidth = 200;
+  static const double _happyHourCardHeight = 180;
+  static const double _bogoCardWidth = 200;
+  static const double _bogoCardHeight = 215;
+  static const double _bundleCardWidth = 168;
+
   final AiChatMetadata metadata;
   const AiChatMetadataViewWidget({super.key, required this.metadata});
 
@@ -96,6 +131,70 @@ class AiChatMetadataViewWidget extends StatelessWidget {
       ));
     }
 
+    if (metadata.hasHappyHours) {
+      sections.add(const SizedBox(height: Dimensions.paddingSizeSmall));
+      sections.add(_SectionTitle(title: 'happy_hour'.tr));
+      sections.add(SizedBox(
+        height: _happyHourCardHeight,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(
+            horizontal: Dimensions.paddingSizeExtraSmall,
+            vertical: Dimensions.paddingSizeExtraSmall,
+          ),
+          itemCount: metadata.happyHours!.length,
+          separatorBuilder: (_, _) => const SizedBox(width: Dimensions.paddingSizeSmall),
+          itemBuilder: (context, index) {
+            return _HappyHourCard(happyHour: metadata.happyHours![index], width: _happyHourCardWidth);
+          },
+        ),
+      ));
+    }
+
+    if (metadata.hasBogoOffers) {
+      sections.add(const SizedBox(height: Dimensions.paddingSizeSmall));
+      sections.add(_SectionTitle(title: 'bogo_offers'.tr));
+      sections.add(SizedBox(
+        height: _bogoCardHeight,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(
+            horizontal: Dimensions.paddingSizeExtraSmall,
+            vertical: Dimensions.paddingSizeExtraSmall,
+          ),
+          itemCount: metadata.bogoOffers!.length,
+          separatorBuilder: (_, _) => const SizedBox(width: Dimensions.paddingSizeSmall),
+          itemBuilder: (context, index) {
+            final AiChatBogoOffer bogoOffer = metadata.bogoOffers![index];
+            // The card's own width is unbounded — it is built for a full-width list —
+            // so the strip is what decides how wide a card is here.
+            return SizedBox(
+              width: _bogoCardWidth,
+              child: BogoOfferItemCard(offer: bogoOffer.offer, moduleId: bogoOffer.moduleId),
+            );
+          },
+        ),
+      ));
+    }
+
+    if (metadata.hasBundles) {
+      sections.add(const SizedBox(height: Dimensions.paddingSizeSmall));
+      sections.add(_SectionTitle(title: 'bundle_items'.tr));
+      sections.add(SizedBox(
+        // Asked of the card rather than guessed, the way the module home strip does it.
+        height: BundleCardWidget.heightOf(context, width: _bundleCardWidth),
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeExtraSmall),
+          itemCount: metadata.bundles!.length,
+          separatorBuilder: (_, _) => const SizedBox(width: Dimensions.paddingSizeSmall),
+          itemBuilder: (context, index) {
+            return BundleCardWidget(bundle: metadata.bundles![index], width: _bundleCardWidth);
+          },
+        ),
+      ));
+    }
+
     if (metadata.hasCart) {
       final AiChatCart cart = metadata.cart!;
       sections.add(const SizedBox(height: Dimensions.paddingSizeSmall));
@@ -110,6 +209,81 @@ class AiChatMetadataViewWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: sections,
+    );
+  }
+}
+
+class _HappyHourCard extends StatelessWidget {
+  final HappyHourModel happyHour;
+  final double width;
+  const _HappyHourCard({required this.happyHour, required this.width});
+
+  @override
+  Widget build(BuildContext context) {
+    final double discount = happyHour.discount ?? 0;
+    // Trailing `.0` off a whole percentage, the way the happy hour controller writes it.
+    final String discountLabel = discount % 1 == 0 ? discount.toStringAsFixed(0) : '$discount';
+    final int storeCount = happyHour.storeCount ?? 0;
+    // The cover is what the feature's own banners lead with; the icon is all a row
+    // carries when no cover was uploaded.
+    final String image = (happyHour.coverImageFullUrl ?? '').isNotEmpty
+        ? happyHour.coverImageFullUrl! : (happyHour.iconFullUrl ?? '');
+
+    return Container(
+      width: width,
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(Dimensions.radiusDefault),
+        border: Border.all(color: HappyHourPalette.accent.withValues(alpha: 0.35), width: 0.6),
+      ),
+      child: CustomInkWell(
+        radius: Dimensions.radiusDefault,
+        onTap: () => _openHappyHour(context, happyHour),
+        padding: const EdgeInsets.all(Dimensions.paddingSizeSmall),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+          ClipRRect(
+            borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+            child: CustomImage(image: image, height: 80, width: double.infinity, fit: BoxFit.cover),
+          ),
+          const SizedBox(height: Dimensions.paddingSizeSmall),
+
+          Text(
+            happyHour.title ?? '',
+            style: robotoMedium.copyWith(fontSize: Dimensions.fontSizeSmall),
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingSizeExtraSmall, vertical: 2),
+            decoration: BoxDecoration(
+              color: HappyHourPalette.cardBg,
+              borderRadius: BorderRadius.circular(Dimensions.radiusSmall),
+            ),
+            child: Text(
+              'percentage_off'.tr.replaceAll('{percentage}', discountLabel),
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: robotoMedium.copyWith(
+                fontSize: Dimensions.fontSizeExtraSmall, color: HappyHourPalette.accent,
+              ),
+            ),
+          ),
+
+          // Absent rather than "0 stores": a row with no count has nothing to promise.
+          if (storeCount > 0) ...[
+            const SizedBox(height: 4),
+            Text(
+              '$storeCount ${storeCount == 1 ? 'store'.tr : 'stores'.tr}',
+              style: robotoRegular.copyWith(
+                fontSize: Dimensions.fontSizeExtraSmall, color: Theme.of(context).hintColor,
+              ),
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+            ),
+          ],
+
+        ]),
+      ),
     );
   }
 }
@@ -610,6 +784,10 @@ class _AiChatStoreCard extends StatelessWidget {
     final int ratingCount = store.ratingCount ?? 0;
     final double distanceKm = store.distance ?? 0;
     final bool hasDistance = store.distance != null && store.distance! > 0;
+    // The API's label carries the platform's configured distance unit; the
+    // hardcoded "km" below is only the fallback for a backend without one.
+    final String distanceText = store.distanceLabel
+        ?? '${distanceKm > 100 ? '100+' : distanceKm.toStringAsFixed(2)} ${'km'.tr}';
     final bool freeDelivery = store.freeDelivery == true;
     final String deliveryTime = store.deliveryTime ?? '';
 
@@ -781,7 +959,7 @@ class _AiChatStoreCard extends StatelessWidget {
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
-                      '${distanceKm > 100 ? '100+' : distanceKm.toStringAsFixed(2)} ${'km'.tr}',
+                      distanceText,
                       style: robotoRegular.copyWith(
                         fontSize: Dimensions.fontSizeOverSmall,
                         color: Theme.of(context).hintColor,
@@ -818,3 +996,9 @@ class _AiChatStoreCard extends StatelessWidget {
     );
   }
 }
+
+// SUMMARY
+// Renders what an AI chat reply attached: strips of recommended products, categories,
+// stores, happy hours, BOGO offers and bundles, then the cart the bot just changed. Each
+// card opens its own detail page, activating the entity's module first when it differs
+// from the active one so the page loads under the right headers.

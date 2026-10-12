@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:sixam_mart/api/response_parser.dart';
 
 import 'package:get/get.dart';
 import 'package:sixam_mart/api/api_client.dart';
@@ -32,14 +33,14 @@ class ReelsRepository implements ReelsRepositoryInterface {
       case DataSourceEnum.local:
         final String? cachedResponse = await LocalClient.organize(DataSourceEnum.local, cacheId, null, null);
         if(cachedResponse != null && cachedResponse.isNotEmpty) {
-          return _parseReelListModel(jsonDecode(cachedResponse));
+          return _parseReelListModel(ResponseParser.payloadOf(jsonDecode(cachedResponse)));
         }
         return null;
 
       case DataSourceEnum.client:
         final Response response = await apiClient.getData(uri);
         if(response.statusCode == 200) {
-          await LocalClient.organize(DataSourceEnum.client, cacheId, jsonEncode(response.body), apiClient.getHeader());
+          await LocalClient.organize(DataSourceEnum.client, cacheId, response.bodyString ?? '', apiClient.getHeader());
           return _parseReelListModel(response.body);
         }
         return null;

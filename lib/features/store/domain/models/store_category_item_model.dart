@@ -1,4 +1,18 @@
+import 'package:sixam_mart/api/response_parser.dart';
+import 'package:sixam_mart/common/models/pagination_model.dart';
+import 'dart:convert';
+
 import 'package:sixam_mart/features/item/domain/models/item_model.dart' show Item;
+
+/// Isolate entry point for `JsonParseHelper.parse`. Must stay top-level and pure
+/// — the whole parse chain below ([StoreCategoryItemModel], [StoreItemCategory],
+/// [StoreCardItem]) touches no GetX container, no plugins, and no `BuildContext`.
+/// The envelope is unwrapped here rather than in `ApiClient`: `rawBody: true`
+/// skips decoding, so it also skips the central unwrap.
+StoreCategoryItemModel storeCategoryItemModelFromRawJson(String rawJson) =>
+    StoreCategoryItemModel.fromJson(
+      ResponseParser.payloadOf(jsonDecode(rawJson)) as Map<String, dynamic>,
+    );
 
 /// Lightweight model for the store detail screen's category-grouped item list.
 ///
@@ -39,9 +53,9 @@ class StoreCategoryItemModel {
     }
 
     return StoreCategoryItemModel(
-      totalSize: json['total_size'] as int?,
-      limit: json['limit'] as int?,
-      offset: json['offset'] as int?,
+      totalSize: PaginationModel.fromJson(json).totalSize,
+      limit: PaginationModel.fromJson(json).limit,
+      offset: PaginationModel.fromJson(json).offset,
       categorySource: json['category_source'] as String?,
       categories: json['categories'] is List
           ? (json['categories'] as List).map((i) => StoreItemCategory.fromJson(i as Map<String, dynamic>)).toList()

@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer_animation/shimmer_animation.dart';
@@ -86,7 +85,6 @@ class WalletHistoryWidget extends StatelessWidget {
             ]),
           ),
           walletController.transactionList != null ? walletController.transactionList!.isNotEmpty ? ListView.builder(
-            key: UniqueKey(),
             physics: const NeverScrollableScrollPhysics(),
             shrinkWrap: true,
             itemCount: walletController.transactionList!.length,
@@ -116,7 +114,6 @@ class WalletShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
-      key: UniqueKey(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisSpacing: 50,
         mainAxisSpacing: ResponsiveHelper.isDesktop(context) ? Dimensions.paddingSizeLarge : 0.01,

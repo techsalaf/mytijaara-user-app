@@ -333,6 +333,7 @@ class _TopCategoryItem extends StatelessWidget {
             child: CustomImage(
               image: category.imageFullUrl ?? '',
               width: 64, height: 64, fit: BoxFit.cover,
+              cacheWidth: ImageCacheHelper.pixels(context, 64),
             ),
           ),
           const SizedBox(height: Dimensions.paddingSizeExtraSmall),

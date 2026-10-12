@@ -109,12 +109,9 @@ class _AddressBottomSheetState extends State<AddressBottomSheet> {
 
                               checkoutController.insertAddresses(address, notify: true);
 
-                              checkoutController.getDistanceInKM(
-                                LatLng(
-                                  double.parse(address.latitude!),
-                                  double.parse(address.longitude!),
-                                ),
-                                LatLng(double.parse(checkoutController.store!.latitude!), double.parse(checkoutController.store!.longitude!)),
+                              _updateDistanceToStore(
+                                checkoutController,
+                                LatLng(double.parse(address.latitude!), double.parse(address.longitude!)),
                               );
                             },
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -165,9 +162,9 @@ class _AddressBottomSheetState extends State<AddressBottomSheet> {
                           if(addressModel.zoneIds!.isNotEmpty) {
                             checkoutController.insertAddresses(addressModel, notify: true);
 
-                            checkoutController.getDistanceInKM(
+                            _updateDistanceToStore(
+                              checkoutController,
                               LatLng(locationController.position.latitude, locationController.position.longitude),
-                              LatLng(double.parse(checkoutController.store!.latitude!), double.parse(checkoutController.store!.longitude!)),
                             );
 
                             Get.back();
@@ -205,9 +202,9 @@ class _AddressBottomSheetState extends State<AddressBottomSheet> {
 
                           checkoutController.insertAddresses(address, notify: true);
 
-                          checkoutController.getDistanceInKM(
-                            LatLng(double.parse(address.latitude), double.parse(address.longitude )),
-                            LatLng(double.parse(checkoutController.store!.latitude!), double.parse(checkoutController.store!.longitude!)),
+                          _updateDistanceToStore(
+                            checkoutController,
+                            LatLng(double.parse(address.latitude), double.parse(address.longitude)),
                           );
                         }
                       },
@@ -246,4 +243,20 @@ class _AddressBottomSheetState extends State<AddressBottomSheet> {
     }
   }
 
+}
+
+/// Recalculates the delivery distance for a newly picked address.
+///
+/// `stores/details` stopped sending the store's coordinates, so
+/// `double.parse(store.latitude!)` threw the moment an address was tapped here.
+/// With no store location there is no distance to recompute — the charge the
+/// checkout already holds stands, exactly as it does when the store sits
+/// outside a mapped zone.
+void _updateDistanceToStore(CheckoutController checkoutController, LatLng from) {
+  final double? storeLat = double.tryParse(checkoutController.store?.latitude ?? '');
+  final double? storeLng = double.tryParse(checkoutController.store?.longitude ?? '');
+  if (storeLat == null || storeLng == null) {
+    return;
+  }
+  checkoutController.getDistanceInKM(from, LatLng(storeLat, storeLng));
 }

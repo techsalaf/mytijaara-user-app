@@ -9,8 +9,8 @@ class ReviewService implements ReviewServiceInterface {
   ReviewService({required this.reviewRepositoryInterface});
 
   @override
-  Future<List<ReviewModel>?> getStoreReviewList(String? storeID) async {
-    return await reviewRepositoryInterface.getList(storeID: storeID);
+  Future<StoreReviewModel?> getStoreReviewList(String? storeID, {int? offset}) async {
+    return await reviewRepositoryInterface.getList(storeID: storeID, offset: offset);
   }
 
 

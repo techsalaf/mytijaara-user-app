@@ -3,20 +3,27 @@ import 'package:get/get.dart';
 import 'package:sixam_mart/util/dimensions.dart';
 import 'package:sixam_mart/util/styles.dart';
 
+String? _pendingMessage;
+
 /// Modern floating snackbar (replaces the old Fluttertoast). Same signature as
 /// before so every existing call site keeps working — `getXSnackBar` is accepted
 /// for compatibility but no longer changes behaviour.
 void showCustomSnackBar(String? message, {bool isError = true, bool getXSnackBar = false, int? showDuration, double? bottomMargin, String? actionLabel, VoidCallback? onAction}) {
   if (message == null || message.isEmpty) return;
 
-  // Replace any visible/queued snackbar so messages don't stack up.
-  if (Get.isSnackbarOpen) {
-    Get.closeAllSnackbars();
-  }
+  // Closing a visible snackbar finishes asynchronously and cancelled whatever was
+  // shown in the same turn, so this queues behind it and drops only a repeat.
+  if (message == _pendingMessage) return;
+  _pendingMessage = message;
 
   final Color background = isError ? const Color(0xFFD32F2F) : const Color(0xFF039D55);
 
   Get.showSnackbar(GetSnackBar(
+    snackbarStatus: (SnackbarStatus? status) {
+      if (status == SnackbarStatus.CLOSED && _pendingMessage == message) {
+        _pendingMessage = null;
+      }
+    },
     snackPosition: SnackPosition.BOTTOM,
     backgroundColor: background,
     borderRadius: Dimensions.radiusDefault,

@@ -1,3 +1,4 @@
+import 'package:sixam_mart/api/response_parser.dart';
 
 class WhyChooseModel {
   String? whyChooseUrl;
@@ -13,11 +14,15 @@ class WhyChooseModel {
   WhyChooseModel.fromJson(Map<String, dynamic> json) {
     whyChooseUrl = json['why_choose_url'];
     whyChooses3Url = json['why_choose_s3_url'];
-    if (json['banners'] != null) {
+    // `/other-banners/why-choose` returns the entries under `data` now; `banners`
+    // was the legacy key. The entry fields (title, short_description,
+    // image_full_url) are unchanged.
+    final List<dynamic>? entries = ResponseParser.listOf(json, legacyKey: 'banners');
+    if (entries != null) {
       banners = <Banners>[];
-      json['banners'].forEach((v) {
+      for (final dynamic v in entries) {
         banners!.add(Banners.fromJson(v));
-      });
+      }
     }
   }
 

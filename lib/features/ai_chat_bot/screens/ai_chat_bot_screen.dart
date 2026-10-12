@@ -75,8 +75,8 @@ class _AiChatBotScreenState extends State<AiChatBotScreen> {
 
   @override
   void dispose() {
-    super.dispose();
     _scrollController.dispose();
+    super.dispose();
   }
 
   @override

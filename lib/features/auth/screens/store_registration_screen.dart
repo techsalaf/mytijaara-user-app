@@ -131,6 +131,26 @@ class _StoreRegistrationScreenState extends State<StoreRegistrationScreen> with 
   }
 
   @override
+  void dispose() {
+    _tinNumberController.dispose();
+    _fNameController.dispose();
+    _lNameController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _fNameFocus.dispose();
+    _lNameFocus.dispose();
+    _phoneFocus.dispose();
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
+    _confirmPasswordFocus.dispose();
+    _scrollController.dispose();
+    _tabController?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
 
     bool isDesktop = ResponsiveHelper.isDesktop(context);

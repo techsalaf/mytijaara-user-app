@@ -11,8 +11,12 @@ import 'package:sixam_mart/features/checkout/domain/models/place_order_body_mode
 import 'package:sixam_mart/features/home/screens/home_screen.dart';
 import 'package:sixam_mart/features/item/controllers/item_controller.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
+import 'package:sixam_mart/api/api_checker.dart';
+import 'package:sixam_mart/api/api_client.dart';
+import 'package:sixam_mart/common/widgets/custom_snackbar.dart';
 import 'package:sixam_mart/helper/auth_helper.dart';
 import 'package:sixam_mart/helper/date_converter.dart';
+import 'package:sixam_mart/helper/bundle_amount_helper.dart';
 import 'package:sixam_mart/helper/module_helper.dart';
 import 'package:sixam_mart/helper/price_converter.dart';
 
@@ -32,6 +36,17 @@ class CartController extends GetxController implements GetxService {
 
   double _itemDiscountPrice = 0;
   double get itemDiscountPrice => _itemDiscountPrice;
+
+  double _bundleDiscount = 0;
+
+  /// What the bundle rows save against their members' own prices, inside
+  /// [itemDiscountPrice] and reported separately.
+  ///
+  /// The cart's discount row is replaced wholesale by the server's eligibility figure
+  /// where there is one, and that figure prices the store's own discount on items — a
+  /// bundle's saving is never in it. So the row adds this on top rather than letting
+  /// the server's answer swallow it.
+  double get bundleDiscount => _bundleDiscount;
 
   double _addOns = 0;
   double get addOns => _addOns;
@@ -133,17 +148,79 @@ class CartController extends GetxController implements GetxService {
     }
   }
 
+  /// The first cart row that carries an item. A bundle row — BOGO or product —
+  /// has none, so it can never stand in for the cart's store, module or pricing
+  /// context.
+  CartModel? get firstItemCart {
+    for(final CartModel cart in _cartList) {
+      if(!cart.isAtomicBundle && cart.item != null) {
+        return cart;
+      }
+    }
+    return null;
+  }
+
+  Item? get firstCartItem => firstItemCart?.item;
+
+  /// The store the cart belongs to, falling back to a bundle row when the cart holds
+  /// nothing but bundles.
+  int? get cartStoreId {
+    final int? id = firstCartItem?.storeId;
+    if(id != null) {
+      return id;
+    }
+    for(final CartModel cart in _cartList) {
+      if(cart.isAtomicBundle && cart.storeId != null) {
+        return cart.storeId;
+      }
+    }
+    return null;
+  }
+
+  int? get cartModuleId => firstCartItem?.moduleId ?? ModuleHelper.getModule()?.id ?? ModuleHelper.getCacheModule()?.id;
+
+  String? get cartModuleType => firstCartItem?.moduleType ?? ModuleHelper.getModule()?.moduleType ?? ModuleHelper.getCacheModule()?.moduleType;
+
   double calculationCart() {
     _addOnsList = [];
     _availableList = [];
     _itemPrice = 0;
     _itemDiscountPrice = 0;
+    _bundleDiscount = 0;
     _addOns = 0;
     _variationPrice = 0;
     bool isFoodVariation = false;
     double variationWithoutDiscountPrice = 0;
     bool haveVariation = false;
     for (var cartModel in cartList) {
+
+      if(cartModel.isBogoBundle) {
+        _addOnsList.add(<AddOns>[]);
+        _availableList.add(cartModel.bogoDetails!.isAvailable);
+        _itemPrice = _itemPrice + cartModel.bogoDetails!.totalPrice;
+        if(cartModel.bogoDetails!.isHappyHour) {
+          _itemDiscountPrice = _itemDiscountPrice + cartModel.bogoDetails!.totalDiscountAmount;
+        }
+        continue;
+      }
+
+      if(cartModel.isBundle) {
+        _addOnsList.add(<AddOns>[]);
+        final BundleCartDetails bundleDetails = cartModel.bundleDetails!;
+        _availableList.add(bundleDetails.isAvailable);
+        // Billed at the bundle price, but broken out as the members' own total less what
+        // the bundle saves: charging the net against "item price" left the discount row
+        // reading zero on a bundle that plainly discounts.
+        final double saving = BundleAmountHelper.savingOf(bundleDetails);
+        if(saving > 0) {
+          _itemPrice = _itemPrice + bundleDetails.totalBasePrice;
+          _itemDiscountPrice = _itemDiscountPrice + saving;
+          _bundleDiscount = _bundleDiscount + saving;
+        } else {
+          _itemPrice = _itemPrice + bundleDetails.totalFinalPrice;
+        }
+        continue;
+      }
 
       isFoodVariation = ModuleHelper.getModuleConfig(cartModel.item!.moduleType).newVariation!;
       double? discount = cartModel.item!.discount;
@@ -192,6 +269,19 @@ class CartController extends GetxController implements GetxService {
     bool haveVariation = false;
     for (var cartModel in cartList) {
 
+      // See calculationCart(): a BOGO bundle row contributes its own server-sent total.
+      if(cartModel.isBundle) {
+        itemPrice = itemPrice + cartModel.bundleDetails!.totalFinalPrice;
+        continue;
+      }
+      if(cartModel.isBogoBundle) {
+        itemPrice = itemPrice + cartModel.bogoDetails!.totalPrice;
+        if(cartModel.bogoDetails!.isHappyHour) {
+          itemDiscountPrice = itemDiscountPrice + cartModel.bogoDetails!.totalDiscountAmount;
+        }
+        continue;
+      }
+
       isFoodVariation = ModuleHelper.getModuleConfig(cartModel.item!.moduleType).newVariation!;
       double? discount = cartModel.item!.discount;
       String? discountType = cartModel.item!.discountType;
@@ -225,8 +315,46 @@ class CartController extends GetxController implements GetxService {
     return subTotal;
   }
 
+  /// Per-store rows read back through `cart/list`, keyed by store id.
+  ///
+  /// `cart/get-all` returns a bundle's members as separate rows with no `bogo_details`,
+  /// while `cart/list?store_id=` folds them into the single bundle row the cart screen
+  /// renders from. Without this the global cart shows a bundle as loose items summed at
+  /// full price — no offer, no free half.
+  final Map<int, List<CartModel>> _foldedCartsByStore = <int, List<CartModel>>{};
+
   List<CartModel> localCartsOfGroup(AllCartsModel group) {
+    final int? storeId = group.store?.id;
+    final List<CartModel>? folded = storeId != null ? _foldedCartsByStore[storeId] : null;
+    if(folded != null) {
+      return folded;
+    }
     return cartServiceInterface.formatOnlineCartToLocalCart(onlineCartModel: group.onlineCarts ?? <OnlineCartModel>[]);
+  }
+
+  /// Re-reads every group through `cart/list` so bundles arrive folded. One request per
+  /// store, issued together, and abandoned if a newer getAllCarts() supersedes it.
+  Future<void> _foldGroupBundles(List<AllCartsModel> groups, int generation) async {
+    final List<AllCartsModel> storeGroups = groups.where((AllCartsModel g) => g.store?.id != null).toList();
+    if(storeGroups.isEmpty) {
+      return;
+    }
+
+    final List<List<OnlineCartModel>?> results = await Future.wait(
+      storeGroups.map((AllCartsModel g) => cartServiceInterface.getCartDataOnline(storeId: g.store!.id)),
+    );
+    if(generation != _allCartsGeneration) {
+      return;
+    }
+
+    for(int i = 0; i < storeGroups.length; i++) {
+      final List<OnlineCartModel>? rows = results[i];
+      if(rows == null) {
+        continue;
+      }
+      _foldedCartsByStore[storeGroups[i].store!.id!] =
+          cartServiceInterface.formatOnlineCartToLocalCart(onlineCartModel: rows);
+    }
   }
 
   Future<void> addToCart(CartModel cartModel, int? index) async {
@@ -266,7 +394,7 @@ class CartController extends GetxController implements GetxService {
      await Get.find<ItemController>().setExistInCart(_cartList[cartIndex].item, null, notify: true);
     }
 
-    await updateCartQuantityOnline(_cartList[cartIndex].id!, discountedPrice, _cartList[cartIndex].quantity!,
+    await updateCartQuantityOnline(_cartList[cartIndex], discountedPrice, _cartList[cartIndex].quantity!,
       storeId: _cartList[cartIndex].item?.storeId);
 
   }
@@ -310,7 +438,7 @@ class CartController extends GetxController implements GetxService {
     if (newVariation) {
       await Get.find<ItemController>().setExistInCart(cart.item, null, notify: true);
     }
-    await updateCartQuantityOnline(cartId, discountedPrice, cart.quantity!, storeId: cart.item?.storeId);
+    await updateCartQuantityOnline(cart, discountedPrice, cart.quantity!, storeId: cart.item?.storeId);
   }
 
   Future<void> removeFromCart(int index, {Item? item}) async {
@@ -402,10 +530,10 @@ class CartController extends GetxController implements GetxService {
     return success;
   }
 
-  Future<void> updateCartQuantityOnline(int cartId, double price, int quantity, {int? storeId}) async {
+  Future<void> updateCartQuantityOnline(CartModel cart, double price, int quantity, {int? storeId}) async {
     _isLoading = true;
     update();
-    bool success = await cartServiceInterface.updateCartQuantityOnline(cartId, price, quantity, storeId: storeId);
+    bool success = await cartServiceInterface.updateCartQuantityOnline(cart, price, quantity, storeId: storeId);
     // Resync with the server whether the update succeeded or not: on success to
     // reflect the saved state, on failure (e.g. out of stock, or any other
     // rejection) to roll the optimistic local quantity back to the real cart
@@ -492,6 +620,7 @@ class CartController extends GetxController implements GetxService {
 
   Future<void> getAllCarts({bool notify = true}) async {
     final int generation = ++_allCartsGeneration;
+    _foldedCartsByStore.clear();
     _isAllCartsLoading = true;
     _isLoading = true;
     if(notify) {
@@ -500,22 +629,25 @@ class CartController extends GetxController implements GetxService {
     final List<AllCartsModel>? result = await cartServiceInterface.getAllCarts();
     // A newer getAllCarts() call was made while this one was in flight — discard
     // this response so it cannot overwrite fresher data with stale results.
+    //
+    // The loading flags are deliberately left alone on this path: the newer call
+    // set them and owns clearing them. Clearing here would drop the spinner while
+    // that call is still running.
     if(generation != _allCartsGeneration) return;
     _allCartsGroups = result;
+
+    // Folded before _cartList is built: get-all returns a bundle as its member rows, so
+    // building from those turns a bundle back into loose items on every refresh.
+    if(_allCartsGroups != null) {
+      await _foldGroupBundles(_allCartsGroups!, generation);
+      if(generation != _allCartsGeneration) {
+        return;
+      }
+    }
+
     if(_allCartsGroups != null) {
       final int? currentModuleId = ModuleHelper.getModule()?.id ?? ModuleHelper.getCacheModule()?.id;
       if(currentModuleId != null) {
-        final List<OnlineCartModel> flat = <OnlineCartModel>[];
-        for(AllCartsModel group in _allCartsGroups!) {
-          for(OnlineCartModel om in (group.onlineCarts ?? <OnlineCartModel>[])) {
-            if(om.moduleId == currentModuleId) {
-              // Scope to the active cart screen store when one is open; otherwise include all.
-              if(_activeCartScreenStoreId == null || group.store?.id == _activeCartScreenStoreId) {
-                flat.add(om);
-              }
-            }
-          }
-        }
         // Snapshot optimistic quantities of carts still awaiting a debounced
         // sync so this refresh doesn't snap their numbers back to the (older)
         // server value while the user is still tapping.
@@ -525,8 +657,24 @@ class CartController extends GetxController implements GetxService {
             pendingQuantities[c.id!] = c.quantity!;
           }
         }
-        _cartList = [];
-        _cartList = cartServiceInterface.formatOnlineCartToLocalCart(onlineCartModel: flat);
+
+        final List<CartModel> rebuilt = <CartModel>[];
+        for(AllCartsModel group in _allCartsGroups!) {
+          final int? groupStoreId = group.store?.id;
+          // Scope to the active cart screen store when one is open; otherwise include all.
+          if(_activeCartScreenStoreId != null && groupStoreId != _activeCartScreenStoreId) {
+            continue;
+          }
+          final List<OnlineCartModel> rows = (group.onlineCarts ?? <OnlineCartModel>[])
+              .where((OnlineCartModel om) => om.moduleId == currentModuleId).toList();
+          if(rows.isEmpty) {
+            continue;
+          }
+          final List<CartModel>? folded = groupStoreId != null ? _foldedCartsByStore[groupStoreId] : null;
+          rebuilt.addAll(folded ?? cartServiceInterface.formatOnlineCartToLocalCart(onlineCartModel: rows));
+        }
+
+        _cartList = rebuilt;
         if (pendingQuantities.isNotEmpty) {
           for (final CartModel c in _cartList) {
             final int? pendingQty = c.id != null ? pendingQuantities[c.id] : null;
@@ -536,6 +684,7 @@ class CartController extends GetxController implements GetxService {
         calculationCart();
       }
     }
+
     _isAllCartsLoading = false;
     _isLoading = false;
     update();
@@ -556,9 +705,12 @@ class CartController extends GetxController implements GetxService {
     if(moduleId == null || _allCartsGroups == null) {
       return <AllCartsModel>[];
     }
+    // Filter on onlineCarts' moduleId (parsed straight from the row's top-level
+    // module_id), not carts' item.moduleId: a bundle row has no item, so that
+    // field is always null for it and would wrongly drop the whole group.
     return _allCartsGroups!.where((AllCartsModel group) {
-      final List<CartModel> carts = group.carts ?? <CartModel>[];
-      return carts.any((CartModel c) => c.item?.moduleId == moduleId);
+      final List<OnlineCartModel> onlineCarts = group.onlineCarts ?? <OnlineCartModel>[];
+      return onlineCarts.any((OnlineCartModel om) => om.moduleId == moduleId);
     }).toList();
   }
 
@@ -566,10 +718,223 @@ class CartController extends GetxController implements GetxService {
     bool success = await cartServiceInterface.removeStoreCart(storeId);
     if(success) {
       _allCartsGroups?.removeWhere((AllCartsModel g) => g.store?.id == storeId);
-      _cartList.removeWhere((CartModel c) => c.item?.storeId == storeId);
+      // Bundle and BOGO rows carry no item, so their store lives on the row itself.
+      _cartList.removeWhere((CartModel c) => c.storeId == storeId);
       update();
     }
     return success;
   }
 
+
+  /// `POST /customer/cart/bogo/add`. Unlike an ordinary item add the response wraps
+  /// the cart array under `data` rather than returning it directly.
+  Future<bool> addBogoToCartOnline(int bogoId, int quantity, {String? contactPersonNumber, int? moduleId}) async {
+    _isLoading = true;
+    update();
+    try {
+      Response response = await cartServiceInterface.addBogoToCartOnline(
+        bogoId, quantity, AuthHelper.isLoggedIn() ? null : AuthHelper.getGuestId(), contactPersonNumber: contactPersonNumber,
+        moduleId: moduleId,
+      );
+
+      final bool isSuccess = ApiClient.isSuccessCode(response.statusCode);
+      if(isSuccess) {
+        await getAllCarts(notify: false);
+      } else {
+        ApiChecker.checkApi(response);
+      }
+      return isSuccess;
+    } finally {
+      _isLoading = false;
+      update();
+    }
+  }
+
+  /// `POST /customer/cart/bogo/update` — the group is rewritten
+  /// atomically from the enrolment, so no `cart_id`/price is sent, just the new bundle count.
+  /// The server is the source of truth for how many bundles are allowed — a whole-offer cap,
+  /// a per-customer cap, or stock on the enrolled items — so `+` always asks it rather than
+  /// guessing a limit client-side; a refusal surfaces the server's own reason.
+  Future<void> updateBogoBundleQuantity(bool isIncrement, CartModel cart, {required int storeId}) async {
+    if(!cart.isBogoBundle) return;
+    await setBogoBundleQuantity(cart, (cart.quantity ?? 1) + (isIncrement ? 1 : -1), storeId: storeId);
+  }
+
+  /// The row a bundle already sits on, so a details sheet can tell an add from an update.
+  /// Bundles are grouped per store, and the offer's own store narrows the search
+  /// when the caller knows it.
+  CartModel? findBogoBundleInCart(int? bundleId, {int? storeId}) {
+    if(bundleId == null) {
+      return null;
+    }
+    for(final AllCartsModel group in _allCartsGroups ?? const <AllCartsModel>[]) {
+      final int? groupStoreId = group.store?.id;
+      if(storeId != null && groupStoreId != storeId) {
+        continue;
+      }
+      // The folded rows, not group.carts: get-all returns a bundle as its member rows
+      // with no bogo_details, so searching those never matched and the offer sheet
+      // offered "Add to cart" for a bundle already in the cart — adding a second group.
+      final List<CartModel> rows = (groupStoreId != null ? _foldedCartsByStore[groupStoreId] : null)
+          ?? group.carts ?? const <CartModel>[];
+      for(final CartModel cart in rows) {
+        if(cart.isBogoBundle && cart.bogoDetails?.bundleId == bundleId) {
+          return cart;
+        }
+      }
+    }
+    return null;
+  }
+
+  /// The endpoint takes the new bundle count outright, so a quantity picked in one go —
+  /// the details sheet — costs one call rather than one per step.
+  Future<bool> setBogoBundleQuantity(CartModel cart, int quantity, {required int storeId, int? moduleId}) async {
+    if(_isLoading || !cart.isBogoBundle || quantity < 1) return false;
+
+    _isLoading = true;
+    update();
+    try {
+      Response response = await cartServiceInterface.updateBogoBundleQuantityOnline(
+        cart.bogoDetails!.bogoGroupId, quantity, AuthHelper.isLoggedIn() ? null : AuthHelper.getGuestId(),
+        moduleId: moduleId,
+      );
+      final bool isSuccess = ApiClient.isSuccessCode(response.statusCode);
+      if(isSuccess) {
+        await getAllCarts(notify: false);
+      } else {
+        ApiChecker.checkApi(response);
+      }
+      return isSuccess;
+    } finally {
+      _isLoading = false;
+      update();
+    }
+  }
+
+  /// `POST /customer/cart/bundle/add`. The response wraps the cart array under
+  /// `data`, the same way the BOGO add does.
+  ///
+  /// A refusal is **403** with `errors[].code` of `bundle`, and the message is the
+  /// bundle's own `unavailable_reason` — it names the member at fault, so it is
+  /// shown rather than a generic failure.
+  Future<bool> addBundleToCart(int bundleId, int quantity) async {
+    _isLoading = true;
+    update();
+    try {
+      Response response = await cartServiceInterface.addBundleToCartOnline(
+        bundleId, quantity, AuthHelper.isLoggedIn() ? null : AuthHelper.getGuestId(),
+      );
+
+      final bool isSuccess = ApiClient.isSuccessCode(response.statusCode);
+      if(isSuccess) {
+        await getAllCarts(notify: false);
+      } else {
+        ApiChecker.checkApi(response);
+      }
+      return isSuccess;
+    } finally {
+      _isLoading = false;
+      update();
+    }
+  }
+
+  /// The entry a bundle already sits on, so a details sheet can tell an add from
+  /// an update. A second add of the same bundle would create a *second* group
+  /// with its own id, which is what this exists to avoid.
+  CartModel? findBundleInCart(int? bundleId, {int? storeId}) {
+    if(bundleId == null) {
+      return null;
+    }
+    for(final AllCartsModel group in _allCartsGroups ?? const <AllCartsModel>[]) {
+      final int? groupStoreId = group.store?.id;
+      if(storeId != null && groupStoreId != storeId) {
+        continue;
+      }
+      // The folded rows, not group.carts: get-all returns a bundle as its member
+      // rows with no bundle_details, so searching those never matches.
+      final List<CartModel> rows = (groupStoreId != null ? _foldedCartsByStore[groupStoreId] : null)
+          ?? group.carts ?? const <CartModel>[];
+      for(final CartModel cart in rows) {
+        if(cart.isBundle && cart.bundleDetails?.bundleId == bundleId) {
+          return cart;
+        }
+      }
+    }
+    return null;
+  }
+
+  /// `POST /customer/cart/bundle/update` — changes how many copies the cart
+  /// holds, the only thing about a bundle that is editable.
+  Future<void> updateBundleQuantity(bool isIncrement, CartModel cart) async {
+    if(!cart.isBundle) return;
+    await setBundleQuantity(cart, (cart.quantity ?? 1) + (isIncrement ? 1 : -1));
+  }
+
+  /// The endpoint takes the new copy count outright, so a quantity picked in one
+  /// go — the details sheet — costs one call rather than one per step.
+  ///
+  /// The server decides what is allowed: a member out of stock or outside its
+  /// serving hours can refuse a higher quantity even when the bundle lists as
+  /// available, so `+` always asks rather than guessing a cap client-side.
+  Future<bool> setBundleQuantity(CartModel cart, int quantity) async {
+    if(_isLoading || !cart.isBundle || quantity < 1) return false;
+
+    _isLoading = true;
+    update();
+    try {
+      Response response = await cartServiceInterface.updateBundleQuantityOnline(
+        cart.bundleDetails!.bundleGroupId, quantity, AuthHelper.isLoggedIn() ? null : AuthHelper.getGuestId(),
+      );
+      final bool isSuccess = ApiClient.isSuccessCode(response.statusCode);
+      if(isSuccess) {
+        await getAllCarts(notify: false);
+      } else {
+        ApiChecker.checkApi(response);
+      }
+      return isSuccess;
+    } finally {
+      _isLoading = false;
+      update();
+    }
+  }
+
+  /// `DELETE /customer/cart/bundle/remove` — removes every row in the group.
+  /// Individual members are never removable.
+  Future<void> removeBundle(CartModel cart) async {
+    if(_isLoading || !cart.isBundle) return;
+
+    _isLoading = true;
+    update();
+    try {
+      await cartServiceInterface.removeBundleItemOnline(
+        cart.bundleDetails!.bundleGroupId, AuthHelper.isLoggedIn() ? null : AuthHelper.getGuestId(),
+      );
+      await getAllCarts(notify: false);
+    } finally {
+      _isLoading = false;
+      update();
+    }
+  }
+
+  /// Bundle mode of `/customer/cart/remove-item` — removes every row in the group at once.
+  Future<void> removeBogoBundle(CartModel cart, {required int storeId}) async {
+    if(_isLoading || !cart.isBogoBundle) return;
+
+    _isLoading = true;
+    update();
+    try {
+      await cartServiceInterface.removeBogoBundleItemOnline(
+        cart.bogoDetails!.bogoGroupId, AuthHelper.isLoggedIn() ? null : AuthHelper.getGuestId(), storeId: storeId,
+      );
+      await getAllCarts(notify: false);
+    } finally {
+      _isLoading = false;
+      update();
+    }
+  }
 }
+
+// SUMMARY
+// Holds the customer's cart for the active store: regular items, BOGO bundles and product
+// bundles, their prices and totals, and the add, update, remove and clear calls that keep them
+// in step with the server.
