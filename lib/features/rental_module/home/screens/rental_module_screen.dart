@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 class RentalModuleScreen extends StatefulWidget {
+  static const double pinnedHeaderHeight = 70.0;
   final Key searchHeaderKey;
   final Key exploreRestaurantKey;
   const RentalModuleScreen({super.key, required this.searchHeaderKey, required this.exploreRestaurantKey});
