@@ -1,7 +1,7 @@
 import 'package:get/get.dart';
-import 'package:sixam_mart/features/rental_module/common/models/trip_details_model.dart';
 import 'package:sixam_mart/features/rental_module/common/models/trip_model.dart';
 import 'package:sixam_mart/features/rental_module/rental_order/domain/services/taxi_order_service_interface.dart';
+import 'package:sixam_mart/features/rental_module/common/models/trip_details_model.dart';
 
 class TaxiOrderController extends GetxController implements GetxService {
   final TaxiOrderServiceInterface taxiOrderServiceInterface;
@@ -34,12 +34,13 @@ class TaxiOrderController extends GetxController implements GetxService {
   }
 
   Future<bool> cancelTrip({required int id}) async {
-    return await deleteTrip(id);
+    return false;
+  }
+
+  void refreshRunningOrders() {
   }
 
   Future<bool> retryTripPayment({required int tripId, required String paymentMethod, String? gatewayName}) async {
     return false;
   }
-
-  void refreshRunningOrders() {}
 }

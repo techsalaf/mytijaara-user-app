@@ -3058,5 +3058,6 @@
   "mile": "ميل",
   "use_your_registered_phone_number_to_get_otp": "استخدم رقم هاتفك المسجل للحصول على رمز التحقق",
   "restaurant_discount_applied": "تم تطبيق خصم المطعم",
-  "bundle_discount_applied": "تم تطبيق خصم الباقة"
+  "bundle_discount_applied": "تم تطبيق خصم الباقة",
+  "facebook_login_could_not_be_completed": "تعذر تسجيل دخولك باستخدام فيسبوك. يرجى تجربة طريقة تسجيل دخول أخرى."
 }

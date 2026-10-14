@@ -67,3 +67,7 @@ app.*.map.json
 *.jks
 *.keystore
 key.properties
+
+# Build artifacts
+*.apk
+*.aab

@@ -95,6 +95,8 @@
     <string>This app uses speech recognition to convert your voice commands into text.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>This app requires microphone access to record your voice for speech recognition.</string>
+    <key>NSUserTrackingUsageDescription</key>
+    <string>This lets you sign in with your Facebook account. Facebook may link your activity in this app with data from other apps and websites.</string>
     <key>UIApplicationSceneManifest</key>
         <dict>
             <key>UIApplicationSupportsMultipleScenes</key>

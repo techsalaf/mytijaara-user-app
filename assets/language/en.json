@@ -3051,5 +3051,6 @@
   "mile": "mile",
   "use_your_registered_phone_number_to_get_otp": "Use your registered phone number to get OTP",
   "restaurant_discount_applied": "Restaurant discount applied",
-  "bundle_discount_applied": "Bundle discount applied"
+  "bundle_discount_applied": "Bundle discount applied",
+  "facebook_login_could_not_be_completed": "We couldn't sign you in with Facebook. Please try another sign-in method."
 }

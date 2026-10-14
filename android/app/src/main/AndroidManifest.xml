@@ -46,6 +46,7 @@
         android:label="MyTijaara"
         android:name="${applicationName}"
         android:extractNativeLibs="true"
+        android:requestLegacyExternalStorage="true"
         android:usesCleartextTraffic="false"
         android:icon="@mipmap/ic_launcher">
         <uses-library
