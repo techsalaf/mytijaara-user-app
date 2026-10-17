@@ -1,387 +1,186 @@
 # CLAUDE.md — 6amMart User App
 
-> **See also:** [.claude/CONVENTIONS.md](.claude/CONVENTIONS.md) — migration policy (old vs `_new` folders), canonical exemplar files, and copy-paste templates for new features. Read it alongside this file before scaffolding code.
-
-## Widget Rules
-
-**Always use Class widgets, never method/function widgets.**
-
-- If the widget is only used within one file, prefix it with `_` to make it private.
-- If it is reused across files, place it in the feature's `widgets/` folder or `lib/common/widgets/`.
-
-```dart
-// CORRECT — public widget (reusable across files)
-class ProductCard extends StatelessWidget {
-  final Product product;
-  const ProductCard({super.key, required this.product});
-
-  @override
-  Widget build(BuildContext context) => Card(child: Text(product.name));
-}
-
-// CORRECT — private widget (file-scoped only)
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  const _SectionHeader({required this.title});
-
-  @override
-  Widget build(BuildContext context) => Text(title);
-}
-
-// WRONG — never do this
-Widget _buildProductCard(Product product) => Card(child: Text(product.name));
-```
-
-Reason: class widgets are reusable, properly rebuild in the widget tree, benefit from `const` constructors, and are debuggable in DevTools. Function widgets bypass the widget lifecycle.
-
-### Constructor Parameter Formatting — group 5 per line
-
-When a `StatelessWidget` or `StatefulWidget` constructor has many parameters, **do not place each constructor parameter on its own line**. Group them **5 per line**, then wrap to the next line for the next 5, and so on.
-
-This rule applies **only to the constructor parameter list**. The `final` field declarations above the constructor stay one per line as usual.
-
-```dart
-// CORRECT — fields one per line, constructor params grouped 5 per line
-class ProductCard extends StatelessWidget {
-  final Product product;
-  final bool isFeatured;
-  final VoidCallback? onTap;
-  final double? width;
-  final EdgeInsets? padding;
-  final Color? backgroundColor;
-  final BorderRadius? borderRadius;
-  final bool showBadge;
-  final String? badgeText;
-  final TextStyle? titleStyle;
-  final bool isHorizontal;
-  final int? maxLines;
-
-  const ProductCard({super.key,
-    required this.product, this.isFeatured = false, this.onTap, this.width, this.padding,
-    this.backgroundColor, this.borderRadius, this.showBadge = false, this.badgeText, this.titleStyle,
-    this.isHorizontal = false, this.maxLines,
-  });
-
-  @override
-  Widget build(BuildContext context) => const SizedBox();
-}
-
-// WRONG — every constructor parameter on its own line
-const ProductCard({
-  super.key,
-  required this.product,
-  this.isFeatured = false,
-  this.onTap,
-  this.width,
-  this.padding,
-  this.backgroundColor,
-  this.borderRadius,
-  this.showBadge = false,
-  this.badgeText,
-  this.titleStyle,
-  this.isHorizontal = false,
-  this.maxLines,
-});
-```
-
-Notes:
-- For constructors with **5 or fewer** parameters, a single line is fine (no wrapping needed).
-- Keep parameters in their original order — do not reorder them just to fit the grouping.
-- This formatting rule is project-specific and overrides `dart format` defaults if they conflict.
+Binding rules for every change in this repository. They apply automatically — no one
+has to ask for them, and no instruction in a prompt relaxes them unless it overrides a
+rule explicitly.
 
 ---
 
-## Project Architecture
+## 1. Comment only what matters
 
-**Clean Architecture + GetX**, with strict layer separation per feature.
+A comment is **one** `//` line. Never `///`, never `/* */`, never two lines, never a
+paragraph.
+
+**Never put a comment above a class, widget, method or constructor.** A file's purpose
+is described once, in the summary at the bottom (rule 7). Do not repeat it as a header.
+
+Comment only inside code, and only where the reason is not obvious — why a decision was
+made, why the obvious approach was avoided, a constraint not visible from that line.
+A short key point, not a description. If it wraps, it is too long.
+
+```dart
+// Server rejects the whole body if this key is sent twice.
+body['saved_images'] = jsonEncode(names);
+```
+
+```dart
+// WRONG — header comment, three lines, describing what the class already shows
+/// Entry shimmer for the checkout — laid out section-for-section against the real
+/// screen (delivery type → address → coupon → tips → payment → billing summary),
+/// with the order bar pinned at the bottom the way the loaded screen has it.
+class CheckoutScreenShimmerView extends StatelessWidget {
+```
+
+Most lines need no comment. Most files need none at all. If a comment explains *what*
+the code does, rename or extract until it does not.
+
+Never commit commented-out code, `TODO` or `FIXME`.
+
+Do not strip comments from files you are not otherwise changing.
+
+---
+
+## 2. Write less code
+
+The smallest change that fully solves the problem is the correct one.
+
+- Do not add abstraction for a case that does not exist yet.
+- Do not add parameters, flags or config "for later".
+- Do not rewrite working code you happened to open.
+- Prefer extending an existing widget, helper or service over creating a new one.
+
+---
+
+## 3. Write nothing unused
+
+Every line must be reached by real code paths.
+
+- No unused variables, fields, parameters, imports or methods.
+- No class, widget or helper that nothing calls.
+- No dead branches or unreachable conditions.
+
+Delete it instead of leaving it. Git holds the history.
+
+---
+
+## 4. Write reusable code
+
+Before writing anything, search for what already exists and use it.
+
+- Shared UI belongs in `lib/common/widgets/`.
+- Feature UI used by more than one file in that feature belongs in its `widgets/` folder.
+- Shared logic belongs in a helper under `lib/helper/`.
+- Never copy-paste a block twice — extract it the first time it repeats.
+
+---
+
+## 5. Write readable code
+
+- Names say what the thing is, not what type it is.
+- One method does one thing.
+- Return early instead of nesting.
+- No clever one-liners that need decoding.
+- No abbreviations beyond ones already used in this codebase.
+
+---
+
+## 6. Industrial code structure
+
+This is a production codebase, not a scratchpad. Every file has one correct home and
+one job. Nothing goes "wherever it fits".
+
+### Project layout
 
 ```
 lib/
-├── api/            # HTTP client, API checker, local cache client
-├── common/         # Shared widgets (73+), shared models
-├── features/       # 45+ self-contained feature modules
-├── helper/         # Utilities, DI (get_di.dart), route_helper.dart
-├── interfaces/     # Abstract contracts
-├── local/          # Drift ORM SQLite cache
-├── theme/          # Light/dark theme definitions
-└── util/           # Constants: dimensions.dart, images.dart, styles.dart, app_constants.dart
+├── api/          HTTP client, response parsing, local cache client
+├── common/       Widgets and models shared across features
+├── features/     Self-contained feature modules
+├── helper/       Utilities, dependency injection, routing
+├── interfaces/   Abstract contracts
+├── local/        SQLite cache
+├── theme/        Light and dark themes
+└── util/         dimensions.dart, styles.dart, images.dart, app_constants.dart
 ```
 
-Each feature follows this internal structure:
+### Feature layout
+
+Every feature follows this structure. No variations, no extra top-level folders.
 
 ```
 features/<feature>/
-├── controllers/    # GetX controllers (state + business logic calls)
+├── controllers/          <feature>_controller.dart
 ├── domain/
-│   ├── models/
-│   ├── repositories/   # *_repository.dart + *_repository_interface.dart
-│   └── services/       # *_service.dart + *_service_interface.dart
-├── screens/        # Full-page UI widgets
-└── widgets/        # Feature-scoped reusable widgets
+│   ├── models/           plain classes with fromJson / toJson
+│   ├── repositories/     <feature>_repository.dart + <feature>_repository_interface.dart
+│   └── services/         <feature>_service.dart + <feature>_service_interface.dart
+├── screens/              full pages, named <name>_screen.dart
+└── widgets/              reusable widgets for this feature only
 ```
+
+### Layering
+
+Data flows one direction, and no layer may skip the one below it.
+
+```
+Screen / Widget  →  Controller  →  ServiceInterface  →  RepositoryInterface  →  ApiClient
+```
+
+- **Screens and widgets** render state and forward user intent. No business logic, no
+  parsing, no direct API or storage access.
+- **Controllers** hold in-memory state and call services. No JSON, no storage keys, no
+  `ApiClient`.
+- **Services** hold business logic, validation and serialisation. Return typed models.
+- **Repositories** are the only layer that talks to `ApiClient` or local storage, and
+  deal in raw primitives.
+- Every service and repository is reached through its interface, never its concrete class.
+
+### Separation of concerns
+
+- A file that does two unrelated jobs is two files.
+- A widget that decides business rules belongs in a controller or service.
+- A model carries data and `fromJson` / `toJson` — nothing else.
+- Cross-feature logic belongs in `common/` or `helper/`, not imported sideways between
+  two features.
+
+### Consistency
+
+- Match the surrounding file's formatting, ordering and idiom.
+- Suffix by role: `Screen`, `Controller`, `Service`, `Repository`, `Interface`.
+- No experimental, throwaway or placeholder code on a branch that ships.
+- No stray scripts, sample files or scratch output committed to the repo.
 
 ---
 
-## State Management — GetX
+## 7. File summary at the bottom
 
-- All controllers extend `GetxController implements GetxService`
-- Use `update()` to trigger rebuilds; wrap in `GetBuilder<ControllerName>`
-- **Never use `Rx<T>` / `.obs`** — always use plain fields + `update()`
-- Register all dependencies in `lib/helper/get_di.dart` using `Get.lazyPut()`
-- Retrieve controllers via `Get.find<ControllerName>()`
+Every file you create or meaningfully change ends with a summary block describing what
+the code in that file does, in plain language.
+
+Place it as the last thing in the file, after all code. One to three sentences. Say what
+it produces and what it holds or handles — not how it is implemented.
 
 ```dart
-class ItemController extends GetxController implements GetxService {
-  List<Item>? _items;
-  List<Item>? get items => _items;
-
-  Future<void> getItems() async {
-    _items = await _itemServiceInterface.getItems();
-    update();
-  }
+class StoreCard extends StatelessWidget {
+  ...
 }
+
+// SUMMARY
+// Store card used in store listings. Holds the store name, rating, review count,
+// delivery time, distance and cover image, and opens the store screen when tapped.
 ```
 
-### Initialization — use widget `initState`, not controller `onInit`
-
-Controllers are **singletons** registered via `Get.lazyPut()`. `onInit` only fires once for the app's lifetime and will not re-run when navigating back to a screen. Always trigger data loading from the widget's `initState`.
-
-```dart
-// CORRECT
-class _ItemScreenState extends State<ItemScreen> {
-  @override
-  void initState() {
-    super.initState();
-    Get.find<ItemController>().getItems();
-  }
-
-  @override
-  Widget build(BuildContext context) => GetBuilder<ItemController>(
-        builder: (controller) => ...,
-      );
-}
-
-// WRONG — stale data on revisit; onInit does not re-run
-class ItemController extends GetxController implements GetxService {
-  @override
-  void onInit() {
-    super.onInit();
-    getItems();
-  }
-}
-```
-
-### `notify` parameter — suppress synchronous `update()` when called from `initState`
-
-A controller method that calls `update()` **before** an `await` triggers a synchronous rebuild. This is safe when called from a button or gesture handler, but **unsafe when called from `initState`** (the widget tree has not been built yet).
-
-**Rule:** Any controller method that contains a synchronous `update()` before an `await` must accept a `bool notify = true` parameter and guard that call. The final `update()` after the `await` is always safe and must remain unconditional.
-
-```dart
-// CORRECT — controller method
-Future<void> loadPickerRoots({bool notify = true}) async {
-  _pickerRootList = null;
-  if (notify) update();          // guarded — skip when called from initState
-  _pickerRootList = await service.getPickerRoots();
-  update();                      // always safe — widget is mounted by this point
-}
-
-// CORRECT — called from initState
-@override
-void initState() {
-  super.initState();
-  Get.find<MyController>().loadPickerRoots(notify: false);
-}
-
-// CORRECT — called from user interaction (default notify: true)
-onTap: () => Get.find<MyController>().loadPickerRoots(),
-
-// WRONG — calling update() before await with no guard, then calling from initState
-Future<void> loadPickerRoots() async {
-  _pickerRootList = null;
-  update();    // ← unsafe if called from initState
-  _pickerRootList = await service.getPickerRoots();
-  update();
-}
-```
+Keep it current. If the file's job changes, update the summary in the same commit.
 
 ---
 
-## Navigation — GetX Named Routes
+## Checklist before finishing any change
 
-- All routes defined in `lib/helper/route_helper.dart`
-- Navigate with `Get.toNamed(RouteHelper.getSomePage())`
-- Pass arguments via route parameters or `Get.arguments`
-- Deep link handling via `app_links` package
-
----
-
-## Dependency Injection
-
-- **All** controllers, services, and repositories are registered in `lib/helper/get_di.dart`
-- Use interfaces for all service and repository dependencies
-- Pattern: Controller → ServiceInterface → RepositoryInterface → ApiClient
-
-```dart
-// In get_di.dart
-Get.lazyPut(() => FeatureController(featureServiceInterface: Get.find()));
-Get.lazyPut<FeatureServiceInterface>(() => FeatureService(featureRepositoryInterface: Get.find()));
-Get.lazyPut<FeatureRepositoryInterface>(() => FeatureRepository(apiClient: Get.find()));
-```
-
----
-
-## API / Network Layer
-
-- HTTP client: `lib/api/api_client.dart` (extends `GetxService`)
-- Methods: `getData()`, `postData()`, `putData()`, `deleteData()`, `multipartRequest()`
-- All responses validated through `lib/api/api_checker.dart`
-- Standard response wrapper: `lib/common/models/response_model.dart`
-- Offline cache via Drift (`lib/local/`) — keyed by endpoint
-
----
-
-## Local Persistence (`SharedPreferences`)
-
-**Never call `SharedPreferences` directly from a controller.** Local read/write must flow through the same layered pipeline as network calls: **Controller → ServiceInterface → RepositoryInterface → Repository (which owns the `SharedPreferences` instance)**.
-
-- The **repository** is the only layer that touches `sharedPreferences` and deals in **raw primitives** (`String`, `bool`, `int`, the JSON string).
-- The **service** owns the **business logic + (de)serialization** — JSON encode/decode, model mapping, de-duplication, list caps, etc. It returns typed values (`AddressModel`, `List<Model>`).
-- The **controller** holds in-memory state and calls the service only — no `Get.find<SharedPreferences>()`, no `jsonEncode`/`jsonDecode`, no storage keys.
-- Storage keys + limits live in `lib/util/app_constants.dart`.
-
-```dart
-// Repository — raw primitives only, the sole owner of SharedPreferences
-@override
-String? getRecentDeliveryAddresses() => sharedPreferences.getString(AppConstants.recentDeliveryAddresses);
-
-@override
-Future<void> saveRecentDeliveryAddresses(String addresses) async {
-  await sharedPreferences.setString(AppConstants.recentDeliveryAddresses, addresses);
-}
-
-// Service — JSON + business logic (dedup, cap), returns typed models
-@override
-List<AddressModel> getRecentDeliveryAddresses() {
-  final String? raw = locationRepoInterface.getRecentDeliveryAddresses();
-  if (raw == null || raw.isEmpty) return [];
-  final List<dynamic> decoded = jsonDecode(raw) as List<dynamic>;
-  return decoded.map((e) => AddressModel.fromJson(e as Map<String, dynamic>)).toList();
-}
-
-// Controller — in-memory state only, delegates to the service
-void loadRecentAddresses() {
-  _recentAddresses = locationServiceInterface.getRecentDeliveryAddresses();
-}
-```
-
-```dart
-// WRONG — controller reaching into SharedPreferences and doing JSON itself
-final prefs = Get.find<SharedPreferences>();
-_recentAddresses = (jsonDecode(prefs.getString(AppConstants.recentDeliveryAddresses)!) as List)
-    .map((e) => AddressModel.fromJson(e)).toList();
-```
-
-Exception: thin static helpers that already wrap a single pref key (e.g. `AddressHelper.getUserAddressFromSharedPref()`) may be reused as-is.
-
----
-
-## Common Widgets
-
-Use existing shared widgets from `lib/common/widgets/` before creating new ones:
-
-| Widget | File |
-|--------|------|
-| `CustomButton` | `custom_button.dart` |
-| `CustomAppBar` | `custom_app_bar.dart` |
-| `CustomImage` | `custom_image.dart` |
-| `CustomLoader` | `custom_loader.dart` |
-| `showCustomSnackBar()` | `custom_snackbar.dart` |
-| `CustomDialog` | `custom_dialog.dart` |
-| Card layouts | `card_design/` subdirectory |
-
----
-
-## Date & Time
-
-**Never call `DateTime.parse()`, `DateFormat(...)`, or `.toIso8601String()` directly in feature code.** All date/time parsing, formatting, and comparison must go through `lib/helper/date_converter.dart`.
-
-- Before writing new date/time logic, check `DateConverter` for an existing method that already does it (formatting a date, parsing an API string, "Today/Yesterday" labels, duration checks, etc.).
-- If no method fits, **add a new static method to `DateConverter`** and call it from your code — do not inline `DateFormat`/`DateTime` logic in screens, widgets, controllers, or models.
-- This keeps date formats (12h/24h via `_timeFormatter()`, locale, "Today"/"Yesterday" wording) consistent app-wide and avoids duplicated parsing logic drifting out of sync across features.
-
-```dart
-// CORRECT — route through DateConverter
-final String label = DateConverter.dateKeyToTodayYesterdayLabel(dateKey);
-final bool isRecent = DateConverter.isWithinDays(createdAt, 30);
-
-// WRONG — raw DateTime/DateFormat in feature code
-final DateTime date = DateTime.parse(dateKey);
-final bool isRecent = DateTime.now().difference(DateTime.parse(createdAt!)).inDays <= 30;
-```
-
-Exception: pure calendar/picker arithmetic with no formatting or parsing of API strings (e.g. building a month grid with `DateTime(year, month, day)`, `DateUtils.dateOnly()`) may use `DateTime` directly — there's no display format to centralize.
-
----
-
-## Styling & Theme
-
-- Spacing/sizes: `lib/util/dimensions.dart`
-- Text styles: `lib/util/styles.dart`
-- Asset paths: `lib/util/images.dart`
-- App-wide constants: `lib/util/app_constants.dart`
-- Colors: via `Theme.of(context)` — supports light/dark + per-module color theming
-- Font: Roboto (weights 400, 500, 700, 900) — defined in `pubspec.yaml`
-- Never hardcode colors, sizes, or font sizes — always reference `Dimensions` / `Styles` / theme
-
----
-
-## Platforms
-
-The app targets **iOS, Android, and Web**. Use `ResponsiveHelper` for layout decisions. Platform-specific code should be gated with `kIsWeb` or `Platform` checks. Route transitions differ: fade for web, top-level for mobile.
-
----
-
-## Code Conventions
-
-- Use `const` constructors wherever possible
-- Always pass `super.key` in widget constructors
-- Name screens with `Screen` suffix, widgets without (or with `Widget` suffix for clarity)
-- Name controllers with `Controller` suffix, services with `Service`, repositories with `Repository`
-- Interface files: `*_interface.dart` (in domain/repositories and domain/services)
-- Models are plain Dart classes with `fromJson` / `toJson`
-
----
-
-## Localization
-
-Every user-visible string **must** use `.tr` (GetX translation). Never use a raw string literal in UI code.
-
-When adding any new user-visible string:
-1. Add the key + English value to `assets/language/en.json`
-2. Add the key + translated value to **every** other language file in `assets/language/` (currently `ar.json`, `bn.json`, `es.json`)
-3. All four files must stay in sync — missing keys fall back to the key name itself, not a translation
-4. always add localization keys end of file
-```dart
-// CORRECT
-Text('filters'.tr)
-Text('currently_open'.tr)
-
-// WRONG — never hardcode UI strings
-Text('Filters')
-Text('Currently Open')
-```
-
----
-
-## Do Not
-
-- Do not create function/method widgets — always create class widgets (use `_PrivateClass` for file-scoped widgets)
-- Do not use `Rx<T>` / `.obs` — use plain fields + `update()`
-- Do not use `GetxController.onInit()` for data loading — controllers are singletons; use widget `initState` instead
-- Do not use `ScaffoldMessenger.of(context).showSnackBar(...)` directly — always use `showCustomSnackBar(message)` from `lib/common/widgets/custom_snackbar.dart`
-- Do not hardcode strings visible to users — use `.tr` (GetX) for i18n
-- Do not call `Get.put()` inside widgets — all DI is in `get_di.dart`
-- Do not add new dependencies without checking if an existing package already covers the need
-- Do not bypass the service/repository layer by calling `ApiClient` directly from a controller
-- Do not use `DateTime.parse()`, `DateFormat(...)`, or `.toIso8601String()` directly in feature code — use/extend `lib/helper/date_converter.dart` instead
+- [ ] No comment above any class, widget, method or constructor
+- [ ] Comments only where the reason is not obvious, one short line each
+- [ ] Nothing written that is not called
+- [ ] Nothing duplicated that could be reused
+- [ ] No file left larger than the change required
+- [ ] Layering respected end to end, with no layer skipped
+- [ ] Every file sits in the folder its role requires
+- [ ] Every touched file ends with an accurate summary block

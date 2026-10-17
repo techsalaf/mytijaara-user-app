@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:get/get.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
@@ -16,7 +17,6 @@ import 'package:sixam_mart/features/auth/screens/new_user_setup_screen.dart';
 import 'package:sixam_mart/features/auth/widgets/sign_in/existing_user_bottom_sheet.dart';
 import 'package:sixam_mart/features/location/controllers/location_controller.dart';
 import 'package:sixam_mart/features/splash/controllers/splash_controller.dart';
-import 'package:sixam_mart/helper/facebook_login_helper.dart';
 import 'package:sixam_mart/helper/keyboard_helper.dart';
 import 'package:sixam_mart/helper/responsive_helper.dart';
 import 'package:sixam_mart/helper/route_helper.dart';
@@ -270,9 +270,23 @@ class LoginSuggestionBottomSheet extends StatelessWidget {
 
   void _facebookLogin() async {
     KeyboardHelper.dismiss();
-    await FacebookLoginHelper.login(
-      onSuccess: (response, facebookBodyModel) => _processSocialSuccessSetup(response, null, null, facebookBodyModel),
-    );
+    LoginResult result = await FacebookAuth.instance.login(permissions: ["public_profile", "email"]);
+    if (result.status == LoginStatus.success) {
+      Map userData = await FacebookAuth.instance.getUserData();
+
+      SocialLogInBody facebookBodyModel = SocialLogInBody(
+        email: userData['email'], token: result.accessToken!.tokenString, uniqueId: userData['id'],
+        medium: 'facebook', loginType: CentralizeLoginType.social.name,
+      );
+
+      Get.find<AuthController>().loginWithSocialMedia(facebookBodyModel).then((response) {
+        if (response.isSuccess) {
+          _processSocialSuccessSetup(response, null, null, facebookBodyModel);
+        } else {
+          showCustomSnackBar(response.message);
+        }
+      });
+    }
   }
 
   void _appleLogin() async {
