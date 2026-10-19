@@ -12,10 +12,16 @@ import 'package:sixam_mart/common/widgets/no_internet_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+// GEMINI-MYTJ: Use one guarded config request and show progress while the
+// server is contacted, instead of repeatedly rebuilding a static logo screen.
 class SplashScreen extends StatefulWidget {
   final NotificationBodyModel? body;
   final String? deeplinkUrl;
-  const SplashScreen({super.key, required this.body, required this.deeplinkUrl});
+  const SplashScreen({
+    super.key,
+    required this.body,
+    required this.deeplinkUrl,
+  });
 
   @override
   SplashScreenState createState() => SplashScreenState();
@@ -30,20 +36,36 @@ class SplashScreenState extends State<SplashScreen> {
     super.initState();
 
     bool firstTime = true;
-    _onConnectivityChanged = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> result) {
-      bool isConnected = result.contains(ConnectivityResult.wifi) || result.contains(ConnectivityResult.mobile);
+    _onConnectivityChanged = Connectivity().onConnectivityChanged.listen((
+      List<ConnectivityResult> result,
+    ) {
+      bool isConnected =
+          result.contains(ConnectivityResult.wifi) ||
+          result.contains(ConnectivityResult.mobile);
 
-      if(!firstTime) {
-        isConnected ? ScaffoldMessenger.of(Get.context!).hideCurrentSnackBar() : const SizedBox();
-        ScaffoldMessenger.of(Get.context!).showSnackBar(SnackBar(
-          backgroundColor: isConnected ? Colors.green : Colors.red,
-          duration: Duration(seconds: isConnected ? 3 : 6000),
-          content: Text(isConnected ? 'connected'.tr : 'no_connection'.tr, textAlign: TextAlign.center),
-        ));
-        if(isConnected) {
-          print('=========here coming-----1-->> ${Get.find<SplashController>().deeplinkRoute}');
-          if(Get.find<SplashController>().deeplinkRoute == null) {
-            Get.find<SplashController>().getConfigData(notificationBody: widget.body, fromSplash: true);
+      if (!firstTime) {
+        isConnected
+            ? ScaffoldMessenger.of(Get.context!).hideCurrentSnackBar()
+            : const SizedBox();
+        ScaffoldMessenger.of(Get.context!).showSnackBar(
+          SnackBar(
+            backgroundColor: isConnected ? Colors.green : Colors.red,
+            duration: Duration(seconds: isConnected ? 3 : 6000),
+            content: Text(
+              isConnected ? 'connected'.tr : 'no_connection'.tr,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        );
+        if (isConnected) {
+          print(
+            '=========here coming-----1-->> ${Get.find<SplashController>().deeplinkRoute}',
+          );
+          if (Get.find<SplashController>().deeplinkRoute == null) {
+            Get.find<SplashController>().getConfigData(
+              notificationBody: widget.body,
+              fromSplash: true,
+            );
           }
         }
       }
@@ -52,48 +74,70 @@ class SplashScreenState extends State<SplashScreen> {
     });
 
     Get.find<SplashController>().initSharedData();
-    if((AuthHelper.getGuestId().isNotEmpty || AuthHelper.isLoggedIn()) && Get.find<SplashController>().cacheModule != null) {
+    if ((AuthHelper.getGuestId().isNotEmpty || AuthHelper.isLoggedIn()) &&
+        Get.find<SplashController>().cacheModule != null) {
       Get.find<CartController>().getAllCarts();
     }
     // _route();
-    print('=========here coming-----2-->> ${Get.find<SplashController>().deeplinkRoute == null}');
-    if(Get.find<SplashController>().deeplinkRoute == null) {
-      Get.find<SplashController>().getConfigData(notificationBody: widget.body, fromSplash: true);
+    print(
+      '=========here coming-----2-->> ${Get.find<SplashController>().deeplinkRoute == null}',
+    );
+    if (Get.find<SplashController>().deeplinkRoute == null) {
+      Get.find<SplashController>().getConfigData(
+        notificationBody: widget.body,
+        fromSplash: true,
+      );
     }
-    _route();
   }
 
   @override
   void dispose() {
-
     _onConnectivityChanged?.cancel();
     super.dispose();
-  }
-
-  void _route() {
-    Get.find<SplashController>().getConfigData(handleMaintenanceMode: false, notificationBody: widget.body, fromSplash: true);
   }
 
   @override
   Widget build(BuildContext context) {
     Get.find<SplashController>().initSharedData();
-    if(AddressHelper.getUserAddressFromSharedPref() != null && AddressHelper.getUserAddressFromSharedPref()!.zoneIds == null) {
+    if (AddressHelper.getUserAddressFromSharedPref() != null &&
+        AddressHelper.getUserAddressFromSharedPref()!.zoneIds == null) {
       Get.find<AuthController>().clearSharedAddress();
     }
 
     return Scaffold(
       key: _globalKey,
-      body: GetBuilder<SplashController>(builder: (splashController) {
-        return Center(
-          child: splashController.hasConnection ? Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Image.asset(Images.logo, width: 200),
-              const SizedBox(height: Dimensions.paddingSizeSmall),
-            ],
-          ) : NoInternetScreen(child: SplashScreen(body: widget.body, deeplinkUrl: widget.deeplinkUrl)),
-        );
-      }),
+      body: GetBuilder<SplashController>(
+        builder: (splashController) {
+          return Center(
+            child: splashController.hasConnection
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(Images.logo, width: 200),
+                      const SizedBox(height: Dimensions.paddingSizeSmall),
+                      const SizedBox(
+                        width: 180,
+                        child: LinearProgressIndicator(minHeight: 4),
+                      ),
+                      const SizedBox(height: Dimensions.paddingSizeSmall),
+                      Text(
+                        'Preparing your shopping experience...',
+                        style: TextStyle(color: Theme.of(context).hintColor),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  )
+                : NoInternetScreen(
+                    child: SplashScreen(
+                      body: widget.body,
+                      deeplinkUrl: widget.deeplinkUrl,
+                    ),
+                  ),
+          );
+        },
+      ),
     );
   }
 }
+
+// GEMINI-MYTJ: End guarded splash loading flow.
