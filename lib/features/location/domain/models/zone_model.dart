@@ -8,10 +8,19 @@ class ZoneModel {
   ZoneModel({this.zoneIds, this.zoneData});
 
   ZoneModel.fromJson(Map<String, dynamic> json) {
+    // GEMINI-MYTJ start: accept both legacy string IDs and native JSON arrays.
     zoneIds = [];
-    jsonDecode(json['zone_id']).forEach((v) {
-      zoneIds!.add(v);
-    });
+    final dynamic rawZoneIds = json['zone_id'];
+    final dynamic decodedZoneIds = rawZoneIds is String
+        ? jsonDecode(rawZoneIds)
+        : rawZoneIds;
+    if (decodedZoneIds is List) {
+      for (final dynamic value in decodedZoneIds) {
+        final int? zoneId = int.tryParse(value.toString());
+        if (zoneId != null) zoneIds!.add(zoneId);
+      }
+    }
+    // GEMINI-MYTJ end
     if (json['zone_data'] != null) {
       zoneData = <ZoneData>[];
       json['zone_data'].forEach((v) {

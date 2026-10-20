@@ -28,16 +28,22 @@ class LocationRepository implements LocationRepositoryInterface {
 
   @override
   Future<ZoneResponseModel> getZone(String? lat, String? lng, {bool handleError = false}) async {
-    Response response = await apiClient.getData('${AppConstants.zoneUri}?lat=$lat&lng=$lng', handleError: handleError);
-    if(response.statusCode == 200) {
-      ZoneResponseModel responseModel;
-      List<int>? zoneIds = ZoneModel.fromJson(response.body).zoneIds;
-      List<ZoneData>? zoneData = ZoneModel.fromJson(response.body).zoneData;
-      responseModel = ZoneResponseModel(true, '' , zoneIds ?? [], zoneData??[], [], response.statusCode, null);
-      return responseModel;
-    } else {
-      return ZoneResponseModel(false, response.statusText, [], [], [], response.statusCode, null);
+    // GEMINI-MYTJ start: preserve encoded coordinates and all successful API responses.
+    final Uri zoneUri = Uri.parse(AppConstants.zoneUri).replace(queryParameters: {
+      'lat': lat ?? '',
+      'lng': lng ?? '',
+    });
+    Response response = await apiClient.getData(zoneUri.toString(), handleError: handleError);
+    if(ApiClient.isSuccessCode(response.statusCode) && response.body is Map<String, dynamic>) {
+      try {
+        final ZoneModel zone = ZoneModel.fromJson(response.body as Map<String, dynamic>);
+        return ZoneResponseModel(true, '', zone.zoneIds ?? [], zone.zoneData ?? [], [], response.statusCode, null);
+      } catch(error) {
+        return ZoneResponseModel(false, 'Invalid zone response: $error', [], [], [], response.statusCode, null);
+      }
     }
+    return ZoneResponseModel(false, response.statusText, [], [], [], response.statusCode, null);
+    // GEMINI-MYTJ end
   }
 
   @override
